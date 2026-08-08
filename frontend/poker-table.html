@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Poker 777 - Game Room</title>
+  <link rel="stylesheet" href="css/poker-table.css">
+
+</head>
+<body>
+  <div class="game" id="game">
+    <div class="background">
+      <div class="glow glow-1"></div>
+      <div class="glow glow-2"></div>
+      <div class="glow glow-3"></div>
+      
+      <!-- พื้นหลังตึก (Silhouette) แบบในรูป -->
+      <div class="cityscape"></div>
+
+      <div class="suit-badge" style="left:12%; top:15%;">♠</div>
+      <div class="suit-badge" style="left:25%; top:35%; animation-delay:1.2s; transform:scale(0.8)">♥</div>
+      <div class="suit-badge" style="right:15%; top:20%; animation-delay:2s;">♣</div>
+      <div class="suit-badge" style="right:22%; top:40%; animation-delay:.6s; transform:scale(0.7)">♦</div>
+      
+      <div id="particles">
+        <span class="particle p1" style="width:4px; height:4px;"></span>
+        <span class="particle p2" style="width:6px; height:6px;"></span>
+        <span class="particle p3" style="width:5px; height:5px;"></span>
+        <span class="particle p4" style="width:4px; height:4px;"></span>
+      </div>
+    </div>
+
+    <!-- Header -->
+    <header class="header">
+      <div class="room-panel">
+        <button class="menu-button" aria-label="Menu">
+          <span></span><span></span><span></span>
+        </button>
+        <div>
+          <div class="room-title"><strong>Poker777</strong> | Dream Room</div>
+          <div class="room-subtitle">No Limit Hold'em • Blinds 50/100</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Table -->
+    <main class="table-wrapper">
+      <div class="table-outer-glow">
+        <div class="table-border">
+          <div class="table" id="poker-table">
+
+            <div class="pot" id="pot-display">
+              <span>POT</span>
+              <strong id="pot-value">850</strong>
+            </div>
+
+            <div class="turn-timer">
+              <div class="timer-ring"><span>12</span></div>
+              <div>
+                <strong>Your Turn</strong>
+                <small>Make your move</small>
+              </div>
+            </div>
+
+            <section class="community-area" id="community-cards">
+              <div class="community-title">COMMUNITY CARDS</div>
+              <div class="community-cards">
+                <div class="playing-card red"><b>A</b><span>♥</span></div>
+                <div class="playing-card"><b>K</b><span>♣</span></div>
+                <div class="playing-card red"><b>Q</b><span>♦</span></div>
+                <div class="playing-card red"><b>J</b><span>♥</span></div>
+                <div class="playing-card"><b>10</b><span>♠</span></div>
+              </div>
+            </section>
+
+            <!-- Players -->
+            <div class="player player-top">
+              <div class="avatar"><img class="avatar-inner" src="images/mymatenate.jpg" alt="Player Avatar"></div>
+              <div class="player-info">
+                <div class="player-name">MyMateNate</div>
+                <div class="player-chips">2,450</div>
+              </div>
+            </div>
+
+            <div class="player player-left-top">
+              <div class="avatar"><img class="avatar-inner" src="images/ronaldo.jpg" alt="Player Avatar"></div>
+              <div class="player-info">
+                <div class="player-name">Ronaldo</div>
+                <div class="player-chips">1,980</div>
+              </div>
+            </div>
+            
+            <div class="player player-right-top">
+              <div class="avatar"><img class="avatar-inner" src="images/anutin.jpg" alt="Player Avatar"></div>
+              <div class="player-info">
+                <div class="player-name">Anutin</div>
+                <div class="player-chips">2,200</div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- User Section -->
+    <section class="user-section">
+      <div class="user-avatar">
+        <img class="avatar-art" src="images/speed.jpg" alt="Player Avatar">
+      </div>
+      <div class="user-info">
+        <div class="user-name">Me</div>
+        <div class="user-chips" id="user-chips">2,680</div>
+        <div class="progress">
+          <div class="progress-value" id="chip-progress"></div>
+        </div>
+      </div>
+      <div class="user-cards" id="user-cards">
+        <div class="user-card"><span>A</span><strong>♠</strong></div>
+        <div class="user-card red"><span>K</span><strong>♦</strong></div>
+      </div>
+    </section>
+
+    <!-- Action Bar -->
+    <section class="action-bar">
+      <button class="action-button fold">
+        <span class="action-icon">✕</span>
+        <strong>FOLD</strong>
+      </button>
+
+      <button class="action-button check">
+        <span class="action-icon">✓</span>
+        <strong>CHECK</strong>
+      </button>
+
+      <div class="bet-control">
+        <button class="small-control">−</button>
+        <div class="bet-value">
+          <span>BET</span>
+          <strong>100</strong>
+        </div>
+        <button class="small-control">+</button>
+      </div>
+
+      <button class="action-button bet">
+        <span>BET</span>
+        <strong>100</strong>
+      </button>
+
+      <button class="action-button raise">
+        <span>RAISE TO</span>
+        <strong>200</strong>
+      </button>
+    </section>
+
+  </div>
+</body>
+</html>

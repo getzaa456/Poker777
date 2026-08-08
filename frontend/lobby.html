@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Poker777 — Lobby</title>
+
+<!-- Playful rounded display font + clean rounded body font -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/lobby.css">
+
+</head>
+<body>
+
+<div class="app-background" id="appBackground">
+
+  <!-- หมอกออร่าไอแสงเนบิวลา Ambient Glows -->
+  <div class="cloud" style="width:280px;height:280px;top:5%;left:5%;"></div>
+  <div class="cloud" style="width:220px;height:220px;top:10%;left:70%;"></div>
+  <div class="cloud" style="width:320px;height:320px;top:2%;left:35%;"></div>
+
+  <div class="castle-silhouette"></div>
+
+  <!-- Glass Casino Chips สัญลักษณ์ไพ่เรืองแสง (♠ ♥ ♣ ♦) -->
+  <div class="balloon" data-suit="♠" style="--b-glow:rgba(95,208,232,0.6); width:56px;height:56px; top:12%;left:26%;animation-delay:0s;"></div>
+  <div class="balloon" data-suit="♥" style="--b-glow:rgba(255,95,162,0.6); width:48px;height:48px; top:8%;left:36%;animation-delay:.6s;"></div>
+  <div class="balloon" data-suit="♣" style="--b-glow:rgba(217,139,224,0.6); width:58px;height:58px; top:7%;right:15%;animation-delay:.3s;"></div>
+  <div class="balloon" data-suit="♦" style="--b-glow:rgba(255,209,102,0.6); width:50px;height:50px; top:13%;right:8%;animation-delay:.9s;"></div>
+  <div class="balloon" data-suit="♠" style="--b-glow:rgba(139,110,247,0.6); width:52px;height:52px; top:17%;right:22%;animation-delay:1.2s;"></div>
+
+  <!-- Sparkling Dust particles -->
+  <div class="confetti" style="color:#ffd166;top:10%;left:20%;animation-delay:0s;"></div>
+  <div class="confetti" style="color:#ff5fa2;top:15%;left:60%;animation-delay:1s;"></div>
+  <div class="confetti" style="color:#5fd0e8;top:8%;left:78%;animation-delay:2s;"></div>
+  <div class="confetti" style="color:#8b6ef7;top:20%;left:40%;animation-delay:1.5s;"></div>
+
+  <!-- ======================= HEADER: PLAYER WIDGET ======================= -->
+  <header class="profile-widget" id="profileWidget">
+    <img class="avatar" src="images/speed.jpg" alt="Player Avatar">
+    <div class="profile-info">
+      <div class="profile-name">Dreamer</div>
+      <div class="profile-level">Lv. 28</div>
+      <div class="xp-bar"><div class="xp-fill"></div></div>
+    </div>
+    <button class="expand-btn" id="expandBtn" title="View profile">+</button>
+  </header>
+
+  <!-- ======================= PROFILE PANEL (MODAL CARD) ======================= -->
+  <section class="profile-panel" id="profilePanel">
+    <button class="close-btn" id="closeBtn">✕</button>
+
+    <div class="panel-header">
+      <img class="avatar large" src="images/speed.jpg" alt="Player Avatar">
+      <div>
+        <div class="panel-name">Dreamer <span class="edit-icon">✎</span></div>
+        <div class="panel-meta">
+          <span class="level-chip">Lv. 28</span>
+          <span class="title-badge">Dream Knight</span>
+        </div>
+        <div class="rank-points">⭐ 2,450 / 3,000</div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="section-label">◆ Stats ◆</div>
+    <div class="stats-grid">
+      <div class="stat">
+        <div class="stat-label">Win / Loss</div>
+        <div class="stat-value"><span class="win">123</span> / <span class="loss">87</span></div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Win Rate</div>
+        <div class="stat-value">58.6%</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Total Chips Won</div>
+        <div class="stat-value">🪙 2.45M</div>
+      </div>
+    </div>
+
+    <!-- Recent hands -->
+    <div class="section-label">◆ Recent 5 Hands ◆</div>
+
+    <div class="hand-row">
+      <div class="hand-index">1</div>
+      <div class="hand-result win-text">WIN</div>
+      <div class="mini-cards">
+        <div class="mini-card red">A♥</div><div class="mini-card red">K♥</div>
+        <div class="mini-card red">Q♥</div><div class="mini-card red">J♥</div>
+        <div class="mini-card red">10♥</div>
+      </div>
+      <div class="hand-chips pos">+15,200</div>
+      <div class="hand-time">10 min ago</div>
+    </div>
+
+    <div class="hand-row">
+      <div class="hand-index">2</div>
+      <div class="hand-result loss-text">LOSS</div>
+      <div class="mini-cards">
+        <div class="mini-card">K♠</div><div class="mini-card">Q♠</div>
+        <div class="mini-card">J♠</div><div class="mini-card">10♠</div>
+        <div class="mini-card">9♠</div>
+      </div>
+      <div class="hand-chips neg">-8,300</div>
+      <div class="hand-time">25 min ago</div>
+    </div>
+
+    <div class="hand-row">
+      <div class="hand-index">3</div>
+      <div class="hand-result win-text">WIN</div>
+      <div class="mini-cards">
+        <div class="mini-card">A♠</div><div class="mini-card red">A♥</div>
+        <div class="mini-card">K♠</div><div class="mini-card">Q♠</div>
+        <div class="mini-card">J♠</div>
+      </div>
+      <div class="hand-chips pos">+22,100</div>
+      <div class="hand-time">45 min ago</div>
+    </div>
+
+    <div class="hand-row">
+      <div class="hand-index">4</div>
+      <div class="hand-result win-text">WIN</div>
+      <div class="mini-cards">
+        <div class="mini-card">Q♠</div><div class="mini-card">J♠</div>
+        <div class="mini-card">10♠</div><div class="mini-card">9♠</div>
+        <div class="mini-card">8♠</div>
+      </div>
+      <div class="hand-chips pos">+9,500</div>
+      <div class="hand-time">1 hr ago</div>
+    </div>
+
+    <div class="hand-row">
+      <div class="hand-index">5</div>
+      <div class="hand-result loss-text">LOSS</div>
+      <div class="mini-cards">
+        <div class="mini-card">J♠</div><div class="mini-card">10♠</div>
+        <div class="mini-card">9♠</div><div class="mini-card">8♠</div>
+        <div class="mini-card">7♠</div>
+      </div>
+      <div class="hand-chips neg">-7,800</div>
+      <div class="hand-time">2 hr ago</div>
+    </div>
+
+    <button class="edit-profile-btn">Edit Profile ✎</button>
+  </section>
+
+  <!-- ======================= LOGO ======================= -->
+  <div class="logo-section">
+    <img src="images/logo.png" alt="Poker Logo" class="animated-logo">
+  </div>
+
+  <!-- ======================= MAIN ACTION BUTTONS ======================= -->
+  <div class="action-buttons">
+    <button class="btn create-room">
+      <div class="btn-title">CREATE ROOM</div>
+      <div class="btn-sub">Be the host and invite friends!</div>
+    </button>
+
+    <button class="btn join-room">
+      <div class="btn-title">JOIN ROOM</div>
+      <div class="btn-sub">Join a room with friends!</div>
+    </button>
+  </div>
+
+  <!-- ======================= ROOM CODE ENTRY ======================= -->
+  <div class="room-code-bar">
+    <input type="text" placeholder="Enter Room Code">
+    <button class="join-code-btn">Join</button>
+  </div>
+
+</div>
+
+<script>
+  // ===================== PROFILE PANEL TOGGLE =====================
+  const widget = document.getElementById('profileWidget');
+  const panel  = document.getElementById('profilePanel');
+  const closeBtn = document.getElementById('closeBtn');
+
+  widget.addEventListener('click', () => panel.classList.add('open'));
+  closeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    panel.classList.remove('open');
+  });
+  
+  panel.classList.remove('open');
+</script>
+
+</body>
+</html>

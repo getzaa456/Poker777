@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Poker777 — Login</title>
+<link rel="stylesheet" href="css/index.css">
+</head>
+<body>
+
+  <!-- ===== Floating background decoration ===== -->
+  <div class="balloon b1"></div>
+  <div class="balloon b2"></div>
+  <div class="balloon b3"></div>
+  <div class="balloon b4"></div>
+  <div class="sparkle s1">✦</div>
+  <div class="sparkle s2">✧</div>
+  <div class="sparkle s3">✦</div>
+
+  <!-- ===== Main card ===== -->
+  <div class="stage">
+
+    <!-- ===== Hero / Brand Panel (original art, no copyrighted character) ===== -->
+    <div class="hero-panel">
+      <div class="brand">
+        Poker777
+        <span>Jump into the dream, play your hand!</span>
+      </div>
+      <div class="avatar-ring">
+        <div class="face">
+          <div class="eye left"></div>
+          <div class="eye right"></div>
+          <div class="smile"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Auth Panel ===== -->
+    <div class="auth-panel">
+
+      <div class="welcome">
+        <div class="eyebrow">Welcome to</div>
+        <h1>Poker777</h1>
+        <p>Cloud-powered Poker built for seamless play with friends.</p>
+      </div>
+
+      <!-- ===== Login / Register Tabs ===== -->
+      <div class="tabs">
+        <button class="active" onclick="switchTab(this,'login')">Login</button>
+        <button onclick="switchTab(this,'register')">Register</button>
+      </div>
+
+      <!-- ===== Login Form ===== -->
+      <form id="login-form">
+        <div class="field">
+          <input type="text" placeholder="Username" required>
+        </div>
+        <div class="field">
+          <input id="pwd-login" type="password" placeholder="Password" required>
+          <span class="toggle" onclick="togglePwd('pwd-login')">&#128065;</span>
+        </div>
+
+        <div class="row-between">
+          <label class="remember">
+            <input type="checkbox" checked>
+            Remember me
+          </label>
+          <a class="forgot" href="#">Forgot password?</a>
+        </div>
+
+        <button type="submit" class="btn-primary">Login</button>
+      </form>
+
+      <!-- ===== Register Form ===== -->
+      <form id="register-form" style="display: none;">
+        <div class="field">
+          <input type="email" placeholder="Email" required>
+        </div>
+        <div class="field">
+          <input type="text" placeholder="Username" required>
+        </div>
+        <div class="field">
+          <input id="pwd-reg" type="password" placeholder="Password" required>
+          <span class="toggle" onclick="togglePwd('pwd-reg')">&#128065;</span>
+        </div>
+        <div class="field">
+          <input id="pwd-reg-conf" type="password" placeholder="Confirm Password" required>
+          <span class="toggle" onclick="togglePwd('pwd-reg-conf')">&#128065;</span>
+        </div>
+
+        <button type="submit" class="btn-primary">Register</button>
+      </form>
+
+      <!-- ===== Social Login ===== -->
+      <div class="divider"></div>
+
+    </div>
+  </div>
+
+  <script>
+    // ===== Tab switching (Login / Register) =====
+    function switchTab(btn, tab){
+      document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      
+      // Swap form fields
+      if(tab === 'login') {
+        document.getElementById('login-form').style.display = 'flex';
+        document.getElementById('register-form').style.display = 'none';
+      } else {
+        document.getElementById('login-form').style.display = 'none';
+        document.getElementById('register-form').style.display = 'flex';
+      }
+    }
+
+    // ===== Password show/hide toggle =====
+    function togglePwd(inputId){
+      const pwd = document.getElementById(inputId);
+      pwd.type = pwd.type === 'password' ? 'text' : 'password';
+    }
+
+    // ===== Prevent actual submit for demo =====
+    document.getElementById('login-form').addEventListener('submit', e => {
+      e.preventDefault();
+      alert('Login submitted (demo only)');
+    });
+    
+    document.getElementById('register-form').addEventListener('submit', e => {
+      e.preventDefault();
+      alert('Register submitted (demo only)');
+    });
+  </script>
+
+</body>
+</html>
