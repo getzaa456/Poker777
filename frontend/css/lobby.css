@@ -335,7 +335,6 @@ img.avatar.large{ width:84px; height:84px; border-width: 3px; }
   max-width:600px;
   width:90%;
   height:auto;
-  animation:cuteFloatLogo 4s ease-in-out infinite;
   filter:drop-shadow(0 10px 25px rgba(255, 255, 255, 0.4));
 }
 @keyframes cuteFloatLogo{

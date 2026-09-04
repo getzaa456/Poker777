@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/lobby.css">
-
+<link rel="stylesheet" href="css/glassmorphism-button.css">
 </head>
 <body>
 
@@ -142,7 +142,19 @@
       <div class="hand-time">2 hr ago</div>
     </div>
 
-    <button class="edit-profile-btn">Edit Profile ✎</button>
+    <button class="glass-cta glass-cta-full glass-cta-gold" style="margin-top: 14px;">
+      <div class="glass-cta-shimmer-wrap">
+        <div class="glass-cta-shimmer-inner">
+          <div class="glass-cta-shimmer-conic"></div>
+        </div>
+      </div>
+      <div class="glass-cta-cutout"></div>
+      <div class="glass-cta-content">
+        <div class="glass-cta-border-beam"></div>
+        <div class="glass-cta-inner-bg"></div>
+        <span class="glass-cta-label">Edit Profile ✎</span>
+      </div>
+    </button>
   </section>
 
   <!-- ======================= LOGO ======================= -->
@@ -152,21 +164,57 @@
 
   <!-- ======================= MAIN ACTION BUTTONS ======================= -->
   <div class="action-buttons">
-    <button class="btn create-room">
-      <div class="btn-title">CREATE ROOM</div>
-      <div class="btn-sub">Be the host and invite friends!</div>
+    <button class="glass-cta glass-cta-lobby glass-cta-pink" onclick="window.location.href='poker-table.html'">
+      <div class="glass-cta-shimmer-wrap">
+        <div class="glass-cta-shimmer-inner">
+          <div class="glass-cta-shimmer-conic"></div>
+        </div>
+      </div>
+      <div class="glass-cta-cutout"></div>
+      <div class="glass-cta-content">
+        <div class="glass-cta-border-beam"></div>
+        <div class="glass-cta-inner-bg"></div>
+        <div class="glass-cta-text-group">
+          <span class="glass-cta-label">CREATE ROOM</span>
+          <span class="glass-cta-sub">Be the host and invite friends!</span>
+        </div>
+      </div>
     </button>
 
-    <button class="btn join-room">
-      <div class="btn-title">JOIN ROOM</div>
-      <div class="btn-sub">Join a room with friends!</div>
+    <button class="glass-cta glass-cta-lobby glass-cta-cyan" onclick="window.location.href='poker-table.html'">
+      <div class="glass-cta-shimmer-wrap">
+        <div class="glass-cta-shimmer-inner">
+          <div class="glass-cta-shimmer-conic"></div>
+        </div>
+      </div>
+      <div class="glass-cta-cutout"></div>
+      <div class="glass-cta-content">
+        <div class="glass-cta-border-beam"></div>
+        <div class="glass-cta-inner-bg"></div>
+        <div class="glass-cta-text-group">
+          <span class="glass-cta-label">JOIN ROOM</span>
+          <span class="glass-cta-sub">Join a room with friends!</span>
+        </div>
+      </div>
     </button>
   </div>
 
   <!-- ======================= ROOM CODE ENTRY ======================= -->
   <div class="room-code-bar">
-    <input type="text" placeholder="Enter Room Code">
-    <button class="join-code-btn">Join</button>
+    <input type="text" id="roomCodeInput" placeholder="Enter Room Code">
+    <button class="glass-cta glass-cta-sm glass-cta-purple" onclick="const code = document.getElementById('roomCodeInput').value; if(code.trim()){ window.location.href='poker-table.html'; } else { alert('Please enter a room code'); }">
+      <div class="glass-cta-shimmer-wrap">
+        <div class="glass-cta-shimmer-inner">
+          <div class="glass-cta-shimmer-conic"></div>
+        </div>
+      </div>
+      <div class="glass-cta-cutout"></div>
+      <div class="glass-cta-content">
+        <div class="glass-cta-border-beam"></div>
+        <div class="glass-cta-inner-bg"></div>
+        <span class="glass-cta-label">Join</span>
+      </div>
+    </button>
   </div>
 
 </div>
@@ -184,6 +232,18 @@
   });
   
   panel.classList.remove('open');
+</script>
+
+<!-- Dynamic Delaunay Triangulation Lattice Background -->
+<script src="js/lattice-background.js"></script>
+<script>
+  initLatticeBackground({
+    strokeRGB: "139, 110, 247", // Cyber violet (#8b6ef7)
+    accentRGB: "79, 179, 255",  // Electric neon cyan/blue (#4fb3ff)
+    maxDistance: 140,
+    transparent: true,
+    zIndex: 1
+  });
 </script>
 
 </body>

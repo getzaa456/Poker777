@@ -1,0 +1,348 @@
+/* ==========================================================================
+   GLASSMORPHISM CTA BUTTONS (Matching React Demo Component)
+   Dual rotating shimmer border + border beam + glassmorphism backdrop
+   ========================================================================== */
+
+@keyframes rotate-gradient {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes borderBeamRotation {
+  0% {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(360deg);
+  }
+}
+
+/* Base CTA Button Container */
+.glass-cta {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  overflow: hidden;
+  text-decoration: none;
+  isolation: isolate;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 8px 40px rgba(129, 140, 248, 0.25);
+  font-family: inherit;
+  padding: 0;
+  user-select: none;
+  -webkit-user-select: none;
+
+  /* CSS Variables */
+  --spread: 90deg;
+  --shimmer-color: rgba(255, 255, 255, 0.7);
+  --speed: 4s;
+  --cut: 1px;
+  --bg: rgba(255, 255, 255, 0.05);
+}
+
+.glass-cta:hover {
+  transform: scale(1.04);
+  box-shadow: 0 0 35px 8px rgba(129, 140, 248, 0.4);
+}
+
+.glass-cta:active {
+  transform: scale(0.97);
+}
+
+/* Outer Conic Shimmer */
+.glass-cta-shimmer-wrap {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.glass-cta-shimmer-inner {
+  position: absolute;
+  inset: -200%;
+  width: 400%;
+  height: 400%;
+  animation: rotate-gradient var(--speed, 4s) linear infinite;
+}
+
+.glass-cta-shimmer-conic {
+  position: absolute;
+  inset: 0;
+  background: conic-gradient(
+    from calc(270deg - (var(--spread, 90deg) * 0.5)),
+    transparent 0,
+    var(--shimmer-color, rgba(255, 255, 255, 0.6)) var(--spread, 90deg),
+    transparent var(--spread, 90deg)
+  );
+}
+
+/* Cutout layer with backdrop blur */
+.glass-cta-cutout {
+  position: absolute;
+  border-radius: 9999px;
+  background: var(--bg, rgba(255, 255, 255, 0.05));
+  inset: var(--cut, 1px);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  pointer-events: none;
+}
+
+/* Inner Content Container */
+.glass-cta-content {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 22px;
+  border-radius: 9999px;
+  overflow: hidden;
+  color: #ffffff;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+/* Border Beam */
+.glass-cta-border-beam {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.25),
+    rgba(255, 255, 255, 0.25),
+    rgba(255, 255, 255, 0.25),
+    rgba(255, 255, 255, 0.25),
+    transparent
+  );
+  animation: borderBeamRotation 4s infinite linear;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* Inner Background */
+.glass-cta-inner-bg {
+  position: absolute;
+  inset: 1px;
+  background: rgba(10, 11, 20, 0.82);
+  border-radius: 9999px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  pointer-events: none;
+}
+
+/* Avatar / Icon / Text / Sparkle elements */
+.glass-cta-avatar {
+  position: relative;
+  z-index: 10;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
+  flex-shrink: 0;
+}
+
+.glass-cta-avatar-icon {
+  position: relative;
+  z-index: 10;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.15);
+  flex-shrink: 0;
+}
+
+.glass-cta-text-group {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  width: 100%;
+}
+
+.glass-cta-label {
+  position: relative;
+  z-index: 10;
+  white-space: nowrap;
+  font-family: inherit;
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+  text-align: center;
+}
+
+.glass-cta-sub {
+  position: relative;
+  z-index: 10;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.85);
+  white-space: nowrap;
+  font-weight: 600;
+  margin-top: 3px;
+  text-align: center;
+}
+  font-weight: 500;
+  margin-top: 1px;
+}
+
+.glass-cta-sparkle {
+  position: relative;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.12);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  margin-left: 4px;
+  flex-shrink: 0;
+}
+
+.glass-cta-sparkle svg {
+  width: 16px;
+  height: 16px;
+  color: #ffffff;
+}
+
+/* ==========================================================================
+   COLOR VARIANTS
+   ========================================================================== */
+
+/* Pink / Ruby (Login, Create Room) */
+.glass-cta-pink {
+  --shimmer-color: rgba(255, 95, 162, 0.9);
+  box-shadow: 0 8px 30px rgba(255, 95, 162, 0.3);
+}
+.glass-cta-pink:hover {
+  box-shadow: 0 0 40px 10px rgba(255, 95, 162, 0.45);
+}
+.glass-cta-pink .glass-cta-inner-bg {
+  background: rgba(26, 10, 22, 0.85);
+}
+
+/* Purple / Violet (Register, Lobby) */
+.glass-cta-purple {
+  --shimmer-color: rgba(139, 110, 247, 0.9);
+  box-shadow: 0 8px 30px rgba(139, 110, 247, 0.3);
+}
+.glass-cta-purple:hover {
+  box-shadow: 0 0 40px 10px rgba(139, 110, 247, 0.45);
+}
+.glass-cta-purple .glass-cta-inner-bg {
+  background: rgba(16, 12, 32, 0.85);
+}
+
+/* Cyan / Blue (Join Room) */
+.glass-cta-cyan {
+  --shimmer-color: rgba(79, 179, 255, 0.9);
+  box-shadow: 0 8px 30px rgba(79, 179, 255, 0.3);
+}
+.glass-cta-cyan:hover {
+  box-shadow: 0 0 40px 10px rgba(79, 179, 255, 0.45);
+}
+.glass-cta-cyan .glass-cta-inner-bg {
+  background: rgba(10, 18, 32, 0.85);
+}
+
+/* Gold (Profile, Special) */
+.glass-cta-gold {
+  --shimmer-color: rgba(255, 209, 102, 0.9);
+  box-shadow: 0 8px 30px rgba(255, 209, 102, 0.25);
+}
+.glass-cta-gold:hover {
+  box-shadow: 0 0 40px 10px rgba(255, 209, 102, 0.4);
+}
+.glass-cta-gold .glass-cta-inner-bg {
+  background: rgba(24, 20, 10, 0.85);
+}
+
+/* ==========================================================================
+   SIZE & LAYOUT MODIFIERS
+   ========================================================================== */
+
+/* Full-width for forms */
+.glass-cta-full {
+  width: 100%;
+  margin-top: 6px;
+}
+.glass-cta-full .glass-cta-content {
+  padding: 14px 20px;
+}
+.glass-cta-full .glass-cta-label {
+  font-family: 'Baloo 2', sans-serif;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+/* Large Lobby Buttons */
+.glass-cta-lobby {
+  min-width: 300px;
+  padding: 0;
+}
+.glass-cta-lobby .glass-cta-content {
+  padding: 22px 30px 20px;
+  gap: 4px;
+}
+.glass-cta-lobby .glass-cta-label {
+  font-family: var(--font-display, 'Baloo 2', sans-serif);
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+.glass-cta-lobby .glass-cta-sub {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 600;
+}
+
+/* Compact button (e.g. Room Code Join) */
+.glass-cta-sm {
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+.glass-cta-sm .glass-cta-content {
+  padding: 10px 22px;
+  gap: 8px;
+  font-size: 14px;
+}
+.glass-cta-sm .glass-cta-sparkle {
+  width: 22px;
+  height: 22px;
+}
+.glass-cta-sm .glass-cta-sparkle svg {
+  width: 13px;
+  height: 13px;
+}
+
+@media (max-width: 720px) {
+  .glass-cta-lobby {
+    width: 100%;
+    max-width: 340px;
+  }
+}

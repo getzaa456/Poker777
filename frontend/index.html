@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Poker777 — Login</title>
 <link rel="stylesheet" href="css/index.css">
+<link rel="stylesheet" href="css/glassmorphism-button.css">
 </head>
 <body>
 
@@ -68,7 +69,19 @@
           <a class="forgot" href="#">Forgot password?</a>
         </div>
 
-        <button type="submit" class="btn-primary">Login</button>
+        <button type="submit" class="glass-cta glass-cta-full glass-cta-pink">
+          <div class="glass-cta-shimmer-wrap">
+            <div class="glass-cta-shimmer-inner">
+              <div class="glass-cta-shimmer-conic"></div>
+            </div>
+          </div>
+          <div class="glass-cta-cutout"></div>
+          <div class="glass-cta-content">
+            <div class="glass-cta-border-beam"></div>
+            <div class="glass-cta-inner-bg"></div>
+            <span class="glass-cta-label">Login</span>
+          </div>
+        </button>
       </form>
 
       <!-- ===== Register Form ===== -->
@@ -88,7 +101,19 @@
           <span class="toggle" onclick="togglePwd('pwd-reg-conf')">&#128065;</span>
         </div>
 
-        <button type="submit" class="btn-primary">Register</button>
+        <button type="submit" class="glass-cta glass-cta-full glass-cta-purple">
+          <div class="glass-cta-shimmer-wrap">
+            <div class="glass-cta-shimmer-inner">
+              <div class="glass-cta-shimmer-conic"></div>
+            </div>
+          </div>
+          <div class="glass-cta-cutout"></div>
+          <div class="glass-cta-content">
+            <div class="glass-cta-border-beam"></div>
+            <div class="glass-cta-inner-bg"></div>
+            <span class="glass-cta-label">Register</span>
+          </div>
+        </button>
       </form>
 
       <!-- ===== Social Login ===== -->
@@ -119,15 +144,27 @@
       pwd.type = pwd.type === 'password' ? 'text' : 'password';
     }
 
-    // ===== Prevent actual submit for demo =====
+    // ===== Navigate to Lobby on submit =====
     document.getElementById('login-form').addEventListener('submit', e => {
       e.preventDefault();
-      alert('Login submitted (demo only)');
+      window.location.href = 'lobby.html';
     });
     
     document.getElementById('register-form').addEventListener('submit', e => {
       e.preventDefault();
-      alert('Register submitted (demo only)');
+      window.location.href = 'lobby.html';
+    });
+  </script>
+
+  <!-- Dynamic Delaunay Triangulation Lattice Background -->
+  <script src="js/lattice-background.js"></script>
+  <script>
+    initLatticeBackground({
+      strokeRGB: "143, 123, 255", // Soft casino lavender/purple
+      accentRGB: "255, 111, 176", // Vibrant neon hot pink
+      maxDistance: 135,
+      transparent: true,
+      zIndex: 0
     });
   </script>
 

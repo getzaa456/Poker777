@@ -106,6 +106,7 @@
   /* ===== Page wrapper ===== */
   .stage{
     position:relative;
+    z-index:10;
     width:100%;
     max-width:880px;
     display:flex;
@@ -370,4 +371,23 @@
     .avatar-ring .smile{ top:60px; left:48px; width:24px; height:12px; border-bottom-width:4px; }
     .brand{ font-size:22px; }
     .brand span{ font-size:14px; }
+  }
+
+  /* Glassmorphism CTA animations */
+  @keyframes rotate-gradient {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @keyframes borderBeamRotation {
+    0% {
+      transform: translate(-50%, -50%) rotate(0deg);
+    }
+    100% {
+      transform: translate(-50%, -50%) rotate(360deg);
+    }
   }
