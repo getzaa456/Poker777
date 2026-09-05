@@ -37,7 +37,7 @@
 
   <!-- ======================= HEADER: PLAYER WIDGET ======================= -->
   <header class="profile-widget" id="profileWidget">
-    <img class="avatar" src="images/speed.jpg" alt="Player Avatar">
+    <div class="avatar avatar-svg" id="headerAvatar" role="img" aria-label="Player Avatar"></div>
     <div class="profile-info">
       <div class="profile-name">Dreamer</div>
       <div class="profile-level">Lv. 28</div>
@@ -50,15 +50,24 @@
   <section class="profile-panel" id="profilePanel">
     <button class="close-btn" id="closeBtn">✕</button>
 
-    <div class="panel-header">
-      <img class="avatar large" src="images/speed.jpg" alt="Player Avatar">
-      <div>
-        <div class="panel-name">Dreamer <span class="edit-icon">✎</span></div>
-        <div class="panel-meta">
-          <span class="level-chip">Lv. 28</span>
-          <span class="title-badge">Dream Knight</span>
+    <div class="avatar-picker">
+      <div class="avatar-picker-banner"></div>
+      <div class="avatar-picker-body">
+        <div class="avatar-main-frame">
+          <div class="avatar-main" id="mainAvatar" aria-hidden="true"></div>
         </div>
-        <div class="rank-points">⭐ 2,450 / 3,000</div>
+
+        <div class="avatar-picker-identity">
+          <h2 class="panel-name">Dreamer</h2>
+          <p class="avatar-picker-hint">Select your avatar</p>
+          <div class="panel-meta">
+            <span class="level-chip">Lv. 28</span>
+            <span class="title-badge">Dream Knight</span>
+          </div>
+          <div class="rank-points">⭐ 2,450 / 3,000</div>
+        </div>
+
+        <div class="avatar-choices" id="avatarChoices"></div>
       </div>
     </div>
 
@@ -142,7 +151,7 @@
       <div class="hand-time">2 hr ago</div>
     </div>
 
-    <button class="glass-cta glass-cta-full glass-cta-gold" style="margin-top: 14px;">
+    <button class="glass-cta glass-cta-full glass-cta-gold" id="confirmAvatarBtn" style="margin-top: 14px;">
       <div class="glass-cta-shimmer-wrap">
         <div class="glass-cta-shimmer-inner">
           <div class="glass-cta-shimmer-conic"></div>
@@ -152,7 +161,7 @@
       <div class="glass-cta-content">
         <div class="glass-cta-border-beam"></div>
         <div class="glass-cta-inner-bg"></div>
-        <span class="glass-cta-label">Edit Profile ✎</span>
+        <span class="glass-cta-label">Confirm Avatar</span>
       </div>
     </button>
   </section>
@@ -219,19 +228,35 @@
 
 </div>
 
+<script src="js/avatar-picker.js"></script>
 <script>
   // ===================== PROFILE PANEL TOGGLE =====================
   const widget = document.getElementById('profileWidget');
   const panel  = document.getElementById('profilePanel');
   const closeBtn = document.getElementById('closeBtn');
+  const confirmAvatarBtn = document.getElementById('confirmAvatarBtn');
+
+  function closeProfilePanel() {
+    panel.classList.remove('open');
+  }
 
   widget.addEventListener('click', () => panel.classList.add('open'));
   closeBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    panel.classList.remove('open');
+    closeProfilePanel();
   });
-  
+  confirmAvatarBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeProfilePanel();
+  });
+
   panel.classList.remove('open');
+
+  initAvatarPicker({
+    headerId: 'headerAvatar',
+    mainId: 'mainAvatar',
+    choicesId: 'avatarChoices'
+  });
 </script>
 
 <!-- Dynamic Delaunay Triangulation Lattice Background -->
