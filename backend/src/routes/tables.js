@@ -1,12 +1,18 @@
 import { Router } from 'express';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { requireAuth } from '../middleware/auth.js';
-import { createTable, getTableSummary, joinTable } from '../services/tables.js';
+import { createTable, listOpenTables, getTableSummary, joinTable } from '../services/tables.js';
 
 export const router = Router();
 
 // All /tables/* routes require a valid JWT.
 router.use(requireAuth);
+
+// GET /tables -> list all open rooms.
+router.get('/', asyncHandler(async (req, res) => {
+  const tables = await listOpenTables();
+  res.json({ tables });
+}));
 
 // POST /tables -> create a room, returns the room_code for the waiting-room screen.
 router.post('/', asyncHandler(async (req, res) => {

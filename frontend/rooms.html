@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Poker777 — Room List</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&family=Quicksand:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/lobby.css">
+<link rel="stylesheet" href="css/glassmorphism-button.css">
+<style>
+  .rooms-container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+
+  .rooms-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+
+  .rooms-header h1 {
+    font-family: var(--font-display);
+    font-size: 2rem;
+    color: var(--gold);
+    text-shadow: 0 0 20px rgba(255,209,102,0.3);
+  }
+
+  .back-btn {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid var(--panel-border);
+    color: var(--text-muted);
+    padding: 8px 18px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .back-btn:hover {
+    background: rgba(255,255,255,0.14);
+    color: var(--text-main);
+  }
+
+  .search-bar {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .search-bar input {
+    flex: 1;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-sm);
+    color: var(--text-main);
+    padding: 12px 16px;
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .search-bar input::placeholder { color: var(--text-muted); opacity: 0.5; }
+  .search-bar input:focus { border-color: var(--purple-1); }
+
+  .room-list {
+    display: grid;
+    gap: 14px;
+  }
+
+  .room-card {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: var(--radius-md);
+    padding: 18px 22px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 16px;
+    transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+    cursor: default;
+  }
+  .room-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(139,110,247,0.15);
+    border-color: rgba(139,110,247,0.3);
+  }
+
+  .room-info h3 {
+    font-family: var(--font-display);
+    font-size: 1.15rem;
+    color: var(--text-main);
+    margin-bottom: 6px;
+  }
+
+  .room-meta {
+    display: flex;
+    gap: 18px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+  }
+
+  .room-meta span {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .room-code-badge {
+    font-family: 'Courier New', monospace;
+    font-weight: 700;
+    font-size: 0.85rem;
+    background: rgba(139,110,247,0.15);
+    border: 1px solid rgba(139,110,247,0.3);
+    color: var(--purple-1);
+    padding: 4px 10px;
+    border-radius: 8px;
+    letter-spacing: 2px;
+  }
+
+  .seats-indicator {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .seats-dots {
+    display: flex;
+    gap: 3px;
+  }
+
+  .seat-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255,255,255,0.25);
+    transition: background 0.2s;
+  }
+  .seat-dot.taken {
+    background: var(--purple-1);
+    border-color: var(--purple-1);
+    box-shadow: 0 0 6px rgba(139,110,247,0.5);
+  }
+  .seat-dot.empty {
+    background: transparent;
+  }
+
+  .join-room-btn {
+    background: linear-gradient(135deg, var(--blue-1), var(--blue-2));
+    border: none;
+    color: #fff;
+    padding: 10px 22px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .join-room-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 20px rgba(79,179,255,0.4);
+  }
+  .join-room-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .rooms-empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+    font-size: 1.1rem;
+  }
+  .rooms-empty .emoji { font-size: 3rem; display: block; margin-bottom: 16px; }
+
+  .loading-spinner {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+  }
+  .loading-spinner .spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid rgba(255,255,255,0.1);
+    border-top-color: var(--purple-1);
+    border-radius: 50%;
+    margin: 0 auto 16px;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .refresh-btn {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid var(--panel-border);
+    color: var(--text-muted);
+    padding: 10px 18px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-weight: 600;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .refresh-btn:hover {
+    background: rgba(255,255,255,0.14);
+    color: var(--text-main);
+  }
+
+  .inline-error {
+    color: var(--loss-red);
+    font-size: 0.85rem;
+    margin-top: 8px;
+    text-align: center;
+  }
+
+  @media (max-width: 600px) {
+    .room-card {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+    .room-actions {
+      justify-self: stretch;
+    }
+    .join-room-btn { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app-background" id="appBackground">
+  <!-- Ambient glows (reused from lobby) -->
+  <div class="cloud" style="width:280px;height:280px;top:5%;left:5%;"></div>
+  <div class="cloud" style="width:220px;height:220px;top:10%;left:70%;"></div>
+  <div class="cloud" style="width:320px;height:320px;top:2%;left:35%;"></div>
+
+  <div class="rooms-container">
+    <!-- Header -->
+    <div class="rooms-header">
+      <h1>Open Rooms</h1>
+      <div style="display:flex; gap:10px;">
+        <button class="refresh-btn" id="refreshBtn">↻ Refresh</button>
+        <button class="back-btn" id="backBtn">← Back to Lobby</button>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div class="search-bar">
+      <input type="text" id="searchInput" placeholder="Search room name or code…" autocomplete="off">
+    </div>
+
+    <!-- Room list -->
+    <div class="room-list" id="roomList">
+      <div class="loading-spinner" id="loadingSpinner">
+        <div class="spinner"></div>
+        Loading rooms…
+      </div>
+    </div>
+
+    <div class="inline-error" id="listError" hidden></div>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+  // Auth guard
+  (async function init() {
+    const user = await PokerAPI.Auth.requireUser();
+    if (!user) return; // redirected to login
+    loadRooms();
+  })();
+
+  const roomList = document.getElementById('roomList');
+  const loadingSpinner = document.getElementById('loadingSpinner');
+  const searchInput = document.getElementById('searchInput');
+  const refreshBtn = document.getElementById('refreshBtn');
+  const backBtn = document.getElementById('backBtn');
+  const listError = document.getElementById('listError');
+
+  let allRooms = [];
+
+  backBtn.addEventListener('click', () => {
+    window.location.href = 'lobby.html';
+  });
+
+  refreshBtn.addEventListener('click', () => {
+    loadRooms();
+  });
+
+  searchInput.addEventListener('input', () => {
+    renderRooms(filterRooms());
+  });
+
+  async function loadRooms() {
+    loadingSpinner.style.display = '';
+    listError.hidden = true;
+    try {
+      allRooms = await PokerAPI.Tables.list();
+      renderRooms(filterRooms());
+    } catch (err) {
+      listError.textContent = 'Failed to load rooms: ' + (err.message || 'Unknown error');
+      listError.hidden = false;
+      roomList.innerHTML = '';
+    } finally {
+      loadingSpinner.style.display = 'none';
+    }
+  }
+
+  function filterRooms() {
+    const q = searchInput.value.trim().toLowerCase();
+    if (!q) return allRooms;
+    return allRooms.filter(r =>
+      r.name.toLowerCase().includes(q) ||
+      r.room_code.toLowerCase().includes(q)
+    );
+  }
+
+  function renderRooms(rooms) {
+    if (rooms.length === 0) {
+      if (allRooms.length === 0) {
+        roomList.innerHTML = `
+          <div class="rooms-empty">
+            <span class="emoji">🃏</span>
+            No open rooms right now.<br>
+            Create one from the lobby or check back later!
+          </div>`;
+      } else {
+        roomList.innerHTML = `
+          <div class="rooms-empty">
+            <span class="emoji">🔍</span>
+            No rooms match your search.
+          </div>`;
+      }
+      return;
+    }
+
+    roomList.innerHTML = '';
+    rooms.forEach(room => {
+      const card = document.createElement('div');
+      card.className = 'room-card';
+
+      const taken = room.seats_taken ?? 0;
+      const maxSeats = room.max_seats;
+      const dots = Array.from({ length: maxSeats }, (_, i) =>
+        `<div class="seat-dot ${i < taken ? 'taken' : 'empty'}"></div>`
+      ).join('');
+
+      const isFull = taken >= maxSeats;
+
+      card.innerHTML = `
+        <div class="room-info">
+          <h3>${escapeHtml(room.name)}</h3>
+          <div class="room-meta">
+            <span>🪙 Blinds: ${PokerAPI.fmtChips(room.min_bet)} / ${PokerAPI.fmtChips(room.max_bet)}</span>
+            <span class="seats-indicator">
+              <span>👥 Seats:</span>
+              <div class="seats-dots">${dots}</div>
+              <span>${taken}/${maxSeats}</span>
+            </span>
+            <span>🔑 <span class="room-code-badge">${room.room_code}</span></span>
+          </div>
+        </div>
+        <div class="room-actions">
+          <button class="join-room-btn" data-code="${room.room_code}" ${isFull ? 'disabled' : ''}>
+            ${isFull ? 'Full' : 'Join'}
+          </button>
+        </div>
+      `;
+
+      const joinBtn = card.querySelector('.join-room-btn');
+      joinBtn.addEventListener('click', () => joinRoom(room.room_code));
+
+      roomList.appendChild(card);
+    });
+  }
+
+  async function joinRoom(code) {
+    const btn = document.querySelector(`.join-room-btn[data-code="${code}"]`);
+    if (!btn || btn.disabled) return;
+    btn.disabled = true;
+    btn.textContent = 'Joining…';
+    try {
+      const table = await PokerAPI.Tables.join(code);
+      window.location.href = 'poker-table.html?code=' + encodeURIComponent(table.room_code);
+    } catch (err) {
+      const msg = PokerAPI.fmtTableError(err);
+      listError.textContent = msg;
+      listError.hidden = false;
+      btn.disabled = false;
+      btn.textContent = 'Join';
+    }
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+</script>
+
+<!-- Dynamic Delaunay Triangulation Lattice Background -->
+<script src="js/lattice-background.js"></script>
+<script>
+  initLatticeBackground({
+    strokeRGB: "139, 110, 247",
+    accentRGB: "79, 179, 255",
+    maxDistance: 140,
+    transparent: true,
+    zIndex: 1
+  });
+</script>
+
+</body>
+</html>

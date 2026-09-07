@@ -100,6 +100,24 @@ export async function createTable(hostId, input) {
 }
 
 /**
+ * List all open tables with optional live seat counts (from Redis).
+ * Returns an array of serialized table objects.
+ */
+export async function listOpenTables() {
+  const [rows] = await pool.query(
+    `SELECT * FROM tables WHERE status = 'OPEN' ORDER BY created_at DESC`
+  );
+  // Best-effort: attach live seat count for each table
+  const results = await Promise.all(
+    rows.map(async (row) => {
+      const seatsTaken = await getLiveSeatCount(row.id);
+      return serializeTable(row, seatsTaken);
+    })
+  );
+  return results;
+}
+
+/**
  * Table info for the waiting-room screen / join preview: DB row + best-effort
  * live seat count. Does not touch the caller's wallet or change anything.
  */
