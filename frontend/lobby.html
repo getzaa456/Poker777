@@ -44,6 +44,7 @@
         <div class="xp-bar"><div class="xp-fill"></div></div>
       </div>
       <button class="expand-btn" id="expandBtn" title="View profile">+</button>
+          <button class="topup-quick-btn" id="topupQuickBtn" title="Top up chips">🪙+</button>
           <button class="expand-btn logout-btn" id="logoutBtn" title="Log out">⎋</button>
         </header>
 
@@ -89,68 +90,19 @@
       </div>
     </div>
 
-    <!-- Recent hands -->
-    <div class="section-label">◆ Recent 5 Hands ◆</div>
+    <!-- Transaction History (from API) -->
+    <div class="section-label">◆ Transaction History ◆</div>
+    <div id="txList" class="tx-list"></div>
+    <button class="tx-load-more" id="txLoadMore" style="display:none;">Load more</button>
 
-    <div class="hand-row">
-      <div class="hand-index">1</div>
-      <div class="hand-result win-text">WIN</div>
-      <div class="mini-cards">
-        <div class="mini-card red">A♥</div><div class="mini-card red">K♥</div>
-        <div class="mini-card red">Q♥</div><div class="mini-card red">J♥</div>
-        <div class="mini-card red">10♥</div>
+    <!-- Top-up button -->
+    <button class="glass-cta glass-cta-full glass-cta-gold" id="topupBtn" style="margin-top: 14px;">
+      <div class="glass-cta-cutout"></div>
+      <div class="glass-cta-content">
+        <div class="glass-cta-inner-bg"></div>
+        <span class="glass-cta-label">🪙 Top Up Chips</span>
       </div>
-      <div class="hand-chips pos">+15,200</div>
-      <div class="hand-time">10 min ago</div>
-    </div>
-
-    <div class="hand-row">
-      <div class="hand-index">2</div>
-      <div class="hand-result loss-text">LOSS</div>
-      <div class="mini-cards">
-        <div class="mini-card">K♠</div><div class="mini-card">Q♠</div>
-        <div class="mini-card">J♠</div><div class="mini-card">10♠</div>
-        <div class="mini-card">9♠</div>
-      </div>
-      <div class="hand-chips neg">-8,300</div>
-      <div class="hand-time">25 min ago</div>
-    </div>
-
-    <div class="hand-row">
-      <div class="hand-index">3</div>
-      <div class="hand-result win-text">WIN</div>
-      <div class="mini-cards">
-        <div class="mini-card">A♠</div><div class="mini-card red">A♥</div>
-        <div class="mini-card">K♠</div><div class="mini-card">Q♠</div>
-        <div class="mini-card">J♠</div>
-      </div>
-      <div class="hand-chips pos">+22,100</div>
-      <div class="hand-time">45 min ago</div>
-    </div>
-
-    <div class="hand-row">
-      <div class="hand-index">4</div>
-      <div class="hand-result win-text">WIN</div>
-      <div class="mini-cards">
-        <div class="mini-card">Q♠</div><div class="mini-card">J♠</div>
-        <div class="mini-card">10♠</div><div class="mini-card">9♠</div>
-        <div class="mini-card">8♠</div>
-      </div>
-      <div class="hand-chips pos">+9,500</div>
-      <div class="hand-time">1 hr ago</div>
-    </div>
-
-    <div class="hand-row">
-      <div class="hand-index">5</div>
-      <div class="hand-result loss-text">LOSS</div>
-      <div class="mini-cards">
-        <div class="mini-card">J♠</div><div class="mini-card">10♠</div>
-        <div class="mini-card">9♠</div><div class="mini-card">8♠</div>
-        <div class="mini-card">7♠</div>
-      </div>
-      <div class="hand-chips neg">-7,800</div>
-      <div class="hand-time">2 hr ago</div>
-    </div>
+    </button>
 
         <button class="glass-cta glass-cta-full glass-cta-gold" id="confirmAvatarBtn" style="margin-top: 14px;">
       <div class="glass-cta-cutout"></div>
@@ -213,6 +165,28 @@
         <span class="glass-cta-label">Join</span>
       </div>
     </button>
+  </div>
+
+  <!-- ======================= TOPUP MODAL ======================= -->
+  <div class="modal-overlay" id="topupModal">
+    <div class="modal-card">
+      <button class="modal-close" id="topupCloseBtn">✕</button>
+      <div class="modal-title">🪙 Top Up Chips</div>
+      <div class="modal-balance">Current Balance: <span id="topupCurrentBalance">–</span></div>
+      <div class="topup-presets" id="topupPresets">
+        <button class="topup-preset" data-amount="100">🪙 100</button>
+        <button class="topup-preset" data-amount="500">🪙 500</button>
+        <button class="topup-preset" data-amount="1000">🪙 1,000</button>
+        <button class="topup-preset" data-amount="5000">🪙 5,000</button>
+        <button class="topup-preset" data-amount="10000">🪙 10,000</button>
+        <button class="topup-preset" data-amount="50000">🪙 50,000</button>
+      </div>
+      <div class="topup-custom">
+        <input type="number" id="topupAmount" placeholder="Custom amount" min="1" max="100000">
+        <button class="topup-confirm-btn" id="topupConfirmBtn">Top Up</button>
+      </div>
+      <div class="topup-message" id="topupMessage"></div>
+    </div>
   </div>
 
 </div>
@@ -293,6 +267,160 @@
   }
 
   panel.classList.remove('open');
+
+  // ===================== TRANSACTION HISTORY =====================
+  const txList = document.getElementById('txList');
+  const txLoadMore = document.getElementById('txLoadMore');
+  let txPage = 1;
+  let txHasMore = false;
+
+  async function loadTransactions(page = 1) {
+    try {
+      const data = await PokerAPI.Wallet.transactions(page, 10);
+      const txns = data.transactions || [];
+      txHasMore = data.pagination ? data.pagination.page < data.pagination.totalPages : false;
+
+      if (page === 1) txList.innerHTML = '';
+
+      if (txns.length === 0 && page === 1) {
+        txList.innerHTML = '<div class="tx-empty">No transactions yet</div>';
+        txLoadMore.style.display = 'none';
+        return;
+      }
+
+      for (const tx of txns) {
+        const isPos = tx.amount > 0;
+        const sign = isPos ? '+' : '';
+        const cls = isPos ? 'pos' : 'neg';
+        const typeLabel = tx.type === 'TOPUP' ? '💰 Top Up' :
+                          tx.type === 'BONUS' ? '🎁 Bonus' :
+                          tx.type === 'WIN' ? '🏆 Win' :
+                          tx.type === 'LOSS' ? '❌ Loss' :
+                          tx.type === 'BUYIN' ? '🎫 Buy-in' :
+                          tx.type === 'SETTLE' ? '⚖️ Settle' : tx.type;
+        const d = new Date(tx.created_at);
+        const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        const row = document.createElement('div');
+        row.className = 'tx-row';
+        row.innerHTML = `
+          <div class="tx-type">${typeLabel}</div>
+          <div class="tx-amount ${cls}">${sign}${PokerAPI.fmtChips(tx.amount)}</div>
+          <div class="tx-balance">Bal: ${PokerAPI.fmtChips(tx.balance_after)}</div>
+          <div class="tx-time">${timeStr}</div>
+        `;
+        txList.appendChild(row);
+      }
+
+      txLoadMore.style.display = txHasMore ? '' : 'none';
+    } catch (err) {
+      txList.innerHTML = '<div class="tx-empty">Failed to load transactions</div>';
+    }
+  }
+
+  txLoadMore.addEventListener('click', () => {
+    txPage++;
+    loadTransactions(txPage);
+  });
+
+  // ===================== TOPUP MODAL =====================
+  const topupModal = document.getElementById('topupModal');
+  const topupQuickBtn = document.getElementById('topupQuickBtn');
+  const topupBtn = document.getElementById('topupBtn');
+  const topupCloseBtn = document.getElementById('topupCloseBtn');
+  const topupCurrentBalance = document.getElementById('topupCurrentBalance');
+  const topupAmount = document.getElementById('topupAmount');
+  const topupConfirmBtn = document.getElementById('topupConfirmBtn');
+  const topupMessage = document.getElementById('topupMessage');
+  const topupPresets = document.getElementById('topupPresets');
+
+  function openTopupModal() {
+    topupCurrentBalance.textContent = '🪙 ' + PokerAPI.fmtChips(currentUser.balance);
+    topupAmount.value = '';
+    topupMessage.textContent = '';
+    topupMessage.className = 'topup-message';
+    topupModal.classList.add('open');
+  }
+
+  function closeTopupModal() {
+    topupModal.classList.remove('open');
+  }
+
+  topupQuickBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openTopupModal();
+  });
+
+  topupBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openTopupModal();
+  });
+
+  topupCloseBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeTopupModal();
+  });
+
+  topupModal.addEventListener('click', (e) => {
+    if (e.target === topupModal) closeTopupModal();
+  });
+
+  // Preset buttons
+  topupPresets.addEventListener('click', (e) => {
+    const btn = e.target.closest('.topup-preset');
+    if (!btn) return;
+    topupAmount.value = btn.dataset.amount;
+    doTopup();
+  });
+
+  topupConfirmBtn.addEventListener('click', () => doTopup());
+
+  topupAmount.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') doTopup();
+  });
+
+  async function doTopup() {
+    const amt = parseInt(topupAmount.value, 10);
+    if (!amt || amt < 1) {
+      topupMessage.textContent = '⚠️ Please enter a valid amount';
+      topupMessage.className = 'topup-message error';
+      return;
+    }
+    topupConfirmBtn.disabled = true;
+    topupMessage.textContent = 'Processing…';
+    topupMessage.className = 'topup-message';
+
+    try {
+      const result = await PokerAPI.Wallet.topUp(amt);
+      topupMessage.textContent = `✅ Topped up ${PokerAPI.fmtChips(result.amount)} chips!`;
+      topupMessage.className = 'topup-message success';
+
+      // Update balance everywhere
+      currentUser.balance = result.balance;
+      const chipsText = '🪙 ' + PokerAPI.fmtChips(result.balance);
+      document.getElementById('profileChips').textContent = chipsText;
+      document.getElementById('panelChips').textContent = chipsText;
+      topupCurrentBalance.textContent = '🪙 ' + PokerAPI.fmtChips(result.balance);
+
+      // Refresh transactions
+      txPage = 1;
+      loadTransactions(1);
+
+      setTimeout(closeTopupModal, 1200);
+    } catch (err) {
+      topupMessage.textContent = '❌ ' + (err.message || 'Top up failed');
+      topupMessage.className = 'topup-message error';
+    } finally {
+      topupConfirmBtn.disabled = false;
+    }
+  }
+
+  // Load transactions when panel opens
+  const origWidgetClick = () => {
+    txPage = 1;
+    loadTransactions(1);
+  };
+  widget.addEventListener('click', origWidgetClick);
 </script>
 
 <!-- Dynamic Delaunay Triangulation Lattice Background -->
