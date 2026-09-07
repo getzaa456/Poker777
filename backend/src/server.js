@@ -10,6 +10,7 @@ import { router as healthRouter } from './routes/health.js';
 import { router as authRouter } from './routes/auth.js';
 import { router as usersRouter } from './routes/users.js';
 import { router as walletRouter } from './routes/wallet.js';
+import { router as tablesRouter } from './routes/tables.js';
 
 export async function createApp() {
   const app = express();
@@ -38,6 +39,7 @@ export async function createApp() {
   app.use('/auth', authRouter);      // POST /auth/register, POST /auth/login
   app.use('/users', usersRouter);    // GET/PATCH /users/me
   app.use('/', walletRouter);        // POST /wallet/topup, GET /wallet/transactions, POST /internal/wallet/adjust
+  app.use('/tables', tablesRouter);  // POST /tables, GET /tables/:room_code, POST /tables/:room_code/join
 
   // --- error handling (last!) ---
   app.use(notFound);

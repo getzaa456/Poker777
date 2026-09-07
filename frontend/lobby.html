@@ -239,7 +239,7 @@
 
       <label class="field-label">Blinds (min / max bet)</label>
       <div class="preset-row" id="blindPresets">
-        <button type="button" class="preset-chip" data-min="10" data-max="1000">10 / 1,000</button>
+        <button type="button" class="preset-chip is-active" data-min="10" data-max="1000">10 / 1,000</button>
         <button type="button" class="preset-chip" data-min="50" data-max="5000">50 / 5,000</button>
         <button type="button" class="preset-chip" data-min="100" data-max="10000">100 / 10,000</button>
         <button type="button" class="preset-chip" data-min="500" data-max="50000">500 / 50,000</button>
@@ -300,7 +300,7 @@
   </div>
 
   <!-- ======================= TOPUP MODAL ======================= -->
-  <div class="modal-overlay" id="topupModal">
+  <div class="modal-overlay" id="topupModal" hidden>
     <div class="modal-card">
       <button class="modal-close" id="topupCloseBtn">✕</button>
       <div class="modal-title">🪙 Top Up Chips</div>
@@ -343,12 +343,16 @@
     document.getElementById('profileChips').textContent = chipsText;
     document.getElementById('panelChips').textContent = chipsText;
 
-    // Init avatar picker: server-side avatar_id wins over local storage.
+    // Init avatar picker: check for non-null/undefined avatar_id explicitly (handles avatar_id = 0 correctly)
+    const initialAvatarId = (currentUser.avatar_id !== undefined && currentUser.avatar_id !== null && currentUser.avatar_id !== '') 
+      ? parseInt(currentUser.avatar_id, 10) 
+      : null;
+
     initAvatarPicker({
       headerId: 'headerAvatar',
       mainId: 'mainAvatar',
       choicesId: 'avatarChoices',
-      initialId: currentUser.avatar_id ? parseInt(currentUser.avatar_id, 10) : null,
+      initialId: initialAvatarId,
     });
   })();
 
@@ -451,7 +455,11 @@
 
       txLoadMore.style.display = txHasMore ? '' : 'none';
     } catch (err) {
-      txList.innerHTML = '<div class="tx-empty">Failed to load transactions</div>';
+      if (page === 1) {
+        txList.innerHTML = '<div class="tx-empty">Failed to load transactions</div>';
+      } else {
+        alert('Failed to load more transactions.');
+      }
     }
   }
 
@@ -476,11 +484,13 @@
     topupAmount.value = '';
     topupMessage.textContent = '';
     topupMessage.className = 'topup-message';
+    topupModal.hidden = false;
     topupModal.classList.add('open');
   }
 
   function closeTopupModal() {
     topupModal.classList.remove('open');
+    topupModal.hidden = true;
   }
 
   if (topupQuickBtn) {
@@ -507,16 +517,19 @@
   });
 
   topupPresets.addEventListener('click', (e) => {
+    if (topupConfirmBtn.disabled) return;
     const btn = e.target.closest('.topup-preset');
     if (!btn) return;
     topupAmount.value = btn.dataset.amount;
     doTopup();
   });
 
-  topupConfirmBtn.addEventListener('click', () => doTopup());
+  topupConfirmBtn.addEventListener('click', () => {
+    if (!topupConfirmBtn.disabled) doTopup();
+  });
 
   topupAmount.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') doTopup();
+    if (e.key === 'Enter' && !topupConfirmBtn.disabled) doTopup();
   });
 
   async function doTopup() {
@@ -597,7 +610,9 @@
     minBetInput.value = 10;
     maxBetInput.value = 1000;
     maxSeatsInput.value = 6;
-    [...blindPresets.children].forEach((b) => b.classList.remove('is-active'));
+    [...blindPresets.children].forEach((b) => {
+      b.classList.toggle('is-active', b.dataset.min === '10' && b.dataset.max === '1000');
+    });
     [...seatPresets.children].forEach((b) => b.classList.toggle('is-active', b.dataset.seats === '6'));
     openOverlay();
   });
@@ -636,7 +651,7 @@
       });
       showWaitingRoom(table);
     } catch (err) {
-      showError(createRoomError, PokerAPI.fmtTableError(err));
+      showError(createRoomError, err?.message || 'Failed to create room');
     } finally {
       label.textContent = original;
       submitCreateRoomBtn.disabled = false;
@@ -705,7 +720,7 @@
       const table = await PokerAPI.Tables.join(code);
       window.location.href = 'poker-table.html?code=' + encodeURIComponent(table.room_code);
     } catch (err) {
-      showError(joinError, PokerAPI.fmtTableError(err));
+      showError(joinError, err?.message || 'Failed to join room');
     } finally {
       label.textContent = original;
       joinCodeBtn.disabled = false;

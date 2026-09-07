@@ -33,7 +33,7 @@ html,body{
 }
 
 /* ==========================================================================
-   BACKGROUND — Dark Premium Casino Theme (Match Login Page)
+   BACKGROUND — Dark Premium Casino Theme
    ========================================================================== */
 .app-background{
   position:relative;
@@ -42,20 +42,16 @@ html,body{
   overflow:hidden;
   background-color: #0d0914;
   background-image: 
-    /* 1. Subtle Cyber Grid */
     linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
     linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    /* 2. Soft Ambient Spotlights */
     radial-gradient(circle at 18% 25%, rgba(139, 110, 247, 0.22) 0%, transparent 45%),
     radial-gradient(circle at 82% 70%, rgba(255, 95, 162, 0.18) 0%, transparent 45%),
     radial-gradient(circle at 50% 15%, rgba(69, 139, 236, 0.15) 0%, transparent 55%),
-    /* 3. Deep Background Vignette */
     radial-gradient(ellipse at 50% 0%, #1c1332 0%, #0d0914 85%);
   background-size: 40px 40px, 40px 40px, 100% 100%, 100% 100%, 100% 100%, 100% 100%;
   background-position: center center;
 }
 
-/* ลาย Watermark สัญลักษณ์ไพ่แบบจางๆ ด้านหลัง เพิ่มมิติ */
 .app-background::before {
   content: '';
   position: absolute;
@@ -65,9 +61,6 @@ html,body{
   z-index: 1;
 }
 
-/* 
-  ปรับเมฆเดิมให้เป็นออร่าหมอกแสงเนบิวลานุ่มๆ ด้านหลัง (Ambient Glows)
-*/
 .cloud {
   position: absolute;
   background: radial-gradient(circle, rgba(139, 110, 247, 0.15) 0%, rgba(255, 95, 162, 0.05) 50%, transparent 80%);
@@ -76,9 +69,6 @@ html,body{
   pointer-events: none;
 }
 
-/* 
-  เปลี่ยนลูกโป่งเดิมให้เป็น Casino Glass Chips เรืองแสงสุดเท่
-*/
 .balloon {
   position: absolute;
   border-radius: 50%;
@@ -112,7 +102,6 @@ html,body{
   50%{ transform:translateY(-18px) rotate(4deg); }
 }
 
-/* ปรับปราสาทให้เป็นโทนเข้ม Dark Luxury Palace พร้อมขอบเรืองแสง */
 .castle-silhouette{
   position:absolute;
   bottom:0; left:0; right:0;
@@ -130,11 +119,10 @@ html,body{
   );
   background-color:rgba(22, 14, 42, 0.85);
   opacity:0.85;
-  border-top:1px solid rgba(139, 110, 247, 0.25);
+  filter: drop-shadow(0 -1px 0 rgba(139, 110, 247, 0.4));
   z-index:2;
 }
 
-/* ปรับละอองดาวระยิบระยับ (Sparkles Dust) */
 .confetti{
   position:absolute;
   width:6px; height:6px;
@@ -151,7 +139,7 @@ html,body{
 }
 
 /* ==========================================================================
-   HEADER — compact player widget
+   HEADER — compact player widget & quick actions
    ========================================================================== */
 .profile-widget{
   position:absolute;
@@ -236,6 +224,21 @@ html,body{
 .expand-btn:hover{ transform:scale(1.12); }
 .logout-btn{ box-shadow:0 0 14px rgba(95,208,232,0.5); background:rgba(95,208,232,0.18); }
 
+.topup-quick-btn{
+  width:34px; height:34px;
+  border-radius:50%;
+  border:none;
+  background:linear-gradient(145deg, var(--gold), #e6a800);
+  color:#1a1230;
+  font-size:15px;
+  font-weight:800;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  box-shadow:0 0 14px rgba(255,209,102,0.7);
+  transition:transform .15s ease;
+}
+.topup-quick-btn:hover{ transform:scale(1.12); }
+
 /* ==========================================================================
    PROFILE PANEL 
    ========================================================================== */
@@ -257,9 +260,7 @@ html,body{
 .profile-panel.open{ display:block; animation:panelIn .18s ease; }
 @keyframes panelIn{ from{ opacity:0; transform:translateY(-8px);} to{ opacity:1; transform:translateY(0);} }
 
-/* ==========================================================================
-   AVATAR PICKER — ported from shadcn/motion card into lobby profile
-   ========================================================================== */
+/* Avatar Picker */
 .avatar-picker{
   margin: 0 -24px 6px;
   overflow: hidden;
@@ -411,7 +412,7 @@ html,body{
 .win{ color:var(--win-green); }
 .loss{ color:var(--loss-red); }
 
-/* recent hands list */
+/* Recent Hands List */
 .hand-row{
   display:flex; align-items:center; gap:10px;
   background:rgba(255,255,255,0.04);
@@ -461,6 +462,45 @@ html,body{
 }
 .edit-profile-btn:hover{ transform:translateY(-2px); box-shadow:0 12px 26px rgba(120,80,220,0.65); }
 
+/* Transaction History (in profile panel) */
+.tx-list{
+  display:flex; flex-direction:column; gap:6px;
+  max-height:260px; overflow-y:auto;
+  padding-right:4px;
+}
+.tx-list::-webkit-scrollbar{ width:4px; }
+.tx-list::-webkit-scrollbar-track{ background:transparent; }
+.tx-list::-webkit-scrollbar-thumb{ background:rgba(255,255,255,0.15); border-radius:4px; }
+
+.tx-row{
+  display:flex; align-items:center; gap:8px;
+  background:rgba(255,255,255,0.04);
+  border-radius:var(--radius-sm);
+  padding:8px 12px;
+  transition:background .15s ease;
+}
+.tx-row:hover{ background:rgba(255,255,255,0.09); }
+.tx-type{ font-size:12px; font-weight:700; min-width:90px; }
+.tx-amount{ font-size:13px; font-weight:800; min-width:70px; }
+.tx-amount.pos{ color:var(--win-green); }
+.tx-amount.neg{ color:var(--loss-red); }
+.tx-balance{ font-size:11px; color:var(--text-muted); flex:1; }
+.tx-time{ font-size:10px; color:var(--text-muted); }
+
+.tx-empty{
+  text-align:center; color:var(--text-muted); font-size:13px;
+  padding:20px 0; font-style:italic;
+}
+.tx-load-more{
+  display:block; width:100%;
+  background:rgba(255,255,255,0.06); border:1px solid var(--panel-border);
+  border-radius:var(--radius-sm);
+  color:var(--text-muted); font-size:12px; font-weight:700;
+  padding:8px; cursor:pointer; margin-top:6px;
+  transition:background .15s ease;
+}
+.tx-load-more:hover{ background:rgba(255,255,255,0.12); }
+
 /* ==========================================================================
    LOGO 
    ========================================================================== */
@@ -476,6 +516,7 @@ html,body{
   width:90%;
   height:auto;
   filter:drop-shadow(0 10px 25px rgba(255, 255, 255, 0.4));
+  animation: cuteFloatLogo 4s ease-in-out infinite;
 }
 @keyframes cuteFloatLogo{
   0%, 100% { transform: translateY(0) rotate(-1deg); }
@@ -483,7 +524,7 @@ html,body{
 }
 
 /* ==========================================================================
-   ACTION BUTTONS — ปรับปรุงใหม่ให้มีมิติ Gradient, ลูกเล่น Shine & 3D Hover
+   ACTION BUTTONS
    ========================================================================== */
 .action-buttons{
   position:relative;
@@ -565,7 +606,7 @@ html,body{
 }
 
 /* ==========================================================================
-   ROOM CODE BAR
+   ROOM CODE BAR & INLINE ERROR
    ========================================================================== */
 .room-code-bar{
   position:relative;
@@ -611,78 +652,167 @@ html,body{
   background-color: var(--purple-2);
 }
 
+.inline-error{
+  max-width:560px;
+  margin:0 auto 20px;
+  padding:10px 16px;
+  border-radius:10px;
+  background:rgba(255,84,112,0.14);
+  border:1px solid rgba(255,84,112,0.4);
+  color:#ffb3c0;
+  font-size:13px;
+  font-weight:600;
+  text-align:center;
+  z-index:10;
+  position:relative;
+}
+
 /* ==========================================================================
-   TOPUP QUICK BUTTON (in header widget)
+   MODAL OVERLAY (SHARED)
    ========================================================================== */
-.topup-quick-btn{
-  width:34px; height:34px;
-  border-radius:50%;
-  border:none;
-  background:linear-gradient(145deg, var(--gold), #e6a800);
-  color:#1a1230;
+.modal-overlay{
+  position:fixed;
+  inset:0;
+  background:rgba(6,4,14,0.72);
+  backdrop-filter:blur(4px);
+  display:none;
+  align-items:center;
+  justify-content:center;
+  z-index:100;
+  padding:20px;
+}
+.modal-overlay.open,
+.modal-overlay:not([hidden]){
+  display:flex;
+  animation:modalFadeIn .2s ease;
+}
+.modal-overlay[hidden]{
+  display:none !important;
+}
+
+@keyframes modalFadeIn{ from{opacity:0;} to{opacity:1;} }
+
+/* ==========================================================================
+   ROOM MODAL — Create Room / Waiting Room
+   ========================================================================== */
+.room-modal{
+  position:relative;
+  width:460px;
+  max-width:100%;
+  max-height:calc(100vh - 40px);
+  overflow-y:auto;
+  background:var(--panel-bg-solid);
+  border:1px solid var(--panel-border);
+  border-radius:var(--radius-lg);
+  padding:24px;
+  box-shadow:0 20px 60px rgba(0,0,0,0.6);
+  animation:panelIn .18s ease;
+}
+.room-modal[hidden]{ display:none; }
+
+.field-label{
+  display:block;
+  font-size:12px;
+  font-weight:700;
+  color:var(--text-muted);
+  text-transform:uppercase;
+  letter-spacing:0.5px;
+  margin:14px 0 6px;
+}
+.room-field{
+  width:100%;
+  padding:12px 14px;
+  border-radius:var(--radius-sm);
+  border:1px solid var(--panel-border);
+  background:rgba(255,255,255,0.06);
+  color:#fff;
+  font-family:var(--font-body);
   font-size:15px;
-  font-weight:800;
-  display:flex; align-items:center; justify-content:center;
+  font-weight:600;
+  outline:none;
+  transition:border-color .15s ease, background .15s ease;
+}
+.room-field:focus{
+  border-color:var(--purple-1);
+  background:rgba(255,255,255,0.1);
+}
+.field-row{ display:flex; gap:12px; }
+.field-col{ flex:1; }
+
+.preset-row{ display:flex; flex-wrap:wrap; gap:8px; }
+.preset-chip{
+  padding:8px 14px;
+  border-radius:20px;
+  border:1px solid var(--panel-border);
+  background:rgba(255,255,255,0.05);
+  color:var(--text-main);
+  font-family:var(--font-body);
+  font-size:12px;
+  font-weight:700;
   cursor:pointer;
-  box-shadow:0 0 14px rgba(255,209,102,0.7);
-  transition:transform .15s ease;
+  transition:transform .15s ease, background .15s ease, border-color .15s ease;
 }
-.topup-quick-btn:hover{ transform:scale(1.12); }
-
-/* ==========================================================================
-   TRANSACTION HISTORY (in profile panel)
-   ========================================================================== */
-.tx-list{
-  display:flex; flex-direction:column; gap:6px;
-  max-height:260px; overflow-y:auto;
-  padding-right:4px;
+.preset-chip:hover{ transform:translateY(-1px); background:rgba(255,255,255,0.1); }
+.preset-chip.is-active{
+  background:linear-gradient(90deg, var(--purple-1), var(--purple-2));
+  border-color:transparent;
+  box-shadow:0 4px 14px rgba(139,110,247,0.45);
 }
-.tx-list::-webkit-scrollbar{ width:4px; }
-.tx-list::-webkit-scrollbar-track{ background:transparent; }
-.tx-list::-webkit-scrollbar-thumb{ background:rgba(255,255,255,0.15); border-radius:4px; }
 
-.tx-row{
-  display:flex; align-items:center; gap:8px;
-  background:rgba(255,255,255,0.04);
-  border-radius:var(--radius-sm);
-  padding:8px 12px;
+/* Waiting room */
+.waiting-hint{
+  color:var(--text-muted);
+  font-size:13px;
+  font-weight:600;
+  text-align:center;
+  margin:6px 0 14px;
+}
+.room-code-display{
+  font-family:var(--font-display);
+  font-size:44px;
+  font-weight:800;
+  letter-spacing:10px;
+  text-align:center;
+  padding:18px 10px;
+  border-radius:var(--radius-md);
+  background:rgba(255,255,255,0.06);
+  border:1px dashed var(--panel-border);
+  color:var(--gold);
+  text-shadow:0 0 18px rgba(255,209,102,0.5);
+}
+.copy-code-btn{
+  display:block;
+  margin:12px auto 0;
+  padding:8px 20px;
+  border-radius:20px;
+  border:1px solid var(--panel-border);
+  background:rgba(255,255,255,0.06);
+  color:#fff;
+  font-family:var(--font-body);
+  font-size:12px;
+  font-weight:700;
+  cursor:pointer;
   transition:background .15s ease;
 }
-.tx-row:hover{ background:rgba(255,255,255,0.09); }
-.tx-type{ font-size:12px; font-weight:700; min-width:90px; }
-.tx-amount{ font-size:13px; font-weight:800; min-width:70px; }
-.tx-amount.pos{ color:var(--win-green); }
-.tx-amount.neg{ color:var(--loss-red); }
-.tx-balance{ font-size:11px; color:var(--text-muted); flex:1; }
-.tx-time{ font-size:10px; color:var(--text-muted); }
-
-.tx-empty{
-  text-align:center; color:var(--text-muted); font-size:13px;
-  padding:20px 0; font-style:italic;
+.copy-code-btn:hover{ background:rgba(255,255,255,0.14); }
+.waiting-summary{
+  text-align:center;
+  margin-top:18px;
+  font-size:14px;
+  line-height:1.6;
+  color:var(--text-main);
 }
-.tx-load-more{
-  display:block; width:100%;
-  background:rgba(255,255,255,0.06); border:1px solid var(--panel-border);
-  border-radius:var(--radius-sm);
-  color:var(--text-muted); font-size:12px; font-weight:700;
-  padding:8px; cursor:pointer; margin-top:6px;
-  transition:background .15s ease;
+.waiting-status{
+  text-align:center;
+  margin-top:10px;
+  font-size:12px;
+  color:var(--text-muted);
+  font-weight:600;
 }
-.tx-load-more:hover{ background:rgba(255,255,255,0.12); }
 
 /* ==========================================================================
    TOPUP MODAL
    ========================================================================== */
-.modal-overlay{
-  position:fixed; inset:0;
-  background:rgba(0,0,0,0.6);
-  backdrop-filter:blur(4px);
-  display:none; align-items:center; justify-content:center;
-  z-index:100;
-}
-.modal-overlay.open{ display:flex; animation:modalFadeIn .2s ease; }
-@keyframes modalFadeIn{ from{opacity:0;} to{opacity:1;} }
-
 .modal-card{
   background:var(--panel-bg-solid);
   border:1px solid var(--panel-border);
@@ -771,4 +901,7 @@ html,body{
   .xp-bar{ width:110px; }
   .btn{ width:100%; max-width:340px; }
   .profile-panel{ width:94vw; }
+  .room-modal{ padding:18px; }
+  .room-code-display{ font-size:34px; letter-spacing:6px; }
+  .field-row{ flex-direction:column; }
 }

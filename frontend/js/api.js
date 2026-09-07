@@ -118,10 +118,68 @@
     },
   };
 
+  const Tables = {
+    /** POST /tables -> { table } — create a room. payload: { name, min_bet, max_bet, max_seats } */
+    async create(payload) {
+      const data = await api('/tables', { method: 'POST', body: payload });
+      return data.table;
+    },
+    /** GET /tables/:room_code -> table (name, blinds, seats, status) for the waiting-room / join preview. */
+    async get(roomCode) {
+      const data = await api('/tables/' + encodeURIComponent(roomCode));
+      return data.table;
+    },
+    /** POST /tables/:room_code/join -> validates + returns table. payload: { buy_in? } */
+    async join(roomCode, payload) {
+      const data = await api('/tables/' + encodeURIComponent(roomCode) + '/join', {
+        method: 'POST',
+        body: payload || {},
+      });
+      return data.table;
+    },
+  };
+
   /** Format chips with thousands separator, e.g. 2680 -> "2,680". */
   function fmtChips(n) {
     return Number(n || 0).toLocaleString('en-US');
   }
 
-  window.PokerAPI = { API_BASE, api, Auth, Wallet, getToken, setSession, clearSession, fmtChips, AVATAR_KEY };
+  /**
+   * Turn a thrown API error (see api()/`e.code`) into a short, friendly
+   * message for room create/join flows. Falls back to the server message.
+   */
+  function fmtTableError(err) {
+    const messages = {
+      NETWORK: err.message,
+      ROOM_NOT_FOUND: 'Room not found — double-check the room code and try again.',
+      ROOM_CLOSED: 'This room has been closed by the host.',
+      ROOM_IN_PROGRESS: 'This room already has a hand in progress. Try again shortly.',
+      ROOM_FULL: 'This room is full.',
+      INSUFFICIENT_BALANCE:
+        err.details && err.details.required
+          ? `You need ${fmtChips(err.details.required)} chips to join (you have ${fmtChips(err.details.balance)}).`
+          : 'Your chip balance is not enough to join this room.',
+      BUY_IN_TOO_LOW: err.message,
+      BUY_IN_TOO_HIGH: err.message,
+      BAD_REQUEST:
+        err.details && err.details.length
+          ? err.details.map((d) => d.issue).join(' ')
+          : err.message,
+    };
+    return messages[err.code] || err.message || 'Something went wrong. Please try again.';
+  }
+
+  window.PokerAPI = {
+    API_BASE,
+    api,
+    Auth,
+    Wallet,
+    Tables,
+    getToken,
+    setSession,
+    clearSession,
+    fmtChips,
+    fmtTableError,
+    AVATAR_KEY,
+  };
 })();
