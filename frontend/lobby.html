@@ -36,17 +36,17 @@
   <div class="confetti" style="color:#8b6ef7;top:20%;left:40%;animation-delay:1.5s;"></div>
 
   <!-- ======================= HEADER: PLAYER WIDGET ======================= -->
-    <header class="profile-widget" id="profileWidget">
-      <div class="avatar avatar-svg" id="headerAvatar" role="img" aria-label="Player Avatar"></div>
-      <div class="profile-info">
-        <div class="profile-name" id="headerName">Loading…</div>
-        <div class="profile-chips" id="profileChips">🪙 –</div>
-        <div class="xp-bar"><div class="xp-fill"></div></div>
-      </div>
-      <button class="expand-btn" id="expandBtn" title="View profile">+</button>
-          <button class="topup-quick-btn" id="topupQuickBtn" title="Top up chips">🪙+</button>
-          <button class="expand-btn logout-btn" id="logoutBtn" title="Log out">⎋</button>
-        </header>
+  <header class="profile-widget" id="profileWidget">
+    <div class="avatar avatar-svg" id="headerAvatar" role="img" aria-label="Player Avatar"></div>
+    <div class="profile-info">
+      <div class="profile-name" id="headerName">Loading…</div>
+      <div class="profile-chips" id="profileChips">🪙 –</div>
+      <div class="xp-bar"><div class="xp-fill"></div></div>
+    </div>
+    <button class="expand-btn" id="expandBtn" title="View profile">+</button>
+    <button class="topup-quick-btn" id="topupQuickBtn" title="Top up chips">🪙+</button>
+    <button class="expand-btn logout-btn" id="logoutBtn" title="Log out">⎋</button>
+  </header>
 
   <!-- ======================= PROFILE PANEL (MODAL CARD) ======================= -->
   <section class="profile-panel" id="profilePanel">
@@ -60,14 +60,14 @@
         </div>
 
         <div class="avatar-picker-identity">
-                  <h2 class="panel-name" id="panelName">Loading…</h2>
-                  <p class="avatar-picker-hint">Select your avatar</p>
-                  <div class="panel-meta">
-                    <span class="level-chip">Lv. 1</span>
-                    <span class="title-badge">Rookie</span>
-                  </div>
-                  <div class="rank-points" id="panelChips">🪙 –</div>
-                </div>
+          <h2 class="panel-name" id="panelName">Loading…</h2>
+          <p class="avatar-picker-hint">Select your avatar</p>
+          <div class="panel-meta">
+            <span class="level-chip">Lv. 1</span>
+            <span class="title-badge">Rookie</span>
+          </div>
+          <div class="rank-points" id="panelChips">🪙 –</div>
+        </div>
 
         <div class="avatar-choices" id="avatarChoices"></div>
       </div>
@@ -90,12 +90,70 @@
       </div>
     </div>
 
+    <!-- Recent hands -->
+    <div class="section-label">◆ Recent 5 Hands ◆</div>
+    <div class="hand-row">
+      <div class="hand-index">1</div>
+      <div class="hand-result win-text">WIN</div>
+      <div class="mini-cards">
+        <div class="mini-card red">A♥</div><div class="mini-card red">K♥</div>
+        <div class="mini-card red">Q♥</div><div class="mini-card red">J♥</div>
+        <div class="mini-card red">10♥</div>
+      </div>
+      <div class="hand-chips pos">+15,200</div>
+      <div class="hand-time">10 min ago</div>
+    </div>
+    <div class="hand-row">
+      <div class="hand-index">2</div>
+      <div class="hand-result loss-text">LOSS</div>
+      <div class="mini-cards">
+        <div class="mini-card">K♠</div><div class="mini-card">Q♠</div>
+        <div class="mini-card">J♠</div><div class="mini-card">10♠</div>
+        <div class="mini-card">9♠</div>
+      </div>
+      <div class="hand-chips neg">-8,300</div>
+      <div class="hand-time">25 min ago</div>
+    </div>
+    <div class="hand-row">
+      <div class="hand-index">3</div>
+      <div class="hand-result win-text">WIN</div>
+      <div class="mini-cards">
+        <div class="mini-card">A♠</div><div class="mini-card red">A♥</div>
+        <div class="mini-card">K♠</div><div class="mini-card">Q♠</div>
+        <div class="mini-card">J♠</div>
+      </div>
+      <div class="hand-chips pos">+22,100</div>
+      <div class="hand-time">45 min ago</div>
+    </div>
+    <div class="hand-row">
+      <div class="hand-index">4</div>
+      <div class="hand-result win-text">WIN</div>
+      <div class="mini-cards">
+        <div class="mini-card">Q♠</div><div class="mini-card">J♠</div>
+        <div class="mini-card">10♠</div><div class="mini-card">9♠</div>
+        <div class="mini-card">8♠</div>
+      </div>
+      <div class="hand-chips pos">+9,500</div>
+      <div class="hand-time">1 hr ago</div>
+    </div>
+    <div class="hand-row">
+      <div class="hand-index">5</div>
+      <div class="hand-result loss-text">LOSS</div>
+      <div class="mini-cards">
+        <div class="mini-card">J♠</div><div class="mini-card">10♠</div>
+        <div class="mini-card">9♠</div><div class="mini-card">8♠</div>
+        <div class="mini-card">7♠</div>
+      </div>
+      <div class="hand-chips neg">-7,800</div>
+      <div class="hand-time">2 hr ago</div>
+    </div>
+
     <!-- Transaction History (from API) -->
     <div class="section-label">◆ Transaction History ◆</div>
     <div id="txList" class="tx-list"></div>
     <button class="tx-load-more" id="txLoadMore" style="display:none;">Load more</button>
 
-    <!-- Top-up button -->
+    <!-- Action Buttons inside Profile Panel -->
     <button class="glass-cta glass-cta-full glass-cta-gold" id="topupBtn" style="margin-top: 14px;">
       <div class="glass-cta-cutout"></div>
       <div class="glass-cta-content">
@@ -104,7 +162,7 @@
       </div>
     </button>
 
-        <button class="glass-cta glass-cta-full glass-cta-gold" id="confirmAvatarBtn" style="margin-top: 14px;">
+    <button class="glass-cta glass-cta-full glass-cta-gold" id="confirmAvatarBtn" style="margin-top: 14px;">
       <div class="glass-cta-cutout"></div>
       <div class="glass-cta-content">
         <div class="glass-cta-inner-bg"></div>
@@ -120,7 +178,7 @@
 
   <!-- ======================= MAIN ACTION BUTTONS ======================= -->
   <div class="action-buttons">
-    <button class="glass-cta glass-cta-lobby glass-cta-pink" onclick="window.location.href='poker-table.html'">
+    <button class="glass-cta glass-cta-lobby glass-cta-pink" id="openCreateRoomBtn">
       <div class="glass-cta-shimmer-wrap">
         <div class="glass-cta-shimmer-inner">
           <div class="glass-cta-shimmer-conic"></div>
@@ -137,7 +195,7 @@
       </div>
     </button>
 
-    <button class="glass-cta glass-cta-lobby glass-cta-cyan" onclick="window.location.href='poker-table.html'">
+    <button class="glass-cta glass-cta-lobby glass-cta-cyan" id="focusJoinBtn">
       <div class="glass-cta-shimmer-wrap">
         <div class="glass-cta-shimmer-inner">
           <div class="glass-cta-shimmer-conic"></div>
@@ -156,15 +214,89 @@
   </div>
 
   <!-- ======================= ROOM CODE ENTRY ======================= -->
-    <div class="room-code-bar">
-    <input type="text" id="roomCodeInput" placeholder="Enter Room Code">
-    <button class="glass-cta glass-cta-sm glass-cta-purple" onclick="const code = document.getElementById('roomCodeInput').value; if(code.trim()){ window.location.href='poker-table.html'; } else { alert('Please enter a room code'); }">
+  <div class="room-code-bar">
+    <input type="text" id="roomCodeInput" placeholder="Enter Room Code" maxlength="6" autocomplete="off">
+    <button class="glass-cta glass-cta-sm glass-cta-purple" id="joinCodeBtn">
       <div class="glass-cta-cutout"></div>
       <div class="glass-cta-content">
         <div class="glass-cta-inner-bg"></div>
         <span class="glass-cta-label">Join</span>
       </div>
     </button>
+  </div>
+  <div class="inline-error" id="joinError" hidden></div>
+
+  <!-- ======================= CREATE ROOM MODAL ======================= -->
+  <div class="modal-overlay" id="roomModalOverlay" hidden>
+
+    <!-- Step 1: room settings form -->
+    <section class="room-modal" id="createRoomModal">
+      <button class="close-btn" id="closeCreateRoomBtn">✕</button>
+      <div class="section-label">◆ Create Room ◆</div>
+
+      <label class="field-label" for="roomNameInput">Table name</label>
+      <input type="text" id="roomNameInput" class="room-field" maxlength="60" placeholder="e.g. Dream Room">
+
+      <label class="field-label">Blinds (min / max bet)</label>
+      <div class="preset-row" id="blindPresets">
+        <button type="button" class="preset-chip" data-min="10" data-max="1000">10 / 1,000</button>
+        <button type="button" class="preset-chip" data-min="50" data-max="5000">50 / 5,000</button>
+        <button type="button" class="preset-chip" data-min="100" data-max="10000">100 / 10,000</button>
+        <button type="button" class="preset-chip" data-min="500" data-max="50000">500 / 50,000</button>
+      </div>
+      <div class="field-row">
+        <div class="field-col">
+          <label class="field-label" for="minBetInput">Min bet</label>
+          <input type="number" id="minBetInput" class="room-field" min="1" step="1" value="10">
+        </div>
+        <div class="field-col">
+          <label class="field-label" for="maxBetInput">Max bet</label>
+          <input type="number" id="maxBetInput" class="room-field" min="1" step="1" value="1000">
+        </div>
+      </div>
+
+      <label class="field-label">Max seats</label>
+      <div class="preset-row" id="seatPresets">
+        <button type="button" class="preset-chip" data-seats="2">2</button>
+        <button type="button" class="preset-chip" data-seats="4">4</button>
+        <button type="button" class="preset-chip is-active" data-seats="6">6</button>
+        <button type="button" class="preset-chip" data-seats="9">9</button>
+      </div>
+      <input type="hidden" id="maxSeatsInput" value="6">
+
+      <div class="inline-error" id="createRoomError" hidden></div>
+
+      <button class="glass-cta glass-cta-full glass-cta-pink" id="submitCreateRoomBtn" style="margin-top:14px;">
+        <div class="glass-cta-cutout"></div>
+        <div class="glass-cta-content">
+          <div class="glass-cta-inner-bg"></div>
+          <span class="glass-cta-label">Create Room</span>
+        </div>
+      </button>
+    </section>
+
+    <!-- Step 2: waiting room -->
+    <section class="room-modal" id="waitingRoomModal" hidden>
+      <button class="close-btn" id="closeWaitingRoomBtn">✕</button>
+      <div class="section-label">◆ Room Created ◆</div>
+
+      <p class="waiting-hint">Share this code with friends so they can join</p>
+      <div class="room-code-display" id="waitingRoomCode">------</div>
+      <button class="copy-code-btn" id="copyRoomCodeBtn" type="button">Copy code</button>
+
+      <div class="waiting-summary" id="waitingSummary"></div>
+
+      <div class="waiting-status" id="waitingStatus">Waiting for players…</div>
+
+      <button class="glass-cta glass-cta-full glass-cta-cyan" id="enterTableBtn" style="margin-top:14px;">
+        <div class="glass-cta-cutout"></div>
+        <div class="glass-cta-content">
+          <div class="glass-cta-inner-bg"></div>
+          <span class="glass-cta-label">Enter Table</span>
+        </div>
+      </button>
+    </section>
+
   </div>
 
   <!-- ======================= TOPUP MODAL ======================= -->
@@ -230,7 +362,12 @@
     panel.classList.remove('open');
   }
 
-  widget.addEventListener('click', () => panel.classList.add('open'));
+  widget.addEventListener('click', () => {
+    panel.classList.add('open');
+    txPage = 1;
+    loadTransactions(1);
+  });
+
   closeBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     closeProfilePanel();
@@ -346,15 +483,19 @@
     topupModal.classList.remove('open');
   }
 
-  topupQuickBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    openTopupModal();
-  });
+  if (topupQuickBtn) {
+    topupQuickBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openTopupModal();
+    });
+  }
 
-  topupBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    openTopupModal();
-  });
+  if (topupBtn) {
+    topupBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openTopupModal();
+    });
+  }
 
   topupCloseBtn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -365,7 +506,6 @@
     if (e.target === topupModal) closeTopupModal();
   });
 
-  // Preset buttons
   topupPresets.addEventListener('click', (e) => {
     const btn = e.target.closest('.topup-preset');
     if (!btn) return;
@@ -415,12 +555,162 @@
     }
   }
 
-  // Load transactions when panel opens
-  const origWidgetClick = () => {
-    txPage = 1;
-    loadTransactions(1);
-  };
-  widget.addEventListener('click', origWidgetClick);
+  // ===================== CREATE ROOM =====================
+  const overlay = document.getElementById('roomModalOverlay');
+  const createRoomModal = document.getElementById('createRoomModal');
+  const waitingRoomModal = document.getElementById('waitingRoomModal');
+  const openCreateRoomBtn = document.getElementById('openCreateRoomBtn');
+  const closeCreateRoomBtn = document.getElementById('closeCreateRoomBtn');
+  const closeWaitingRoomBtn = document.getElementById('closeWaitingRoomBtn');
+  const submitCreateRoomBtn = document.getElementById('submitCreateRoomBtn');
+  const createRoomError = document.getElementById('createRoomError');
+
+  const roomNameInput = document.getElementById('roomNameInput');
+  const minBetInput = document.getElementById('minBetInput');
+  const maxBetInput = document.getElementById('maxBetInput');
+  const maxSeatsInput = document.getElementById('maxSeatsInput');
+  const blindPresets = document.getElementById('blindPresets');
+  const seatPresets = document.getElementById('seatPresets');
+
+  function showError(el, message) {
+    el.textContent = message;
+    el.hidden = false;
+  }
+  function hideError(el) {
+    el.hidden = true;
+    el.textContent = '';
+  }
+
+  function openOverlay() {
+    overlay.hidden = false;
+    createRoomModal.hidden = false;
+    waitingRoomModal.hidden = true;
+    hideError(createRoomError);
+  }
+  function closeOverlay() {
+    overlay.hidden = true;
+  }
+
+  openCreateRoomBtn.addEventListener('click', () => {
+    if (!currentUser) return;
+    roomNameInput.value = (currentUser.display_name || currentUser.username) + "'s Room";
+    minBetInput.value = 10;
+    maxBetInput.value = 1000;
+    maxSeatsInput.value = 6;
+    [...blindPresets.children].forEach((b) => b.classList.remove('is-active'));
+    [...seatPresets.children].forEach((b) => b.classList.toggle('is-active', b.dataset.seats === '6'));
+    openOverlay();
+  });
+  closeCreateRoomBtn.addEventListener('click', closeOverlay);
+  closeWaitingRoomBtn.addEventListener('click', closeOverlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) closeOverlay(); });
+
+  blindPresets.addEventListener('click', (e) => {
+    const btn = e.target.closest('.preset-chip');
+    if (!btn) return;
+    minBetInput.value = btn.dataset.min;
+    maxBetInput.value = btn.dataset.max;
+    [...blindPresets.children].forEach((b) => b.classList.remove('is-active'));
+    btn.classList.add('is-active');
+  });
+  seatPresets.addEventListener('click', (e) => {
+    const btn = e.target.closest('.preset-chip');
+    if (!btn) return;
+    maxSeatsInput.value = btn.dataset.seats;
+    [...seatPresets.children].forEach((b) => b.classList.remove('is-active'));
+    btn.classList.add('is-active');
+  });
+
+  submitCreateRoomBtn.addEventListener('click', async () => {
+    hideError(createRoomError);
+    const label = submitCreateRoomBtn.querySelector('.glass-cta-label');
+    const original = label.textContent;
+    try {
+      label.textContent = 'Creating…';
+      submitCreateRoomBtn.disabled = true;
+      const table = await PokerAPI.Tables.create({
+        name: roomNameInput.value.trim(),
+        min_bet: Number(minBetInput.value),
+        max_bet: Number(maxBetInput.value),
+        max_seats: Number(maxSeatsInput.value),
+      });
+      showWaitingRoom(table);
+    } catch (err) {
+      showError(createRoomError, PokerAPI.fmtTableError(err));
+    } finally {
+      label.textContent = original;
+      submitCreateRoomBtn.disabled = false;
+    }
+  });
+
+  function showWaitingRoom(table) {
+    createRoomModal.hidden = true;
+    waitingRoomModal.hidden = false;
+    document.getElementById('waitingRoomCode').textContent = table.room_code;
+    document.getElementById('waitingSummary').innerHTML =
+      '<strong>' + table.name + '</strong><br>' +
+      'Blinds ' + PokerAPI.fmtChips(table.min_bet) + ' / ' + PokerAPI.fmtChips(table.max_bet) +
+      ' &nbsp;•&nbsp; ' + table.max_seats + ' seats';
+    document.getElementById('enterTableBtn').onclick = () => {
+      window.location.href = 'poker-table.html?code=' + encodeURIComponent(table.room_code);
+    };
+  }
+
+  document.getElementById('copyRoomCodeBtn').addEventListener('click', async () => {
+    const code = document.getElementById('waitingRoomCode').textContent;
+    const btn = document.getElementById('copyRoomCodeBtn');
+    try {
+      await navigator.clipboard.writeText(code);
+      const original = btn.textContent;
+      btn.textContent = 'Copied ✓';
+      setTimeout(() => { btn.textContent = original; }, 1200);
+    } catch (_) { /* clipboard unavailable — silently ignore */ }
+  });
+
+  // ===================== JOIN ROOM =====================
+  const roomCodeInput = document.getElementById('roomCodeInput');
+  const joinCodeBtn = document.getElementById('joinCodeBtn');
+  const joinError = document.getElementById('joinError');
+  const focusJoinBtn = document.getElementById('focusJoinBtn');
+
+  focusJoinBtn.addEventListener('click', () => {
+    roomCodeInput.focus();
+    roomCodeInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+
+  roomCodeInput.addEventListener('input', () => {
+    roomCodeInput.value = roomCodeInput.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  });
+  roomCodeInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') attemptJoin();
+  });
+  joinCodeBtn.addEventListener('click', () => attemptJoin());
+
+  async function attemptJoin() {
+    hideError(joinError);
+    const code = roomCodeInput.value.trim();
+    if (!code) {
+      showError(joinError, 'Please enter a room code.');
+      return;
+    }
+    if (code.length !== 6) {
+      showError(joinError, 'Room codes are 6 characters long.');
+      return;
+    }
+    const label = joinCodeBtn.querySelector('.glass-cta-label');
+    const original = label.textContent;
+    try {
+      label.textContent = 'Joining…';
+      joinCodeBtn.disabled = true;
+      const table = await PokerAPI.Tables.join(code);
+      window.location.href = 'poker-table.html?code=' + encodeURIComponent(table.room_code);
+    } catch (err) {
+      showError(joinError, PokerAPI.fmtTableError(err));
+    } finally {
+      label.textContent = original;
+      joinCodeBtn.disabled = false;
+    }
+  }
 </script>
 
 <!-- Dynamic Delaunay Triangulation Lattice Background -->
