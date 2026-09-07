@@ -49,7 +49,7 @@ export const env = {
     topupMax: parseInt(required('TOPUP_MAX', '100000'), 10),
   },
 
-  internalApiKey: required('INTERNAL_API_KEY', 'dev-internal-key-change-me'),
+  internalApiKey: required('INTERNAL_API_KEY', 'dev-internal-key'),
 };
 
 // Fail-fast in non-test environments if JWT secret is obviously weak.

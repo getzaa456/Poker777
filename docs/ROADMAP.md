@@ -57,12 +57,12 @@
 
 **DoD:** flow register → login → me ผ่าน | register ซ้ำได้ 409 | token พังได้ 401
 
-## Phase 2 — Wallet & Chip Economy (≈ 3–4 วัน)
+## Phase 2 — Wallet & Chip Economy (≈ 3–4 วัน) ✅
 
-- [ ] `POST /wallet/topup` — amount ต้องเป็น int > 0 มีเพดานต่อครั้ง, atomic update + insert transaction ใน DB transaction เดียว
-- [ ] `GET /wallet/transactions` — pagination `?page&limit`, ใหม่สุดก่อน, มี `balance_after`
-- [ ] `POST /internal/wallet/adjust` — สำหรับ WS team, ตรวจ `X-Internal-Key`, idempotency ด้วย `ref_id = hand_id` (ซ้ำ → 200 เดิม ไม่ปรับยอดซ้ำ)
-- [ ] concurrency test: ยิง topup/adjust ขนาน 50 คำขอ ยอดรวมต้องถูกต้องเป๊ะ (no lost update)
+- [x] `POST /wallet/topup` — amount ต้องเป็น int > 0 มีเพดานต่อครั้ง, atomic update + insert transaction ใน DB transaction เดียว
+- [x] `GET /wallet/transactions` — pagination `?page&limit`, ใหม่สุดก่อน, มี `balance_after`
+- [x] `POST /internal/wallet/adjust` — สำหรับ WS team, ตรวจ `X-Internal-Key`, idempotency ด้วย `ref_id = hand_id` (ซ้ำ → 200 เดิม ไม่ปรับยอดซ้ำ)
+- [x] concurrency test: ยิง topup/adjust ขนาน 50 คำขอ ยอดรวมต้องถูกต้องเป๊ะ (no lost update)
 
 **DoD:** ทุกการเปลี่ยนแปลงมีแถว transactions | concurrency test ผ่าน
 

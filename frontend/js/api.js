@@ -107,10 +107,21 @@
     },
   };
 
+  const Wallet = {
+    /** POST /wallet/topup -> { balance, amount, type } */
+    async topUp(amount) {
+      return api('/wallet/topup', { method: 'POST', body: { amount } });
+    },
+    /** GET /wallet/transactions?page=&limit= -> { transactions, pagination } */
+    async transactions(page = 1, limit = 20) {
+      return api('/wallet/transactions?page=' + page + '&limit=' + limit);
+    },
+  };
+
   /** Format chips with thousands separator, e.g. 2680 -> "2,680". */
   function fmtChips(n) {
     return Number(n || 0).toLocaleString('en-US');
   }
 
-  window.PokerAPI = { API_BASE, api, Auth, getToken, setSession, clearSession, fmtChips, AVATAR_KEY };
+  window.PokerAPI = { API_BASE, api, Auth, Wallet, getToken, setSession, clearSession, fmtChips, AVATAR_KEY };
 })();

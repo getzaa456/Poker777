@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS `users` (
 CREATE TABLE IF NOT EXISTS `wallets` (
   `user_id`    BIGINT UNSIGNED NOT NULL,
   `balance`    INT UNSIGNED NOT NULL DEFAULT 0,
+  `version`    BIGINT UNSIGNED NOT NULL DEFAULT 1,  -- optimistic locking
   `updated_at` TIMESTAMP  NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`user_id`),
   CONSTRAINT `fk_wallets_user` FOREIGN KEY (`user_id`)
@@ -38,10 +39,11 @@ CREATE TABLE IF NOT EXISTS `wallets` (
 CREATE TABLE IF NOT EXISTS `transactions` (
   `id`             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   `user_id`        BIGINT UNSIGNED NOT NULL,
-  `type`           ENUM('TOPUP','BONUS','SETTLE','BUYIN') NOT NULL,
+  `type`           ENUM('TOPUP','BONUS','SETTLE','BUYIN','WIN','LOSS') NOT NULL,
   `amount`         INT NOT NULL,                    -- positive = credit, negative = debit
   `balance_after`  INT UNSIGNED NOT NULL,
   `ref_id`         VARCHAR(60) NOT NULL,            -- idempotency key (hand_id / topup_id / 'register:'+user_id)
+  `note`           VARCHAR(255) NULL,               -- human-readable description
   `created_at`     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_transactions_ref` (`ref_id`),       -- idempotency: one effect per ref
