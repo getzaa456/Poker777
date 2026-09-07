@@ -1,6 +1,9 @@
 (function () {
   const STORAGE_KEY = "poker777-avatar-id";
 
+  // Current selected id (kept in sync by selectAvatar; exposed via window.avatarPicker).
+  let currentSelectedId = 1;
+
   const AVATARS = [
     {
       id: 1,
@@ -100,7 +103,9 @@
     var headerEl = document.getElementById(options.headerId);
     var mainWrap = document.getElementById(options.mainId);
     var choicesEl = document.getElementById(options.choicesId);
-    var selectedId = loadSavedId();
+    // Server-side avatar wins over local storage; options.initialId may be null.
+    var selectedId = options.initialId != null ? getAvatar(options.initialId).id : loadSavedId();
+    currentSelectedId = selectedId;
     var rotationCount = 0;
 
     function renderFace(target, avatar, prefix, scaled) {
@@ -128,6 +133,7 @@
 
     function selectAvatar(id, spin) {
       selectedId = id;
+      currentSelectedId = id;
       localStorage.setItem(STORAGE_KEY, String(id));
       if (spin) {
         rotationCount += 1080;
@@ -159,5 +165,12 @@
     });
 
     paintSelection();
+  };
+
+  // Public accessor so lobby.html can PATCH /users/me with the chosen avatar.
+  window.avatarPicker = {
+    getSelectedId: function () {
+      return currentSelectedId;
+    },
   };
 })();

@@ -206,6 +206,7 @@ html,body{
 .profile-info{ display:flex; flex-direction:column; gap:4px; min-width:150px; }
 .profile-name{ font-family:var(--font-display); font-weight:700; font-size:17px; }
 .profile-level{ font-size:12px; color:var(--text-muted); font-weight:600; }
+.profile-chips{ font-size:12px; color:var(--gold, #ffd166); font-weight:700; }
 
 .xp-bar{
   width:170px; height:6px;
@@ -233,6 +234,7 @@ html,body{
   transition:transform .15s ease;
 }
 .expand-btn:hover{ transform:scale(1.12); }
+.logout-btn{ box-shadow:0 0 14px rgba(95,208,232,0.5); background:rgba(95,208,232,0.18); }
 
 /* ==========================================================================
    PROFILE PANEL 

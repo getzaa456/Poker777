@@ -384,10 +384,23 @@
   }
 
   @keyframes borderBeamRotation {
-    0% {
-      transform: translate(-50%, -50%) rotate(0deg);
+      0% {
+        transform: translate(-50%, -50%) rotate(0deg);
+      }
+      100% {
+        transform: translate(-50%, -50%) rotate(360deg);
+      }
     }
-    100% {
-      transform: translate(-50%, -50%) rotate(360deg);
+
+    /* ===== Form error message ===== */
+    .form-error {
+      display: none;
+      color: #ff4d6a;
+      background: rgba(255, 77, 106, 0.08);
+      border: 1px solid rgba(255, 77, 106, 0.25);
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin-bottom: 10px;
+      font-size: 14px;
+      font-weight: 600;
     }
-  }

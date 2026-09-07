@@ -52,14 +52,15 @@
       </div>
 
       <!-- ===== Login Form ===== -->
-      <form id="login-form">
-        <div class="field">
-          <input type="text" placeholder="Username" required>
-        </div>
-        <div class="field">
-          <input id="pwd-login" type="password" placeholder="Password" required>
-          <span class="toggle" onclick="togglePwd('pwd-login')">&#128065;</span>
-        </div>
+            <form id="login-form">
+              <div class="field">
+                <input id="login-identifier" type="text" placeholder="Username or Email" required>
+              </div>
+              <div class="field">
+                <input id="pwd-login" type="password" placeholder="Password" required>
+                <span class="toggle" onclick="togglePwd('pwd-login')">&#128065;</span>
+              </div>
+              <div id="login-error" class="form-error" style="display:none;"></div>
 
         <div class="row-between">
           <label class="remember">
@@ -85,21 +86,22 @@
       </form>
 
       <!-- ===== Register Form ===== -->
-      <form id="register-form" style="display: none;">
-        <div class="field">
-          <input type="email" placeholder="Email" required>
-        </div>
-        <div class="field">
-          <input type="text" placeholder="Username" required>
-        </div>
-        <div class="field">
-          <input id="pwd-reg" type="password" placeholder="Password" required>
-          <span class="toggle" onclick="togglePwd('pwd-reg')">&#128065;</span>
-        </div>
-        <div class="field">
-          <input id="pwd-reg-conf" type="password" placeholder="Confirm Password" required>
-          <span class="toggle" onclick="togglePwd('pwd-reg-conf')">&#128065;</span>
-        </div>
+            <form id="register-form" style="display: none;">
+              <div class="field">
+                <input id="reg-email" type="email" placeholder="Email" required>
+              </div>
+              <div class="field">
+                <input id="reg-username" type="text" placeholder="Username" required>
+              </div>
+              <div class="field">
+                <input id="pwd-reg" type="password" placeholder="Password" required>
+                <span class="toggle" onclick="togglePwd('pwd-reg')">&#128065;</span>
+              </div>
+              <div class="field">
+                <input id="pwd-reg-conf" type="password" placeholder="Confirm Password" required>
+                <span class="toggle" onclick="togglePwd('pwd-reg-conf')">&#128065;</span>
+              </div>
+              <div id="register-error" class="form-error" style="display:none;"></div>
 
         <button type="submit" class="glass-cta glass-cta-full glass-cta-purple">
           <div class="glass-cta-shimmer-wrap">
@@ -122,39 +124,79 @@
     </div>
   </div>
 
-  <script>
-    // ===== Tab switching (Login / Register) =====
-    function switchTab(btn, tab){
-      document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      
-      // Swap form fields
-      if(tab === 'login') {
-        document.getElementById('login-form').style.display = 'flex';
-        document.getElementById('register-form').style.display = 'none';
-      } else {
-        document.getElementById('login-form').style.display = 'none';
-        document.getElementById('register-form').style.display = 'flex';
+  <script src="js/api.js"></script>
+    <script>
+      // ===== API Config + login/register wiring (uses shared js/api.js) =====
+
+      // Helpers
+      function showError(formId, msg) {
+        const el = document.getElementById(formId + '-error');
+        el.textContent = msg;
+        el.style.display = 'block';
       }
-    }
+      function hideError(formId) {
+        const el = document.getElementById(formId + '-error');
+        el.style.display = 'none';
+      }
 
-    // ===== Password show/hide toggle =====
-    function togglePwd(inputId){
-      const pwd = document.getElementById(inputId);
-      pwd.type = pwd.type === 'password' ? 'text' : 'password';
-    }
+      // Already logged in? Skip straight to the lobby.
+      if (PokerAPI.Auth.hasSession()) {
+        location.href = 'lobby.html';
+      }
 
-    // ===== Navigate to Lobby on submit =====
-    document.getElementById('login-form').addEventListener('submit', e => {
-      e.preventDefault();
-      window.location.href = 'lobby.html';
-    });
-    
-    document.getElementById('register-form').addEventListener('submit', e => {
-      e.preventDefault();
-      window.location.href = 'lobby.html';
-    });
-  </script>
+      // ===== Tab switching (Login / Register) =====
+      function switchTab(btn, tab){
+        document.querySelectorAll('.tabs button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        if(tab === 'login') {
+          document.getElementById('login-form').style.display = 'flex';
+          document.getElementById('register-form').style.display = 'none';
+        } else {
+          document.getElementById('login-form').style.display = 'none';
+          document.getElementById('register-form').style.display = 'flex';
+        }
+      }
+
+      // ===== Password show/hide toggle =====
+      function togglePwd(inputId){
+        const pwd = document.getElementById(inputId);
+        pwd.type = pwd.type === 'password' ? 'text' : 'password';
+      }
+
+      // ===== Login =====
+      document.getElementById('login-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        hideError('login');
+        const identifier = document.getElementById('login-identifier').value.trim();
+        const password = document.getElementById('pwd-login').value;
+        try {
+          await PokerAPI.Auth.login(identifier, password);
+          window.location.href = 'lobby.html';
+        } catch (err) {
+          showError('login', err.message);
+        }
+      });
+
+      // ===== Register =====
+      document.getElementById('register-form').addEventListener('submit', async e => {
+        e.preventDefault();
+        hideError('register');
+        const username = document.getElementById('reg-username').value.trim();
+        const email = document.getElementById('reg-email').value.trim();
+        const password = document.getElementById('pwd-reg').value;
+        const confirm = document.getElementById('pwd-reg-conf').value;
+        if (password !== confirm) {
+          showError('register', 'Passwords do not match');
+          return;
+        }
+        try {
+          await PokerAPI.Auth.register({ username, email, password });
+          window.location.href = 'lobby.html';
+        } catch (err) {
+          showError('register', err.message);
+        }
+      });
+    </script>
 
   <!-- Dynamic Delaunay Triangulation Lattice Background -->
   <script src="js/lattice-background.js"></script>

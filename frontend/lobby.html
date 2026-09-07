@@ -36,15 +36,16 @@
   <div class="confetti" style="color:#8b6ef7;top:20%;left:40%;animation-delay:1.5s;"></div>
 
   <!-- ======================= HEADER: PLAYER WIDGET ======================= -->
-  <header class="profile-widget" id="profileWidget">
-    <div class="avatar avatar-svg" id="headerAvatar" role="img" aria-label="Player Avatar"></div>
-    <div class="profile-info">
-      <div class="profile-name">Dreamer</div>
-      <div class="profile-level">Lv. 28</div>
-      <div class="xp-bar"><div class="xp-fill"></div></div>
-    </div>
-    <button class="expand-btn" id="expandBtn" title="View profile">+</button>
-  </header>
+    <header class="profile-widget" id="profileWidget">
+      <div class="avatar avatar-svg" id="headerAvatar" role="img" aria-label="Player Avatar"></div>
+      <div class="profile-info">
+        <div class="profile-name" id="headerName">Loading…</div>
+        <div class="profile-chips" id="profileChips">🪙 –</div>
+        <div class="xp-bar"><div class="xp-fill"></div></div>
+      </div>
+      <button class="expand-btn" id="expandBtn" title="View profile">+</button>
+          <button class="expand-btn logout-btn" id="logoutBtn" title="Log out">⎋</button>
+        </header>
 
   <!-- ======================= PROFILE PANEL (MODAL CARD) ======================= -->
   <section class="profile-panel" id="profilePanel">
@@ -58,14 +59,14 @@
         </div>
 
         <div class="avatar-picker-identity">
-          <h2 class="panel-name">Dreamer</h2>
-          <p class="avatar-picker-hint">Select your avatar</p>
-          <div class="panel-meta">
-            <span class="level-chip">Lv. 28</span>
-            <span class="title-badge">Dream Knight</span>
-          </div>
-          <div class="rank-points">⭐ 2,450 / 3,000</div>
-        </div>
+                  <h2 class="panel-name" id="panelName">Loading…</h2>
+                  <p class="avatar-picker-hint">Select your avatar</p>
+                  <div class="panel-meta">
+                    <span class="level-chip">Lv. 1</span>
+                    <span class="title-badge">Rookie</span>
+                  </div>
+                  <div class="rank-points" id="panelChips">🪙 –</div>
+                </div>
 
         <div class="avatar-choices" id="avatarChoices"></div>
       </div>
@@ -216,8 +217,35 @@
 
 </div>
 
+<script src="js/api.js"></script>
 <script src="js/avatar-picker.js"></script>
 <script>
+  // ===================== AUTH GUARD + PROFILE LOAD =====================
+  let currentUser = null;
+
+  (async function initLobby() {
+    currentUser = await PokerAPI.Auth.requireUser();
+    if (!currentUser) return; // redirected to login
+
+    // Fill names
+    const displayName = currentUser.display_name || currentUser.username;
+    document.getElementById('headerName').textContent = displayName;
+    document.getElementById('panelName').textContent = displayName;
+
+    // Fill chips (wallet balance from /users/me)
+    const chipsText = '🪙 ' + PokerAPI.fmtChips(currentUser.balance);
+    document.getElementById('profileChips').textContent = chipsText;
+    document.getElementById('panelChips').textContent = chipsText;
+
+    // Init avatar picker: server-side avatar_id wins over local storage.
+    initAvatarPicker({
+      headerId: 'headerAvatar',
+      mainId: 'mainAvatar',
+      choicesId: 'avatarChoices',
+      initialId: currentUser.avatar_id ? parseInt(currentUser.avatar_id, 10) : null,
+    });
+  })();
+
   // ===================== PROFILE PANEL TOGGLE =====================
   const widget = document.getElementById('profileWidget');
   const panel  = document.getElementById('profilePanel');
@@ -233,18 +261,38 @@
     e.stopPropagation();
     closeProfilePanel();
   });
-  confirmAvatarBtn.addEventListener('click', (e) => {
+
+  // ===================== CONFIRM AVATAR -> PATCH /users/me =====================
+  confirmAvatarBtn.addEventListener('click', async (e) => {
     e.stopPropagation();
-    closeProfilePanel();
+    const label = confirmAvatarBtn.querySelector('.glass-cta-label');
+    const original = label.textContent;
+    try {
+      label.textContent = 'Saving…';
+      confirmAvatarBtn.disabled = true;
+      const avatarId = window.avatarPicker.getSelectedId();
+      currentUser = await PokerAPI.Auth.updateMe({ avatar_id: String(avatarId) });
+      label.textContent = 'Saved ✓';
+      setTimeout(() => closeProfilePanel(), 600);
+    } catch (err) {
+      label.textContent = 'Failed';
+      setTimeout(() => { label.textContent = original; }, 1200);
+      if (err.code === 'NETWORK') alert(err.message);
+    } finally {
+      confirmAvatarBtn.disabled = false;
+    }
   });
+
+  // ===================== LOGOUT =====================
+  const logoutBtn = document.getElementById('logoutBtn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      PokerAPI.Auth.logout();
+    });
+  }
 
   panel.classList.remove('open');
-
-  initAvatarPicker({
-    headerId: 'headerAvatar',
-    mainId: 'mainAvatar',
-    choicesId: 'avatarChoices'
-  });
 </script>
 
 <!-- Dynamic Delaunay Triangulation Lattice Background -->
