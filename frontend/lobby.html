@@ -43,9 +43,8 @@
       <div class="profile-chips" id="profileChips">🪙 –</div>
       <div class="xp-bar"><div class="xp-fill"></div></div>
     </div>
-    <button class="expand-btn" id="expandBtn" title="View profile">+</button>
-    <button class="topup-quick-btn" id="topupQuickBtn" title="Top up chips">🪙+</button>
-    <button class="expand-btn logout-btn" id="logoutBtn" title="Log out">⎋</button>
+    <button class="topup-quick-btn" id="topupQuickBtn" title="Top up chips">$ - TOPUP</button>
+    <button class="expand-btn logout-btn" id="logoutBtn" title="Log out">➜] - LOGOUT</button>
   </header>
 
   <!-- ======================= PROFILE PANEL (MODAL CARD) ======================= -->
@@ -158,7 +157,7 @@
       <div class="glass-cta-cutout"></div>
       <div class="glass-cta-content">
         <div class="glass-cta-inner-bg"></div>
-        <span class="glass-cta-label">🪙 Top Up Chips</span>
+        <span class="glass-cta-label">Top Up Chips</span>
       </div>
     </button>
 
@@ -689,8 +688,7 @@
   const focusJoinBtn = document.getElementById('focusJoinBtn');
 
   focusJoinBtn.addEventListener('click', () => {
-    roomCodeInput.focus();
-    roomCodeInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    window.location.href = 'rooms.html';
   });
 
   roomCodeInput.addEventListener('input', () => {

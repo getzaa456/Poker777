@@ -119,6 +119,11 @@
   };
 
   const Tables = {
+    /** GET /tables -> list all open rooms */
+    async list() {
+      const data = await api('/tables');
+      return data.tables || [];
+    },
     /** POST /tables -> { table } — create a room. payload: { name, min_bet, max_bet, max_seats } */
     async create(payload) {
       const data = await api('/tables', { method: 'POST', body: payload });
