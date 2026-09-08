@@ -10,7 +10,7 @@ body {
 
 body {
   font-family: 'Nunito', Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #0f0b1a; /* สีพื้นหลังหลักที่เข้มขึ้น */
+  background: #0f0b1a;
   overflow-x: hidden;
 }
 
@@ -23,7 +23,9 @@ button {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* พื้นหลังหลักสไตล์ใหม่ */
+/* ==========================================
+   GAME CONTAINER & BACKGROUNDS
+   ========================================== */
 .game {
   position: relative;
   min-height: 100vh;
@@ -39,7 +41,6 @@ button {
   pointer-events: none;
 }
 
-/* ลายตารางบางๆ แบบในรูป */
 .background::before {
   content: "";
   position: absolute;
@@ -50,7 +51,6 @@ button {
   background-size: 50px 50px;
 }
 
-/* จุดตัดบนลายตาราง */
 .background::after {
   content: "";
   position: absolute;
@@ -60,7 +60,6 @@ button {
   background-position: -1px -1px;
 }
 
-/* เงาตึกด้านล่าง (Cityscape Silhouette) */
 .cityscape {
   position: absolute;
   bottom: 0;
@@ -73,7 +72,6 @@ button {
   z-index: 1;
 }
 
-/* ปรับชิปที่ลอยไปมาให้ดูเป็นกระจกทึบๆ แบบในรูป */
 .suit-badge {
   position: absolute;
   width: 62px;
@@ -124,7 +122,9 @@ button {
   50% { transform: translateY(-30px) scale(1.5); opacity: .8; }
 }
 
-/* Header */
+/* ==========================================
+   HEADER
+   ========================================== */
 .header {
   position: relative;
   z-index: 20;
@@ -180,9 +180,63 @@ button {
 .room-title strong { color: #ffb1e6; }
 .room-subtitle { margin-top: 3px; color: #a59bce; font-size: 12px; }
 
+.table-tool-button,
+.table-leave-button {
+  border: 1px solid rgba(255,255,255,.14);
+  border-radius: 10px;
+  padding: 9px 12px;
+  color: #efeaff;
+  background: rgba(255,255,255,.08);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.table-tool-button:hover { background: rgba(139,110,247,.35); }
+.table-leave-button { color: #ffd1dc; border-color: rgba(255,95,162,.3); }
+.table-leave-button:hover { background: rgba(255,95,162,.22); }
+
+.hand-guide {
+  position: fixed;
+  top: 88px;
+  right: 28px;
+  width: min(350px, calc(100vw - 40px));
+  max-height: calc(100vh - 120px);
+  overflow: auto;
+  z-index: 40;
+  padding: 20px;
+  border: 1px solid rgba(255,255,255,.16);
+  border-radius: 18px;
+  background: rgba(20,15,35,.94);
+  box-shadow: 0 20px 55px rgba(0,0,0,.5), 0 0 30px rgba(139,110,247,.18);
+  backdrop-filter: blur(18px);
+}
+.hand-guide-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
+.hand-guide h2 { margin: 3px 0 0; color: #fff; font-size: 22px; }
+.guide-close { border: 0; color: #fff; background: transparent; font-size: 25px; cursor: pointer; line-height: 1; }
+.hand-ranking-list { display: grid; gap: 7px; margin: 0; padding-left: 27px; color: #ffdb66; }
+.hand-ranking-list li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 10px; border-radius: 9px; background: rgba(255,255,255,.05); }
+.hand-ranking-list li > div:first-child { min-width: 0; }
+.hand-ranking-list strong { display: block; color: #fff; font-size: 13px; }
+.hand-ranking-list span { display: block; margin-top: 2px; color: #afa7c9; font-size: 11px; }
+.guide-example { display: flex; flex: 0 0 auto; align-items: center; gap: 2px; }
+.guide-example i { display: grid; place-items: center; width: 22px; height: 31px; border: 1px solid #d8d6e0; border-radius: 4px; color: #171323; background: #fff; box-shadow: 0 3px 6px rgba(0,0,0,.3); font-size: 10px; font-style: normal; font-weight: 800; transform: rotate(-4deg); }
+.guide-example i:nth-child(2) { transform: rotate(2deg) translateY(-2px); }
+.guide-example i:nth-child(3) { transform: rotate(5deg); }
+.guide-example i:nth-child(4) { transform: rotate(-2deg) translateY(1px); }
+.guide-example i:nth-child(5) { transform: rotate(4deg); }
+.guide-example.red-cards i { color: #e34a72; }
+
+.table-notifications { position: fixed; top: 92px; left: 50%; transform: translateX(-50%); z-index: 35; display: grid; gap: 7px; width: min(360px, calc(100vw - 40px)); pointer-events: none; }
+.table-notification { padding: 10px 14px; border: 1px solid rgba(95,208,232,.35); border-radius: 10px; color: #eaffff; background: rgba(20,55,75,.92); box-shadow: 0 8px 25px rgba(0,0,0,.25); font-size: 12px; text-align: center; animation: notificationIn .2s ease-out; }
+.table-notification.warning { border-color: rgba(255,209,102,.45); color: #ffe8a3; background: rgba(83,55,23,.94); }
+@keyframes notificationIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+
 .header-actions { display: flex; gap: 12px; }
 
-/* Table */
+/* ==========================================
+   TABLE STRUCTURE
+   ========================================== */
 .table-wrapper {
   position: relative;
   z-index: 5;
@@ -221,7 +275,7 @@ button {
 
 .pot {
   position: absolute;
-  top: 23%;
+  top: 18%;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -232,6 +286,7 @@ button {
   background: rgba(20, 15, 35, 0.7);
   border: 1px solid rgba(255,255,255,0.1);
   box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+  z-index: 10;
 }
 
 .pot strong { color: #ffb1e6; font-size: 20px; }
@@ -240,11 +295,12 @@ button {
 .turn-timer {
   position: absolute;
   left: 50%;
-  top: 8%;
+  top: 5%;
   transform: translateX(-50%);
   display: flex;
   align-items: center;
   gap: 10px;
+  z-index: 10;
 }
 .timer-ring {
   width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
@@ -255,26 +311,157 @@ button {
 .turn-timer strong { display: block; font-size: 12px; color: white; }
 .turn-timer small { color: #a59bce; font-size: 10px; }
 
-/* Community Cards */
-.community-area { position: absolute; top: 38%; left: 50%; transform: translateX(-50%); width: 520px; }
-.community-title { text-align: center; margin-bottom: 10px; font-size: 11px; letter-spacing: 2px; color: #8e83b8; font-weight: 600; }
-.community-cards { display: flex; justify-content: center; gap: 10px; }
-.playing-card {
-  width: 70px; height: 100px; border-radius: 8px; background: white; color: #151025;
-  box-shadow: 0 8px 20px rgba(0,0,0,.4); padding: 8px; transition: transform .2s;
+/* ==========================================
+   COMMUNITY CARDS (แก้ไขจัดวางกลางโต๊ะสมบูรณ์)
+   ========================================== */
+.community-area { 
+  position: absolute; 
+  top: 48%; 
+  left: 50%; 
+  transform: translate(-50%, -50%); 
+  width: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 10;
 }
-.playing-card:hover { transform: translateY(-10px); }
-.playing-card.red { color: #ff477e; }
-.playing-card b { display: block; font-size: 20px; }
-.playing-card span { font-size: 26px; }
 
-/* Players */
+.community-title { 
+  text-align: center; 
+  margin-bottom: 8px; 
+  font-size: 11px; 
+  letter-spacing: 2px; 
+  color: #8e83b8; 
+  font-weight: 600; 
+  text-transform: uppercase;
+}
+
+.community-cards { 
+  display: flex; 
+  justify-content: center; 
+  align-items: center;
+  gap: 10px; 
+  min-height: 95px;
+}
+
+/* Community cards use the same face treatment as the player's hand cards. */
+.community-cards .community-card {
+  flex: 0 0 65px;
+  width: 65px;
+  height: 95px;
+  margin-left: 0;
+  transform: none;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.community-cards .community-card:hover {
+  transform: translateY(-8px) rotate(0deg);
+}
+
+.playing-card {
+  width: 65px; 
+  height: 95px; 
+  border-radius: 8px; 
+  background: white; 
+  color: #151025;
+  box-shadow: 0 8px 20px rgba(0,0,0,.5); 
+  padding: 6px 8px; 
+  position: relative; 
+  cursor: pointer;
+  transition: transform .2s, box-shadow .2s;
+  
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  user-select: none;
+}
+
+.playing-card:hover { 
+  transform: translateY(-8px); 
+  box-shadow: 0 12px 25px rgba(0,0,0,.7);
+}
+
+.playing-card::after { 
+  content: ""; 
+  position: absolute; 
+  inset: 0; 
+  border-radius: inherit; 
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,.65); 
+  opacity: 0; 
+  transition: opacity .2s; 
+}
+.playing-card:hover::after { opacity: 1; }
+
+.playing-card.red { color: #ff477e; }
+
+.playing-card b { 
+  display: block; 
+  font-size: 18px; 
+  line-height: 1;
+}
+
+.playing-card span { 
+  display: block;
+  font-size: 24px; 
+  line-height: 1;
+  align-self: flex-end;
+}
+
+/* ==========================================
+   PLAYERS & SEATS
+   ========================================== */
 .player { position: absolute; width: 210px; display: flex; align-items: center; gap: 10px; z-index: 8; }
-.player-top { top: -60px; left: 50%; transform: translateX(-50%); }
-.player-left-top { left: -90px; top: 20%; }
-.player-left-bottom { left: -90px; bottom: 13%; }
-.player-right-top { right: -90px; top: 20%; }
-.player-right-bottom { right: -90px; bottom: 13%; }
+.live-player-list { position: absolute; inset: 0; }
+.live-player { pointer-events: none; }
+
+.player-seat-0 { top: -60px; left: 50%; transform: translateX(-50%); }
+.player-seat-1 { left: -90px; top: 20%; }
+.player-seat-2 { left: -90px; bottom: 13%; }
+.player-seat-3 { bottom: -55px; left: 50%; transform: translateX(-50%); }
+.player-seat-4 { right: -90px; bottom: 13%; }
+.player-seat-5 { right: -90px; top: 20%; }
+
+.waiting-seat { 
+  position: absolute; 
+  width: 150px; 
+  padding: 12px; 
+  border: 1px dashed rgba(255,255,255,.18); 
+  border-radius: 12px; 
+  color: #8e83b8; 
+  text-align: center; 
+  font-size: 11px; 
+  background: rgba(20, 15, 35, .35); 
+  z-index: 7; 
+}
+
+.live-room-status { 
+  position: absolute; 
+  left: 50%; 
+  bottom: 6%; 
+  transform: translateX(-50%); 
+  z-index: 10; 
+  color: #ffdb66; 
+  font-size: 13px; 
+  white-space: nowrap; 
+}
+.current-hand { position: absolute; left: 50%; bottom: 18%; transform: translateX(-50%); z-index: 11; min-width: 190px; padding: 7px 14px; border: 1px solid rgba(255,219,102,.25); border-radius: 11px; background: rgba(20,15,35,.7); text-align: center; }
+.current-hand strong { display: block; color: #ffdb66; font-size: 13px; }
+.current-hand span { display: block; margin-top: 2px; color: #b8aed4; font-size: 10px; }
+
+.start-game-button { 
+  min-width: 150px; 
+  height: 64px; 
+  border: 1px solid #ffdb66; 
+  border-radius: 14px; 
+  color: #20152e; 
+  background: linear-gradient(135deg, #ffdb66, #ff9f57); 
+  font-weight: 800; 
+  cursor: pointer; 
+  box-shadow: 0 8px 24px rgba(255, 219, 102, .3); 
+}
+.start-game-button:hover { transform: translateY(-3px); }
 
 .avatar {
   flex: 0 0 auto; width: 80px; height: 80px; border-radius: 50%; padding: 3px;
@@ -283,8 +470,9 @@ button {
 }
 .avatar-inner, .avatar-art {
   width: 100%; height: 100%; display: grid; place-items: center; border-radius: 50%;
-  background: #1e1535; border: 3px solid #110d21; font-size: 35px;
+  background: #1e1535; border: 3px solid #110d21; font-size: 35px; color: #ffdb66; font-weight: 700;
 }
+.avatar-inner svg, .avatar-art svg { width: 100%; height: 100%; display: block; }
 
 .player-info {
   min-width: 115px; padding: 8px 14px; border-radius: 12px;
@@ -295,31 +483,67 @@ button {
 .player-chips { margin-top: 2px; color: #ffdb66; font-size: 13px; font-weight: 600; }
 .player-status { display: inline-block; margin-top: 4px; padding: 2px 8px; border-radius: 6px; background: rgba(255,255,255,.1); color: #a59bce; font-size: 10px; }
 
-/* User Area */
+/* ==========================================
+   USER AREA (ผู้เล่นปัจจุบัน)
+   ========================================== */
 .user-section {
   position: absolute; z-index: 15; bottom: 40px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; min-width: 390px;
 }
+.user-section.is-your-turn .user-info { border-color: #ffdb66; box-shadow: 0 0 28px rgba(255,219,102,.45); }
+.user-section.is-your-turn::before { content: "YOUR TURN"; position: absolute; left: 50%; top: -28px; transform: translateX(-50%); color: #ffdb66; font-size: 12px; font-weight: 800; letter-spacing: 1.5px; text-shadow: 0 0 12px rgba(255,219,102,.8); }
 .user-avatar { width: 100px; height: 100px; z-index: 2; border-radius: 50%; padding: 4px; background: linear-gradient(135deg, #ff7597, #8b7fff); box-shadow: 0 10px 25px rgba(139,127,255,.5); }
 .user-info { width: 280px; margin-left: -15px; padding: 16px 20px 16px 35px; border-radius: 0 20px 20px 0; background: rgba(30, 22, 55, 0.9); border: 1px solid rgba(255,255,255,.1); backdrop-filter: blur(10px); }
 .user-name { font-size: 18px; font-weight: bold; }
 .user-chips { margin-top: 4px; font-size: 15px; color: #ffdb66; font-weight: bold; }
 .progress { height: 6px; margin-top: 10px; border-radius: 10px; background: rgba(255,255,255,.1); }
 .progress-value { width: 70%; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #ff7ab8, #8b7fff); }
+
 .user-cards { display: flex; margin-left: -20px; z-index: 4; }
-.user-card { width: 80px; height: 110px; display: flex; flex-direction: column; padding: 8px; background: white; color: #111; border-radius: 8px; box-shadow: 0 10px 25px rgba(0,0,0,.6); font-size: 26px; font-weight: bold; cursor: pointer; transition: .25s; }
+.user-card { 
+  width: 80px; 
+  height: 110px; 
+  display: flex; 
+  flex-direction: column; 
+  justify-content: space-between;
+  padding: 8px; 
+  background: white; 
+  color: #111; 
+  border-radius: 8px; 
+  box-shadow: 0 10px 25px rgba(0,0,0,.6); 
+  font-size: 22px; 
+  font-weight: bold; 
+  cursor: pointer; 
+  transition: .25s; 
+  user-select: none;
+}
 .user-card + .user-card { margin-left: -15px; transform: rotate(5deg); }
 .user-card:hover { transform: translateY(-15px) rotate(0deg); }
 .user-card.red { color: #ff477e; }
 
-/* 🔥 Actions Buttons (สไตล์นุ่มนวลแบบในรูป) 🔥 */
+.community-cards .community-card,
+.community-cards .community-card + .community-card,
+.community-cards .community-card:hover {
+  margin-left: 0;
+  transform: translateY(0) rotate(0deg);
+}
+
+.community-cards .community-card:hover {
+  transform: translateY(-8px) rotate(0deg);
+}
+.user-card b { font-size: 22px; line-height: 1; }
+.user-card span { font-size: 28px; line-height: 1; align-self: flex-end; }
+
+/* ==========================================
+   ACTION BAR & BUTTONS
+   ========================================== */
 .action-bar {
   position: absolute; right: 40px; bottom: 40px; z-index: 20; display: flex; align-items: stretch; gap: 15px;
 }
 
 .action-button {
   position: relative; overflow: hidden; min-width: 120px; height: 90px;
-  border: none; /* เอาขอบแข็งๆ ออก */
-  border-radius: 16px; /* มุมมนขึ้นแบบในรูป */
+  border: none;
+  border-radius: 16px;
   color: white; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; font-weight: bold;
   transition: transform .2s, box-shadow .2s;
 }
@@ -332,12 +556,14 @@ button {
 .action-button:hover::after { left: 130%; }
 .action-button:hover { transform: translateY(-5px); }
 
-/* ปรับสีปุ่ม Gradient ให้ตรงกับโทนแอป (สไตล์ซอฟต์) */
 .fold { background: linear-gradient(135deg, #4d4669, #362f4f); box-shadow: 0 8px 20px rgba(0,0,0,.3); }
 .fold:hover { box-shadow: 0 12px 25px rgba(0,0,0,.4); }
 
 .check { background: linear-gradient(135deg, #8b7fff, #6f61ff); box-shadow: 0 8px 20px rgba(111,97,255,.3); }
 .check:hover { box-shadow: 0 12px 25px rgba(111,97,255,.5); }
+
+.call { background: linear-gradient(135deg, #5fd0e8, #318bd1); box-shadow: 0 8px 20px rgba(95,208,232,.3); }
+.call:hover { box-shadow: 0 12px 25px rgba(95,208,232,.5); }
 
 .bet { background: linear-gradient(135deg, #ff9f57, #ff7133); box-shadow: 0 8px 20px rgba(255,113,51,.3); }
 .bet:hover { box-shadow: 0 12px 25px rgba(255,113,51,.5); }
@@ -347,6 +573,7 @@ button {
 
 .action-icon { font-size: 24px; }
 .action-button strong { font-size: 18px; }
+.action-button:disabled { opacity: .35; cursor: not-allowed; transform: none; }
 
 /* Controls */
 .bet-control {
@@ -371,7 +598,14 @@ button {
   .user-section { bottom: 120px; transform: translateX(-50%) scale(.75); }
 }
 
-/* Static mode for preview */
-.action-button, .menu-button, .small-control { cursor: default; }
+@media (max-width: 620px) {
+  .room-panel { min-width: 0; width: 100%; border-radius: 18px; flex-wrap: wrap; }
+  .room-panel > div { flex: 1 1 150px; }
+  .table-tool-button, .table-leave-button { padding: 7px 9px; font-size: 10px; }
+  .hand-guide { top: 20px; right: 20px; left: 20px; width: auto; max-height: calc(100vh - 40px); }
+  .table-notifications { top: 145px; }
+  .current-hand { bottom: 20%; min-width: 160px; }
+}
+
 .p1 { left: 15%; top: 25%; } .p2 { left: 80%; top: 15%; animation-delay: .5s; }
 .p3 { left: 30%; top: 80%; animation-delay: 1s; } .p4 { left: 70%; top: 70%; animation-delay: 1.5s; }

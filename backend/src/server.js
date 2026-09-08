@@ -1,4 +1,5 @@
 import express from 'express';
+import http from 'node:http';
 import helmet from 'helmet';
 import cors from 'cors';
 import morgan from 'morgan';
@@ -10,9 +11,7 @@ import { router as healthRouter } from './routes/health.js';
 import { router as authRouter } from './routes/auth.js';
 import { router as usersRouter } from './routes/users.js';
 import { router as walletRouter } from './routes/wallet.js';
-import { router as tablesRouter } from './routes/tables.js';
-import { createWebSocketServer } from './routes/tables.js';
-import { createServer } from 'http';
+import { router as tablesRouter, handleTableUpgrade } from './routes/tables.js';
 
 export async function createApp() {
   const app = express();
@@ -54,8 +53,17 @@ const server = createServer(app);
 createWebSocketServer(server); 
 
 if (!env.isTest) {
-   server.listen(env.port, () => {
+  const server = http.createServer(app);
+  server.on('upgrade', (request, socket, head) => {
+    if (request.url?.split('?')[0] !== '/ws') {
+      socket.destroy();
+      return;
+    }
+    handleTableUpgrade(request, socket, head);
+  });
+  server.listen(env.port, () => {
     console.log(`[server] Poker777 Core API listening on http://localhost:${env.port}`);
+    console.log(`[server] Poker777 WebSocket listening on ws://localhost:${env.port}/ws`);
   });
 }
 
