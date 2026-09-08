@@ -26,6 +26,9 @@ export async function createApp() {
         if (!origin) return cb(null, true);
         // In dev, allow file:// protocol (Origin: null) for quick frontend testing
         if (origin === 'null' && !env.isProd) return cb(null, true);
+        // Allow another device on the same LAN during local development.
+        // Production continues to use the explicit CORS allow-list above.
+        if (!env.isProd && /^https?:\/\//.test(origin)) return cb(null, true);
         if (env.corsOrigins.includes(origin)) return cb(null, true);
         return cb(new Error(`Origin ${origin} not allowed by CORS`));
       },
@@ -49,11 +52,10 @@ export async function createApp() {
 }
 
 const app = await createApp();
-const server = createServer(app);
-createWebSocketServer(server); 
+let server = null;
 
 if (!env.isTest) {
-  const server = http.createServer(app);
+  server = http.createServer(app);
   server.on('upgrade', (request, socket, head) => {
     if (request.url?.split('?')[0] !== '/ws') {
       socket.destroy();
@@ -61,9 +63,9 @@ if (!env.isTest) {
     }
     handleTableUpgrade(request, socket, head);
   });
-  server.listen(env.port, () => {
-    console.log(`[server] Poker777 Core API listening on http://localhost:${env.port}`);
-    console.log(`[server] Poker777 WebSocket listening on ws://localhost:${env.port}/ws`);
+  server.listen(env.port, '0.0.0.0', () => {
+    console.log(`[server] Poker777 Core API listening on port ${env.port}`);
+    console.log(`[server] Poker777 WebSocket listening on port ${env.port}/ws`);
   });
 }
 

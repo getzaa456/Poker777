@@ -19,8 +19,8 @@ app.get('/poker-table', (_req, res) => {
 	res.sendFile(path.join(publicDirectory, 'poker-table.html'));
 });
 
-app.listen(port, () => {
-	console.log(`Poker777 frontend listening on http://localhost:${port}`);
+app.listen(port, '0.0.0.0', () => {
+	console.log(`Poker777 frontend listening on port ${port}`);
 });
 
 module.exports = app;

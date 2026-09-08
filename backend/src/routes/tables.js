@@ -254,32 +254,30 @@ class Client {
 
 const ROOMS = new Map();
 const CLIENTS = new Map();
-
-function createWebSocketServer(server) {
-  const wss = new WebSocketServer({ server });
+const wss = new WebSocketServer({ noServer: true });
 
 async function joinRoom(params, ws) {
   const data = validate(joinTableSchema, params);
-  if (String(ws.userId) !== String(data.client_id)) {
+  if (String(ws.userId) !== String(data.clientId)) {
     return ws.send(JSON.stringify({ type: 'error', error: 'Client identity does not match token' }));
   }
-  const room = ROOMS.get(data.room_code);
+  const room = ROOMS.get(data.roomCode);
   if (!room) return ws.send(JSON.stringify({ type: 'error', error: 'Room not found' }));
 
-  let client = CLIENTS.get(data.client_id);
+  let client = CLIENTS.get(data.clientId);
   if (!client) {
-    client = new Client(data.client_id, ws);
-    CLIENTS.set(data.client_id, client);
+    client = new Client(data.clientId, ws);
+    CLIENTS.set(data.clientId, client);
   }
   if (client.joinedRoom && client.joinedRoom !== room) {
     return ws.send(JSON.stringify({ type: 'error', error: 'Client already joined a room' }));
   }
-  if (!room.currentPlayers.has(data.client_id) && room.currentPlayers.size >= room.maxPlayer) {
+  if (!room.currentPlayers.has(data.clientId) && room.currentPlayers.size >= room.maxPlayer) {
     return ws.send(JSON.stringify({ type: 'error', error: 'Table is full' }));
   }
 
   try {
-    await joinTable(data.client_id, data.room_code, { buy_in: data.buy_in });
+    await joinTable(data.clientId, data.roomCode, { buy_in: data.buyIn });
   } catch (error) {
     const messages = {
       ROOM_IN_PROGRESS: 'Table is already in progress',
@@ -292,13 +290,13 @@ async function joinRoom(params, ws) {
     return ws.send(JSON.stringify({ type: 'error', error: messages[error.code] || error.message }));
   }
 
-  const profile = await getUserProfile(data.client_id);
+  const profile = await getUserProfile(data.clientId);
   client.ws = ws;
   client.username = profile.display_name || profile.username;
   client.chips = Number(profile.balance || 0);
   client.avatarId = profile.avatar_id ?? null;
   client.joinedRoom = room;
-  room.currentPlayers.set(data.client_id, client);
+  room.currentPlayers.set(data.clientId, client);
   room.status = room.currentPlayers.size >= room.maxPlayer ? 'IN_PROGRESS' : 'OPEN';
   room.broadcast();
 }
@@ -398,7 +396,6 @@ export function handleTableUpgrade(request, socket, head) {
   });
 }
 
-export { createWebSocketServer, Room, Client };
 export const router = Router();
 router.use(requireAuth);
 
