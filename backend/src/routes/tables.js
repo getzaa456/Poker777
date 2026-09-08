@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { requireAuth } from '../middleware/auth.js';
-import { createTable, listOpenTables, getTableSummary, joinTable } from '../services/tables.js';
+import { createTable, listOpenTables, getTableSummary, joinTable , isClientExist, getClientUsername} from '../services/tables.js';
 import { WebSocket, WebSocketServer } from 'ws';
 import { joinTableSchema, webScoketConnectionSchema } from '../validators/game.js';
 
@@ -119,7 +119,14 @@ function createWebSocketServer(server) {
   }
 
   async function init(params, ws) {
-    params = webScoketConnectionSchema.parse(params)
+    try {
+      console.log("init params", params, typeof params);
+      params = webScoketConnectionSchema.parse(params);
+    }
+    catch (error) {
+      ws.send(JSON.stringify({ type: 'error', error: "Invalid parameters" }));
+      return;
+    }
     const { clientId } = params;
     if (!(await isClientExist(clientId))) {
       ws.send(JSON.stringify({ type: 'error', error: "Client does not exist" }));
@@ -146,14 +153,14 @@ function createWebSocketServer(server) {
     ws.send(JSON.stringify({ type: 'connection', message: 'WebSocket connection established'   }));
 
     ws.on('message', (raw) => {
-      console.log('Received message:', raw.toString());
       try{
-      const message = JSON.parse(raw.toString());
-      if (!messageTypes[message.type] || message.params === undefined) {
-        console.error('Unknown message type:', message.type);
-        return;
-      }
-        messageTypes[message.type](message.params, ws)
+        const message = JSON.parse(raw.toString());
+        if (!messageTypes[message.type] || message.params === undefined) {
+          console.error('Unknown message type:', message.type);
+          return;
+        }
+          messageTypes[message.type](message.params, ws)
+          console.log(message.type, message.params)
       }
       catch (error) {
         console.error('Error parsing message:', error);

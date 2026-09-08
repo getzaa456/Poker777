@@ -187,12 +187,12 @@ export async function joinTable(userId, roomCode, input) {
 }
 
 export async function isClientExist(clientId) {
-  const [rows] = await pool.query(`SELECT id FROM users WHERE id == :clientId LIMIT 1`, { clientId });
+  const [rows] = await pool.query(`SELECT id FROM users WHERE id = :clientId LIMIT 1;`, { clientId });
   return rows.length > 0;
 }
 
 export async function getClientUsername(clientId) {
-  const [rows] = await pool.query(`SELECT username FROM users WHERE id == :clientId LIMIT 1`, { clientId });
+  const [rows] = await pool.query(`SELECT username FROM users WHERE id = :clientId LIMIT 1;`, { clientId });
   if (rows.length > 0) {
     return rows[0].username;
   }
