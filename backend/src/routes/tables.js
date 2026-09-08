@@ -31,118 +31,126 @@ class Client {
   constructor(clientId, ws) {
     this.clientId = clientId;
     this.ws = ws;
+    this.currentMoney = 0;
     this.joinedRoom = null;
   }
 }
 
 const ROOMS = new Map();
 const CLIENTS = new Map();
-const wss = new WebSocketServer({ noServer: true });
 
-async function joinRoom(params, ws) {
-  try {
-      validate(joinTableSchema, params);
-      const {roomCode, clientId, buyIn} = params;
-      let room;
-      let client;
-      if (!ROOMS.has(roomCode)) {
-        ws.send(JSON.stringify({ type: 'error', error: "Room not found" }));
-        return;
-      }
-      room = ROOMS.get(roomCode);
-      client = CLIENTS.get(clientId);
-      if (!client) {
-        client = new Client(clientId, ws);
-        CLIENTS.set(clientId, client);
-      }
-      if (client.joinedRoom) {
-        ws.send(JSON.stringify({ type: 'error', error: "Client already joined a room" }));
-        return;
-      }
-      if (room.status !== 'OPEN') {
-        ws.send(JSON.stringify({ type: 'error', error: "Room is not open for joining" }));
-        return;
-      }
-      room.currentPlayers.push(client);
-      const result = await joinTable(clientId, roomCode, buyIn);
-      const response = {
-        type: "join",
-        params: {
-            success: true,
-            roomId: result.id,
-            roomName: result.name,
-            playerNum: result.seats_taken,
-            maxPlayer: result.seats_available,
-            currentPlayers: [...room.currentPlayers]
+function createWebSocketServer(server) {
+  const wss = new WebSocketServer({ server });
+
+  async function joinRoom(params, ws) {
+    try {
+        joinTableSchema.parse(params)
+        const {roomCode, clientId, buyIn} = params;
+        let room;
+        let client;
+        if (!ROOMS.has(roomCode)) {
+          ws.send(JSON.stringify({ type: 'error', error: "Room not found" }));
+          return;
         }
-      }
-      room.broadcast({
-        type: "player-joined",
-        params: {
-          clientId: client.clientId,
-          playerNum: result.seats_taken,
-          currentPlayers: [...room.currentPlayers]
+        room = ROOMS.get(roomCode);
+        client = CLIENTS.get(clientId);
+        if (!client) {
+          client = new Client(clientId, ws);
+          CLIENTS.set(clientId, client);
         }
-      });
-      ws.send(JSON.stringify(response));
-      if (result.seats_taken === result.seats_available) {
-        room.status = 'IN_PROGRESS';
+        if (client.joinedRoom) {
+          ws.send(JSON.stringify({ type: 'error', error: "Client already joined a room" }));
+          return;
+        }
+        if (room.status !== 'OPEN') {
+          ws.send(JSON.stringify({ type: 'error', error: "Room is not open for joining" }));
+          return;
+        }
+        client.currentMoney = buyIn;
+        client.joinedRoom = roomCode;
+        room.currentPlayers.push(client);
+        const result = await joinTable(clientId, roomCode, { buyIn } );
+        const response = {
+          type: "join",
+          params: {
+              success: true,
+              roomId: result.id,
+              roomName: result.name,
+              playerNum: result.seats_taken,
+              maxPlayer: result.seats_available,
+              currentPlayers: room.currentPlayers.map(p => ({ clientId: p.clientId, username: p.username, money: p.currentMoney }))
+          }
+        }
         room.broadcast({
-          type: "start-game",
-          params: {}
+          type: "player-joined",
+          params: {
+            clientId: client.clientId,
+            playerNum: result.seats_taken,
+            currentPlayers: room.currentPlayers.map(p => ({ clientId: p.clientId, username: p.username, money: p.currentMoney }))
+          }
         });
-      }
-    }
-    catch (error) {
-      // Change to using mapping for better time complexity linear -> constant
-      const errorResponse = [
-        {message: "IN_PROGRESS", response: "Table is already in progress"}, 
-        {message: "ROOM_CLOSED", response: "Table is closed"},
-        {message: "ROOM_FULL", response: "Table is full"},
-        {message: "BUY_IN_TOO_LOW", response: "Buy-in is too low"},
-        {message: "BUY_IN_TOO_HIGH", response: "Buy-in is too high"},
-        {message: "INSUFFICIENT_BALANCE", response: "Insufficient balance"}
-      ];
-      for (const condition of errorResponse) {
-        if (error.message === condition.message) {
-          return { type: 'error', error: condition.response };
+        ws.send(JSON.stringify(response));
+        if (result.seats_taken === result.seats_available) {
+          room.status = 'IN_PROGRESS';
+          room.broadcast({
+            type: "start-game",
+            params: {}
+          });
         }
       }
-    }
+      catch (error) {
+        // Change to using mapping for better time complexity linear -> constant
+        const errorResponse = [
+          {message: "IN_PROGRESS", response: "Table is already in progress"}, 
+          {message: "ROOM_CLOSED", response: "Table is closed"},
+          {message: "ROOM_FULL", response: "Table is full"},
+          {message: "BUY_IN_TOO_LOW", response: "Buy-in is too low"},
+          {message: "BUY_IN_TOO_HIGH", response: "Buy-in is too high"},
+          {message: "INSUFFICIENT_BALANCE", response: "Insufficient balance"}
+        ];
+        for (const condition of errorResponse) {
+          if (error.message === condition.message) {
+            ws.send(JSON.stringify({ type: 'error', error: condition.response }));
+            return;
+          }
+        }
+        console.error('Error in joinRoom:', error);
+        ws.send(JSON.stringify({ type: 'error', error: "An unexpected error occurred" }));
+      }
+  }
+
+  const messageTypes = {
+    "join": joinRoom,
+  }
+
+  wss.on('connection', (ws) => {
+
+    ws.send(JSON.stringify({ type: 'connection', message: 'WebSocket connection established'   }));
+
+    ws.on('message', (raw) => {
+      console.log('Received message:', raw.toString());
+      try{
+      const message = JSON.parse(raw.toString());
+      if (!messageTypes[message.type] || message.params === undefined) {
+        console.error('Unknown message type:', message.type);
+        return;
+      }
+        messageTypes[message.type](message.params, ws)
+      }
+      catch (error) {
+        console.error('Error parsing message:', error);
+        return;
+      }
+    });
+
+    ws.on('close', () => {
+      console.log('WebSocket connection closed');
+    });
+
+  });
 }
 
-const messageTypes = {
-  "join": joinRoom,
-}
-
-wss.on('connection', (ws) => {
-
-  ws.on('open', () => {
-    ws.send(JSON.stringify({ type: 'connection', message: 'WebSocket connection established' }));
-  });
-
-  ws.on('message', (message) => {
-    console.log('Received message:', message);
-    try{
-    const message = JSON.parse(message);
-    if (!messageTypes[message.type] || message.params === undefined) {
-      console.error('Unknown message type:', message.type);
-      return;
-    }
-      messageTypes[message.type](message.params, ws)
-    }
-    catch (error) {
-      console.error('Error parsing message:', error);
-      return;
-    }
-  });
-
-  ws.on('close', () => {
-    console.log('WebSocket connection closed');
-  });
-
-});
-
+export { createWebSocketServer, Room, Client };
 export const router = Router();
 
 // All /tables/* routes require a valid JWT.

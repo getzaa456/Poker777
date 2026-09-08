@@ -11,6 +11,8 @@ import { router as authRouter } from './routes/auth.js';
 import { router as usersRouter } from './routes/users.js';
 import { router as walletRouter } from './routes/wallet.js';
 import { router as tablesRouter } from './routes/tables.js';
+import { createWebSocketServer } from './routes/tables.js';
+import { createServer } from 'http';
 
 export async function createApp() {
   const app = express();
@@ -48,11 +50,13 @@ export async function createApp() {
 }
 
 const app = await createApp();
+const server = createServer(app);
+createWebSocketServer(server); 
 
 if (!env.isTest) {
-  app.listen(env.port, () => {
+   server.listen(env.port, () => {
     console.log(`[server] Poker777 Core API listening on http://localhost:${env.port}`);
   });
 }
 
-export { app };
+export { app, server };
