@@ -3,8 +3,7 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { requireAuth } from '../middleware/auth.js';
 import { createTable, listOpenTables, getTableSummary, joinTable } from '../services/tables.js';
 import { WebSocket, WebSocketServer } from 'ws';
-import { joinTableSchema } from '../validators/game.js';
-import { validate } from '../middleware/validate.js';
+import { joinTableSchema, webScoketConnectionSchema } from '../validators/game.js';
 
 class Room {
   constructor(roomCode, roomId, minBet, maxBet, maxPlayer, host) {
@@ -119,8 +118,27 @@ function createWebSocketServer(server) {
       }
   }
 
+  async function init(params, ws) {
+    params = webScoketConnectionSchema.parse(params)
+    const { clientId } = params;
+    if (!(await isClientExist(clientId))) {
+      ws.send(JSON.stringify({ type: 'error', error: "Client does not exist" }));
+      return;
+    }
+    if (!CLIENTS.has(clientId)) {
+      const client = new Client(clientId, ws);
+      client.username = await getClientUsername(clientId);
+      CLIENTS.set(clientId, client);
+      ws.send(JSON.stringify({ type: 'connection',  success: true }));
+    }
+    else {
+      ws.send(JSON.stringify({ type: 'error', error: "Client ID already connected" }));
+    }
+  }
+
   const messageTypes = {
     "join": joinRoom,
+    "web_socket-req": init
   }
 
   wss.on('connection', (ws) => {
