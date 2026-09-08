@@ -3,16 +3,95 @@ import { asyncHandler } from '../middleware/errorHandler.js';
 import { requireAuth } from '../middleware/auth.js';
 import { createTable, listOpenTables, getTableSummary, joinTable } from '../services/tables.js';
 import { WebSocket, WebSocketServer } from 'ws';
+import { joinTableSchema } from '../validators/game.js';
+import { validate } from '../middleware/validate.js';
 
+class Room {
+  constructor(roomCode, roomId, minBet, maxBet, maxPlayer, host) {
+    this.roomCode = roomCode;
+    this.host  = host; //Room head client
+    this.roomId = roomId;
+    this.minBet = minBet;
+    this.maxBet = maxBet;
+    this.maxPlayer = maxPlayer;
+    this.currentPlayers = [];
+    this.status = 'OPEN';
+  }
 
+  broadcast(message) {
+    this.currentPlayers.forEach(player => {
+      if (player.ws.readyState === WebSocket.OPEN) {
+        player.ws.send(JSON.stringify(message));
+      }
+    });
+  }
+}
+
+class Client {
+  constructor(clientId, ws) {
+    this.clientId = clientId;
+    this.ws = ws;
+    this.joinedRoom = null;
+  }
+}
+
+const ROOMS = new Map();
+const CLIENTS = new Map();
 const wss = new WebSocketServer({ noServer: true });
 
-const messageTypes = {
-  JOIN_TABLE: async (roomCode, userId, buyIn) => {
-    const result = getTableSummary(roomCode);
-    try {
-      await joinTable(userId, roomCode, { buyIn });
-      return { type: 'join-table', roomCode, userId, buyIn };
+async function joinRoom(params, ws) {
+  try {
+      validate(joinTableSchema, params);
+      const {roomCode, clientId, buyIn} = params;
+      let room;
+      let client;
+      if (!ROOMS.has(roomCode)) {
+        ws.send(JSON.stringify({ type: 'error', error: "Room not found" }));
+        return;
+      }
+      room = ROOMS.get(roomCode);
+      client = CLIENTS.get(clientId);
+      if (!client) {
+        client = new Client(clientId, ws);
+        CLIENTS.set(clientId, client);
+      }
+      if (client.joinedRoom) {
+        ws.send(JSON.stringify({ type: 'error', error: "Client already joined a room" }));
+        return;
+      }
+      if (room.status !== 'OPEN') {
+        ws.send(JSON.stringify({ type: 'error', error: "Room is not open for joining" }));
+        return;
+      }
+      room.currentPlayers.push(client);
+      const result = await joinTable(clientId, roomCode, buyIn);
+      const response = {
+        type: "join",
+        params: {
+            success: true,
+            roomId: result.id,
+            roomName: result.name,
+            playerNum: result.seats_taken,
+            maxPlayer: result.seats_available,
+            currentPlayers: [...room.currentPlayers]
+        }
+      }
+      room.broadcast({
+        type: "player-joined",
+        params: {
+          clientId: client.clientId,
+          playerNum: result.seats_taken,
+          currentPlayers: [...room.currentPlayers]
+        }
+      });
+      ws.send(JSON.stringify(response));
+      if (result.seats_taken === result.seats_available) {
+        room.status = 'IN_PROGRESS';
+        room.broadcast({
+          type: "start-game",
+          params: {}
+        });
+      }
     }
     catch (error) {
       // Change to using mapping for better time complexity linear -> constant
@@ -30,18 +109,38 @@ const messageTypes = {
         }
       }
     }
-  }
 }
 
-wss.on('connection', (ws, request) => {
-  console.log('WebSocket connection established');
-  ws.send(JSON.stringify({ type: 'connection-established' }));
-});
+const messageTypes = {
+  "join": joinRoom,
+}
 
-wss.on('message', (message) => {
-  console.log('Received message:', message);
-  // Handle incoming messages from clients here
-  const parsedMessage = JSON.parse(message);
+wss.on('connection', (ws) => {
+
+  ws.on('open', () => {
+    ws.send(JSON.stringify({ type: 'connection', message: 'WebSocket connection established' }));
+  });
+
+  ws.on('message', (message) => {
+    console.log('Received message:', message);
+    try{
+    const message = JSON.parse(message);
+    if (!messageTypes[message.type] || message.params === undefined) {
+      console.error('Unknown message type:', message.type);
+      return;
+    }
+      messageTypes[message.type](message.params, ws)
+    }
+    catch (error) {
+      console.error('Error parsing message:', error);
+      return;
+    }
+  });
+
+  ws.on('close', () => {
+    console.log('WebSocket connection closed');
+  });
+
 });
 
 export const router = Router();
@@ -58,6 +157,7 @@ router.get('/', asyncHandler(async (req, res) => {
 // POST /tables -> create a room, returns the room_code for the waiting-room screen.
 router.post('/', asyncHandler(async (req, res) => {
   const table = await createTable(req.user.id, req.body);
+  ROOMS.set(table.room_code, new Room(table.room_code, table.room_id, table.min_bet, table.max_bet, table.max_player, table.host_id)); // NOTE: Fix this later (JAPAN)
   res.status(201).json({ table });
 }));
 
