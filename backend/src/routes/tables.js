@@ -2,6 +2,47 @@ import { Router } from 'express';
 import { asyncHandler } from '../middleware/errorHandler.js';
 import { requireAuth } from '../middleware/auth.js';
 import { createTable, listOpenTables, getTableSummary, joinTable } from '../services/tables.js';
+import { WebSocket, WebSocketServer } from 'ws';
+
+
+const wss = new WebSocketServer({ noServer: true });
+
+const messageTypes = {
+  JOIN_TABLE: async (roomCode, userId, buyIn) => {
+    const result = getTableSummary(roomCode);
+    try {
+      await joinTable(userId, roomCode, { buyIn });
+      return { type: 'join-table', roomCode, userId, buyIn };
+    }
+    catch (error) {
+      // Change to using mapping for better time complexity linear -> constant
+      const errorResponse = [
+        {message: "IN_PROGRESS", response: "Table is already in progress"}, 
+        {message: "ROOM_CLOSED", response: "Table is closed"},
+        {message: "ROOM_FULL", response: "Table is full"},
+        {message: "BUY_IN_TOO_LOW", response: "Buy-in is too low"},
+        {message: "BUY_IN_TOO_HIGH", response: "Buy-in is too high"},
+        {message: "INSUFFICIENT_BALANCE", response: "Insufficient balance"}
+      ];
+      for (const condition of errorResponse) {
+        if (error.message === condition.message) {
+          return { type: 'error', error: condition.response };
+        }
+      }
+    }
+  }
+}
+
+wss.on('connection', (ws, request) => {
+  console.log('WebSocket connection established');
+  ws.send(JSON.stringify({ type: 'connection-established' }));
+});
+
+wss.on('message', (message) => {
+  console.log('Received message:', message);
+  // Handle incoming messages from clients here
+  const parsedMessage = JSON.parse(message);
+});
 
 export const router = Router();
 
