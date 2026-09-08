@@ -40,33 +40,8 @@
           <div class="room-title"><strong>Poker777</strong> | Dream Room</div>
           <div class="room-subtitle">No Limit Hold'em • Blinds 50/100</div>
         </div>
-        <button class="table-tool-button" id="hand-guide-button" type="button">Hand guide</button>
-        <button class="table-leave-button" id="leave-room-button" type="button">Leave</button>
       </div>
     </header>
-
-    <aside class="hand-guide" id="hand-guide" hidden>
-      <div class="hand-guide-header">
-        <div>
-          <h2>Hand rankings</h2>
-        </div>
-        <button class="guide-close" id="hand-guide-close" type="button" aria-label="Close hand guide">×</button>
-      </div>
-      <ol class="hand-ranking-list">
-        <li><div><strong>Royal flush</strong><span>A-K-Q-J-10, same suit</span></div><div class="guide-example red-cards"><i>A♥</i><i>K♥</i><i>Q♥</i><i>J♥</i><i>10♥</i></div></li>
-        <li><div><strong>Straight flush</strong><span>Five sequential cards, same suit</span></div><div class="guide-example red-cards"><i>9♦</i><i>8♦</i><i>7♦</i><i>6♦</i><i>5♦</i></div></li>
-        <li><div><strong>Four of a kind</strong><span>Four cards of the same rank</span></div><div class="guide-example"><i>A♠</i><i>A♥</i><i>A♦</i><i>A♣</i></div></li>
-        <li><div><strong>Full house</strong><span>Three of a kind plus a pair</span></div><div class="guide-example"><i>K♠</i><i>K♥</i><i>K♦</i><i>4♣</i><i>4♥</i></div></li>
-        <li><div><strong>Flush</strong><span>Five cards of the same suit</span></div><div class="guide-example red-cards"><i>2♥</i><i>5♥</i><i>8♥</i><i>J♥</i><i>K♥</i></div></li>
-        <li><div><strong>Straight</strong><span>Five sequential cards</span></div><div class="guide-example"><i>10♠</i><i>9♥</i><i>8♦</i><i>7♣</i><i>6♠</i></div></li>
-        <li><div><strong>Three of a kind</strong><span>Three cards of the same rank</span></div><div class="guide-example"><i>Q♠</i><i>Q♥</i><i>Q♦</i></div></li>
-        <li><div><strong>Two pair</strong><span>Two different pairs</span></div><div class="guide-example"><i>J♠</i><i>J♦</i><i>3♣</i><i>3♥</i></div></li>
-        <li><div><strong>Pair</strong><span>Two cards of the same rank</span></div><div class="guide-example"><i>7♠</i><i>7♥</i></div></li>
-        <li><div><strong>High card</strong><span>Highest card when no hand matches</span></div><div class="guide-example"><i>A♠</i><i>J♥</i><i>8♦</i><i>4♣</i><i>2♠</i></div></li>
-      </ol>
-    </aside>
-
-    <section class="table-notifications" id="table-notifications" aria-live="polite"></section>
 
     <!-- Main Table -->
     <main class="table-wrapper">
@@ -76,25 +51,52 @@
 
             <div class="pot" id="pot-display">
               <span>POT</span>
-              <strong id="pot-value">0</strong>
+              <strong id="pot-value">850</strong>
             </div>
 
-            <div class="turn-timer" id="turn-timer">
-              <div class="timer-ring"><span id="turn-countdown">--</span></div>
+            <div class="turn-timer">
+              <div class="timer-ring"><span>12</span></div>
               <div>
-                <strong id="turn-label">Waiting</strong>
-                <small id="turn-hint">Server controls the turn</small>
+                <strong>Your Turn</strong>
+                <small>Make your move</small>
               </div>
             </div>
 
             <section class="community-area" id="community-cards">
               <div class="community-title">COMMUNITY CARDS</div>
-              <div class="community-cards" id="community-card-list"></div>
+              <div class="community-cards">
+                <div class="playing-card red"><b>A</b><span>♥</span></div>
+                <div class="playing-card"><b>K</b><span>♣</span></div>
+                <div class="playing-card red"><b>Q</b><span>♦</span></div>
+                <div class="playing-card red"><b>J</b><span>♥</span></div>
+                <div class="playing-card"><b>10</b><span>♠</span></div>
+              </div>
             </section>
 
-            <div class="live-player-list" id="live-player-list"></div>
-            <div class="live-room-status" id="live-room-status">Connecting to table...</div>
-            <div class="current-hand" id="current-hand">Waiting for cards</div>
+            <!-- Players -->
+            <div class="player player-top">
+              <div class="avatar"><img class="avatar-inner" src="images/mymatenate.jpg" alt="Player Avatar"></div>
+              <div class="player-info">
+                <div class="player-name">MyMateNate</div>
+                <div class="player-chips">2,450</div>
+              </div>
+            </div>
+
+            <div class="player player-left-top">
+              <div class="avatar"><img class="avatar-inner" src="images/ronaldo.jpg" alt="Player Avatar"></div>
+              <div class="player-info">
+                <div class="player-name">Ronaldo</div>
+                <div class="player-chips">1,980</div>
+              </div>
+            </div>
+            
+            <div class="player player-right-top">
+              <div class="avatar"><img class="avatar-inner" src="images/anutin.jpg" alt="Player Avatar"></div>
+              <div class="player-info">
+                <div class="player-name">Anutin</div>
+                <div class="player-chips">2,200</div>
+              </div>
+            </div>
 
           </div>
         </div>
@@ -104,34 +106,31 @@
     <!-- User Section -->
     <section class="user-section">
       <div class="user-avatar">
-        <div class="avatar-art" id="user-avatar-art" aria-label="Your avatar"></div>
+        <img class="avatar-art" src="images/speed.jpg" alt="Player Avatar">
       </div>
       <div class="user-info">
-        <div class="user-name" id="user-name">Me</div>
-        <div class="user-chips" id="user-chips">--</div>
+        <div class="user-name">Me</div>
+        <div class="user-chips" id="user-chips">2,680</div>
         <div class="progress">
           <div class="progress-value" id="chip-progress"></div>
         </div>
       </div>
-      <div class="user-cards" id="user-cards"></div>
+      <div class="user-cards" id="user-cards">
+        <div class="user-card"><span>A</span><strong>♠</strong></div>
+        <div class="user-card red"><span>K</span><strong>♦</strong></div>
+      </div>
     </section>
 
     <!-- Action Bar -->
     <section class="action-bar">
-      <button class="start-game-button" id="start-game-button" hidden>START GAME</button>
-      <button class="action-button fold" data-action="FOLD" disabled>
+      <button class="action-button fold">
         <span class="action-icon">✕</span>
         <strong>FOLD</strong>
       </button>
 
-      <button class="action-button check" data-action="CHECK" disabled>
+      <button class="action-button check">
         <span class="action-icon">✓</span>
         <strong>CHECK</strong>
-      </button>
-
-      <button class="action-button call" data-action="CALL" disabled>
-        <span class="action-icon">↔</span>
-        <strong>CALL</strong>
       </button>
 
       <div class="bet-control">
@@ -143,213 +142,18 @@
         <button class="small-control">+</button>
       </div>
 
-      <button class="action-button bet" data-action="BET" disabled>
+      <button class="action-button bet">
         <span>BET</span>
         <strong>100</strong>
       </button>
 
-      <button class="action-button raise" data-action="RAISE" disabled>
+      <button class="action-button raise">
         <span>RAISE TO</span>
         <strong>200</strong>
       </button>
     </section>
 
   </div>
-
-  <script src="js/api.js"></script>
-  <script src="js/avatar-picker.js"></script>
-  <script>
-    const roomCode = new URLSearchParams(location.search).get('code');
-    const playerList = document.getElementById('live-player-list');
-    const roomStatus = document.getElementById('live-room-status');
-    let socket;
-    let currentUser;
-    let latestState;
-    let countdownTimer;
-    let betAmount = 100;
-    let renderedActionKey = '';
-    const actionButtons = [...document.querySelectorAll('[data-action]')];
-    const startButton = document.getElementById('start-game-button');
-    const handGuide = document.getElementById('hand-guide');
-    const notifications = document.getElementById('table-notifications');
-    const leaveButton = document.getElementById('leave-room-button');
-    const RANK_VALUE = { '2': 2, '3': 3, '4': 4, '5': 5, '6': 6, '7': 7, '8': 8, '9': 9, '10': 10, J: 11, Q: 12, K: 13, A: 14 };
-
-    function text(value) {
-      const node = document.createElement('span');
-      node.textContent = String(value ?? '');
-      return node.innerHTML;
-    }
-
-    function cardMarkup(card, className = 'playing-card') {
-      const value = typeof card === 'string' ? card : `${card.rank || ''}${card.suit || ''}`;
-      const suit = ({ S: '♠', H: '♥', D: '♦', C: '♣' })[value.slice(-1)] || value.slice(-1);
-      const red = suit === '♥' || suit === '♦' || suit === 'H' || suit === 'D';
-      return `<div class="${className} ${red ? 'red' : ''}" title="${text(value.slice(0, -1) + suit)}"><b>${text(value.slice(0, -1))}</b><span>${text(suit)}</span></div>`;
-    }
-
-    function evaluateHand(cards) {
-      if (!cards.length) return { name: 'Waiting for cards', detail: 'Your best hand will appear here' };
-      const ranks = cards.map((card) => RANK_VALUE[card.rank] || 0).sort((a, b) => b - a);
-      const counts = new Map();
-      cards.forEach((card) => counts.set(card.rank, (counts.get(card.rank) || 0) + 1));
-      const groups = [...counts.entries()].sort((a, b) => b[1] - a[1] || RANK_VALUE[b[0]] - RANK_VALUE[a[0]]);
-      const suits = new Map();
-      cards.forEach((card) => suits.set(card.suit, [...(suits.get(card.suit) || []), RANK_VALUE[card.rank] || 0]));
-      const flush = [...suits.entries()].find(([, values]) => values.length >= 5);
-      const unique = [...new Set(ranks)];
-      if (unique.includes(14)) unique.push(1);
-      let straight = 0;
-      for (let index = 0; index <= unique.length - 5; index += 1) {
-        if (unique[index] - unique[index + 4] === 4) { straight = unique[index]; break; }
-      }
-      const suitStraight = flush ? (() => {
-        const suited = [...new Set(flush[1])].sort((a, b) => b - a);
-        if (suited.includes(14)) suited.push(1);
-        for (let index = 0; index <= suited.length - 5; index += 1) {
-          if (suited[index] - suited[index + 4] === 4) return suited[index];
-        }
-        return 0;
-      })() : 0;
-      if (suitStraight) return { name: suitStraight === 14 ? 'Royal flush' : 'Straight flush', detail: 'Five cards in sequence, same suit' };
-      if (groups[0]?.[1] === 4) return { name: 'Four of a kind', detail: `${groups[0][0]} four of a kind` };
-      if (groups[0]?.[1] === 3 && groups[1]?.[1] >= 2) return { name: 'Full house', detail: `${groups[0][0]} full of ${groups[1][0]}` };
-      if (flush) return { name: 'Flush', detail: 'Five cards share a suit' };
-      if (straight) return { name: 'Straight', detail: 'Five cards in sequence' };
-      if (groups[0]?.[1] === 3) return { name: 'Three of a kind', detail: `Three ${groups[0][0]}s` };
-      if (groups[0]?.[1] === 2 && groups[1]?.[1] === 2) return { name: 'Two pair', detail: `${groups[0][0]} and ${groups[1][0]}` };
-      if (groups[0]?.[1] === 2) return { name: 'Pair', detail: `Pair of ${groups[0][0]}s` };
-      return { name: 'High card', detail: `High card ${cards[0].rank}` };
-    }
-
-    function notify(message, tone = '') {
-      const item = document.createElement('div');
-      item.className = `table-notification ${tone}`;
-      item.textContent = message;
-      notifications.prepend(item);
-      setTimeout(() => item.remove(), 5000);
-    }
-
-    function renderState(state) {
-      const players = Array.isArray(state.players) ? state.players : [];
-      const maxPlayers = Number(state.max_players || 6);
-      const occupied = new Map(players.map((player) => [Number(player.seat), player]));
-      playerList.innerHTML = Array.from({ length: maxPlayers }, (_, seat) => {
-        const player = occupied.get(seat);
-        if (!player) return `<div class="waiting-seat player-seat-${seat}">Waiting for player</div>`;
-        const initial = text((player.username || player.client_id || '?').slice(0, 1).toUpperCase());
-        if (String(player.client_id) === String(currentUser.id)) return `<div class="waiting-seat player-seat-${seat}">Your seat</div>`;
-        const avatar = player.avatar_id ? window.avatarPicker.render(player.avatar_id, `player-${player.client_id}`) : initial;
-        return `<div class="player live-player player-seat-${seat}">
-          <div class="avatar"><div class="avatar-inner">${avatar}</div></div>
-          <div class="player-info"><div class="player-name">${text(player.username || player.client_id)}</div>
-          <div class="player-chips">🪙 ${PokerAPI.fmtChips(player.chips)}</div>
-          <div class="player-status">${text(player.status || 'WAITING')}</div></div>
-        </div>`;
-      }).join('');
-      document.getElementById('pot-value').textContent = PokerAPI.fmtChips(state.pot);
-      document.getElementById('community-card-list').innerHTML = (state.community_cards || [])
-        .map((card) => cardMarkup(card, 'user-card community-card'))
-        .join('');
-      const me = players.find((player) => String(player.client_id) === String(currentUser.id));
-      if (me) {
-        document.getElementById('user-name').textContent = me.username || me.client_id;
-        document.getElementById('user-chips').textContent = PokerAPI.fmtChips(me.chips);
-        document.getElementById('user-cards').innerHTML = (me.hole_cards || []).map((card) => cardMarkup(card, 'user-card')).join('');
-        document.getElementById('user-avatar-art').innerHTML = window.avatarPicker.render(currentUser.avatar_id, 'user');
-        const hand = evaluateHand([...(me.hole_cards || []), ...(state.community_cards || [])]);
-        document.getElementById('current-hand').innerHTML = `<strong>${text(hand.name)}</strong><span>${text(hand.detail)}</span>`;
-      }
-      latestState = state;
-      if (state.last_action) {
-        const actionKey = `${state.last_action.client_id}:${state.last_action.action}:${state.last_action.amount}:${state.last_action.timed_out}`;
-        if (renderedActionKey && actionKey !== renderedActionKey) {
-          const actor = playersById(state.last_action.client_id);
-          const timeout = state.last_action.timed_out ? ' (time expired, folded)' : '';
-          notify(`${actor} chose ${state.last_action.action}${timeout}`, state.last_action.timed_out ? 'warning' : '');
-        }
-        renderedActionKey = actionKey;
-      }
-      const isHost = String(state.host_id) === String(currentUser.id);
-      startButton.hidden = !isHost || state.phase !== 'WAITING';
-      actionButtons.forEach((button) => {
-        button.disabled = state.phase === 'WAITING' || String(state.current_turn) !== String(currentUser.id);
-      });
-      const myTurn = String(state.current_turn) === String(currentUser.id);
-      document.querySelector('.user-section').classList.toggle('is-your-turn', myTurn);
-      document.getElementById('turn-timer').style.visibility = state.current_turn ? 'visible' : 'hidden';
-      document.getElementById('turn-label').textContent = myTurn ? 'Your Turn' : `${text(state.current_turn_name || 'Waiting')}'s turn`;
-      document.getElementById('turn-hint').textContent = state.winner
-        ? `${state.winner_name || state.winner} wins with ${state.winning_hand || 'best hand'}`
-        : `${state.last_action ? `${state.last_action.action} played` : ''} ${state.phase}`;
-      clearInterval(countdownTimer);
-      const countdown = document.getElementById('turn-countdown');
-      const tick = () => {
-        const seconds = Math.max(0, Math.ceil((Number(state.turn_deadline || 0) - Date.now()) / 1000));
-        countdown.textContent = state.turn_deadline ? String(seconds) : '--';
-      };
-      tick();
-      if (state.turn_deadline) countdownTimer = setInterval(tick, 250);
-      roomStatus.textContent = `${players.length}/${maxPlayers} players connected • ${state.phase || 'WAITING'}${state.last_action ? ` • ${state.last_action.action}` : ''}`;
-    }
-
-    async function connectTable() {
-      currentUser = await PokerAPI.Auth.requireUser();
-      if (!currentUser || !roomCode) return;
-      const table = await PokerAPI.Tables.get(roomCode);
-      const wsUrl = PokerAPI.API_BASE.replace(/^http/, 'ws') + '/ws?token=' + encodeURIComponent(PokerAPI.getToken());
-      socket = new WebSocket(wsUrl);
-      socket.addEventListener('open', () => {
-        roomStatus.textContent = 'Connected. Joining table...';
-        socket.send(JSON.stringify({
-          type: 'join',
-          params: {
-            type: 'join',
-            client_id: String(currentUser.id),
-            room_code: roomCode.toUpperCase(),
-            buy_in: Number(table.min_bet),
-          },
-        }));
-      });
-      socket.addEventListener('message', (event) => {
-        const message = JSON.parse(event.data);
-        if (message.type === 'TABLE_STATE') renderState(message.params);
-        if (message.type === 'GAME_STARTED') renderState(message.params);
-        if (message.type === 'GAME_ACTION') roomStatus.textContent = `${playersById(message.params.client_id)} selected ${message.params.action}`;
-        if (message.type === 'SHOWDOWN') renderState(message.params);
-        if (message.type === 'LEFT_ROOM') window.location.href = 'lobby.html';
-        if (message.type === 'error') roomStatus.textContent = message.error || 'Unable to join table';
-      });
-      socket.addEventListener('close', () => { roomStatus.textContent = 'Disconnected from table'; });
-      socket.addEventListener('error', () => { roomStatus.textContent = 'WebSocket connection failed'; });
-    }
-
-    function playersById(clientId) {
-      const player = latestState?.players?.find((item) => String(item.client_id) === String(clientId));
-      return player?.username || clientId;
-    }
-
-    connectTable().catch((error) => { roomStatus.textContent = error.message || 'Unable to join table'; });
-    startButton.addEventListener('click', () => socket?.send(JSON.stringify({ type: 'START_GAME' })));
-    document.getElementById('hand-guide-button').addEventListener('click', () => { handGuide.hidden = false; });
-    document.getElementById('hand-guide-close').addEventListener('click', () => { handGuide.hidden = true; });
-    leaveButton.addEventListener('click', () => {
-      if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'LEAVE_ROOM' }));
-      else window.location.href = 'lobby.html';
-    });
-    document.querySelector('.small-control:first-child').addEventListener('click', () => {
-      betAmount = Math.max(10, betAmount - 10);
-      document.querySelector('.bet-value strong').textContent = betAmount;
-    });
-    document.querySelector('.small-control:last-child').addEventListener('click', () => {
-      betAmount += 10;
-      document.querySelector('.bet-value strong').textContent = betAmount;
-    });
-    actionButtons.forEach((button) => button.addEventListener('click', () => {
-      socket?.send(JSON.stringify({ type: 'GAME_ACTION', params: { action: button.dataset.action, amount: button.dataset.action === 'BET' || button.dataset.action === 'RAISE' ? betAmount : 0 } }));
-    }));
-    window.addEventListener('beforeunload', () => socket?.close());
-  </script>
 
   <!-- Dynamic Delaunay Triangulation Lattice Background -->
   <script src="js/lattice-background.js"></script>

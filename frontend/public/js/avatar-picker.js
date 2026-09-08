@@ -172,9 +172,5 @@
     getSelectedId: function () {
       return currentSelectedId;
     },
-    render: function (id, prefix) {
-      var avatar = getAvatar(parseInt(id, 10));
-      return avatar.svg((prefix || "table") + "-" + avatar.id);
-    },
   };
 })();
