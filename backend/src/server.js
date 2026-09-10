@@ -1,4 +1,5 @@
 import express from 'express';
+import http from 'node:http';
 import helmet from 'helmet';
 import cors from 'cors';
 import morgan from 'morgan';
@@ -10,7 +11,7 @@ import { router as healthRouter } from './routes/health.js';
 import { router as authRouter } from './routes/auth.js';
 import { router as usersRouter } from './routes/users.js';
 import { router as walletRouter } from './routes/wallet.js';
-import { router as tablesRouter } from './routes/tables.js';
+import { router as tablesRouter, handleTableUpgrade } from './routes/tables.js';
 
 export async function createApp() {
   const app = express();
@@ -25,6 +26,9 @@ export async function createApp() {
         if (!origin) return cb(null, true);
         // In dev, allow file:// protocol (Origin: null) for quick frontend testing
         if (origin === 'null' && !env.isProd) return cb(null, true);
+        // Allow another device on the same LAN during local development.
+        // Production continues to use the explicit CORS allow-list above.
+        if (!env.isProd && /^https?:\/\//.test(origin)) return cb(null, true);
         if (env.corsOrigins.includes(origin)) return cb(null, true);
         return cb(new Error(`Origin ${origin} not allowed by CORS`));
       },
@@ -48,11 +52,21 @@ export async function createApp() {
 }
 
 const app = await createApp();
+let server = null;
 
 if (!env.isTest) {
-  app.listen(env.port, () => {
-    console.log(`[server] Poker777 Core API listening on http://localhost:${env.port}`);
+  server = http.createServer(app);
+  server.on('upgrade', (request, socket, head) => {
+    if (request.url?.split('?')[0] !== '/ws') {
+      socket.destroy();
+      return;
+    }
+    handleTableUpgrade(request, socket, head);
+  });
+  server.listen(env.port, '0.0.0.0', () => {
+    console.log(`[server] Poker777 Core API listening on port ${env.port}`);
+    console.log(`[server] Poker777 WebSocket listening on port ${env.port}/ws`);
   });
 }
 
-export { app };
+export { app, server };

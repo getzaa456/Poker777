@@ -3,7 +3,7 @@
  * Exposes window.PokerAPI — used by index.html, lobby.html, poker-table.html.
  */
 (function () {
-  const API_BASE = window.POKER_API_BASE || 'http://localhost:4000';
+  const API_BASE = window.POKER_API_BASE || `${window.location.protocol}//${window.location.hostname}:4000`;
   const TOKEN_KEY = 'poker777_token';
   const USER_KEY = 'poker777_user';
   const AVATAR_KEY = 'poker777_avatar_id';
