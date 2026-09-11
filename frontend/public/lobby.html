@@ -43,8 +43,8 @@
       <div class="profile-chips" id="profileChips">🪙 –</div>
       <div class="xp-bar"><div class="xp-fill"></div></div>
     </div>
-    <button class="topup-quick-btn" id="topupQuickBtn" title="Top up chips">$ - TOPUP</button>
-    <button class="expand-btn logout-btn" id="logoutBtn" title="Log out">➜] - LOGOUT</button>
+    <button class="topup-quick-btn" id="topupQuickBtn" title="Top up chips"><span class="topup-quick-icon">🪙</span><span>Top Up</span></button>
+    <button class="expand-btn logout-btn" id="logoutBtn" title="Log out"><span class="logout-icon">↪</span><span>Log Out</span></button>
   </header>
 
   <!-- ======================= PROFILE PANEL (MODAL CARD) ======================= -->
@@ -300,22 +300,42 @@
 
   <!-- ======================= TOPUP MODAL ======================= -->
   <div class="modal-overlay" id="topupModal" hidden>
-    <div class="modal-card">
-      <button class="modal-close" id="topupCloseBtn">✕</button>
-      <div class="modal-title">🪙 Top Up Chips</div>
-      <div class="modal-balance">Current Balance: <span id="topupCurrentBalance">–</span></div>
+    <div class="modal-card topup-card">
+      <button class="modal-close" id="topupCloseBtn" aria-label="Close top up modal">✕</button>
+
+      <div class="topup-header">
+        <div class="topup-icon">🪙</div>
+        <div>
+          <div class="modal-title">Top Up Chips</div>
+          <div class="topup-subtitle">Choose an amount, then confirm your top up.</div>
+        </div>
+      </div>
+
+      <div class="topup-balance-card">
+        <span class="topup-balance-label">Current balance</span>
+        <span class="topup-balance-value" id="topupCurrentBalance">–</span>
+      </div>
+
+      <div class="topup-section-label">Quick amount</div>
       <div class="topup-presets" id="topupPresets">
-        <button class="topup-preset" data-amount="100">🪙 100</button>
-        <button class="topup-preset" data-amount="500">🪙 500</button>
-        <button class="topup-preset" data-amount="1000">🪙 1,000</button>
-        <button class="topup-preset" data-amount="5000">🪙 5,000</button>
-        <button class="topup-preset" data-amount="10000">🪙 10,000</button>
-        <button class="topup-preset" data-amount="50000">🪙 50,000</button>
+        <button type="button" class="topup-preset" data-amount="100"><span>🪙</span>100</button>
+        <button type="button" class="topup-preset" data-amount="500"><span>🪙</span>500</button>
+        <button type="button" class="topup-preset" data-amount="1000"><span>🪙</span>1,000</button>
+        <button type="button" class="topup-preset" data-amount="5000"><span>🪙</span>5,000</button>
+        <button type="button" class="topup-preset" data-amount="10000"><span>🪙</span>10,000</button>
+        <button type="button" class="topup-preset" data-amount="50000"><span>🪙</span>50,000</button>
       </div>
+
+      <div class="topup-section-label">Custom amount</div>
       <div class="topup-custom">
-        <input type="number" id="topupAmount" placeholder="Custom amount" min="1" max="100000">
-        <button class="topup-confirm-btn" id="topupConfirmBtn">Top Up</button>
+        <div class="topup-input-wrap">
+          <span class="topup-input-icon">🪙</span>
+          <input type="number" id="topupAmount" placeholder="Enter chips" min="1" max="100000" inputmode="numeric">
+        </div>
+        <button type="button" class="topup-confirm-btn" id="topupConfirmBtn">Top Up</button>
       </div>
+
+      <div class="topup-hint">Maximum 100,000 chips per top up.</div>
       <div class="topup-message" id="topupMessage"></div>
     </div>
   </div>
@@ -481,6 +501,7 @@
   function openTopupModal() {
     topupCurrentBalance.textContent = '🪙 ' + PokerAPI.fmtChips(currentUser.balance);
     topupAmount.value = '';
+    topupPresets.querySelectorAll('.topup-preset').forEach((preset) => preset.classList.remove('is-active'));
     topupMessage.textContent = '';
     topupMessage.className = 'topup-message';
     topupModal.hidden = false;
@@ -519,8 +540,13 @@
     if (topupConfirmBtn.disabled) return;
     const btn = e.target.closest('.topup-preset');
     if (!btn) return;
+
     topupAmount.value = btn.dataset.amount;
-    doTopup();
+    topupPresets.querySelectorAll('.topup-preset').forEach((preset) => {
+      preset.classList.toggle('is-active', preset === btn);
+    });
+    topupMessage.textContent = '';
+    topupMessage.className = 'topup-message';
   });
 
   topupConfirmBtn.addEventListener('click', () => {
