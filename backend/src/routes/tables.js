@@ -5,10 +5,17 @@ import { createTable, listOpenTables, getTableSummary, joinTable } from '../serv
 import { getUserProfile } from '../services/auth.js';
 import { WebSocket, WebSocketServer } from 'ws';
 import { URL } from 'node:url';
+import { randomUUID } from 'node:crypto';
 import { joinTableSchema } from '../validators/game.js';
 import { validate } from '../middleware/validate.js';
 import { jwt } from '../middleware/auth.js';
 import { env } from '../config/env.js';
+import { getRedis, getRedisPublisher, getRedisSubscriber, withRedisLock } from '../config/redis.js';
+
+const PUBSUB_CHANNEL = 'chat';
+const INSTANCE_ID = process.env.INSTANCE_ID || randomUUID();
+let pubSubPromise = null;
+let publishQueue = Promise.resolve();
 
 class Room {
   constructor(table) {
@@ -37,9 +44,10 @@ class Room {
     this.winnerName = null;
     this.winningHand = null;
     this.lastAction = null;
+    this.eventVersion = 0;
   }
 
-  state() {
+  state(clientId = null) {
     return {
       room_code: this.roomCode,
       room_name: this.name,
@@ -64,20 +72,64 @@ class Room {
         username: player.username || player.clientId,
         chips: player.chips ?? null,
         avatar_id: player.avatarId ?? null,
-        hole_cards: this.holeCards.get(player.clientId) || [],
+        hole_cards: String(player.clientId) === String(clientId) ? (this.holeCards.get(player.clientId) || []) : [],
         status: this.folded.has(player.clientId) ? 'FOLDED' : (String(this.currentTurn) === String(player.clientId) ? 'YOUR TURN' : 'IN'),
       })),
     };
   }
 
-  send(socket, type, params = this.state()) {
-    if (socket.readyState === WebSocket.OPEN) {
-      socket.send(JSON.stringify({ type, params }));
+  send(socket, type, params = null) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      const player = [...this.currentPlayers.values()].find((item) => item.ws === socket);
+      const payload = params ?? this.state(player?.clientId);
+      socket.send(JSON.stringify({ type, params: payload }));
     }
   }
 
-  broadcast(type = 'TABLE_STATE', params = this.state()) {
-    for (const player of this.currentPlayers.values()) this.send(player.ws, type, params);
+  internalState() {
+    return {
+      ...this.state(),
+      players: [...this.currentPlayers.values()].map((player) => ({
+        client_id: player.clientId,
+        username: player.username,
+        chips: player.chips,
+        avatar_id: player.avatarId,
+      })),
+      hole_cards: [...this.holeCards.entries()],
+      folded: [...this.folded],
+      acted: [...this.acted],
+      contributions: [...this.contributions.entries()],
+      deck: this.deck,
+    };
+  }
+
+  applyInternalState(snapshot) {
+    if (!snapshot) return;
+    this.status = snapshot.status;
+    this.phase = snapshot.phase;
+    this.currentTurn = snapshot.current_turn;
+    this.turnDeadline = snapshot.turn_deadline;
+    this.pot = snapshot.pot;
+    this.currentBet = snapshot.current_bet;
+    this.winner = snapshot.winner;
+    this.winnerName = snapshot.winner_name;
+    this.winningHand = snapshot.winning_hand;
+    this.lastAction = snapshot.last_action;
+    this.communityCards = snapshot.community_cards || [];
+    this.host = snapshot.host_id;
+    this.currentPlayers = new Map((snapshot.players || []).map((player) => {
+      const local = this.currentPlayers.get(player.client_id);
+      return [player.client_id, { ...player, clientId: player.client_id, ws: local?.ws || null }];
+    }));
+    this.holeCards = new Map(snapshot.hole_cards || []);
+    this.folded = new Set(snapshot.folded || []);
+    this.acted = new Set(snapshot.acted || []);
+    this.contributions = new Map(snapshot.contributions || []);
+    this.deck = snapshot.deck || [];
+  }
+
+  broadcast(type = 'TABLE_STATE', params = null) {
+    publishRoomEvent(this, type, params);
   }
 }
 
@@ -109,7 +161,6 @@ function startGame(room) {
   room.currentPlayers.forEach((player) => {
     room.holeCards.set(player.clientId, [room.deck.pop(), room.deck.pop()]);
   });
-  room.broadcast('GAME_STARTED');
   armTurn(room);
   return true;
 }
@@ -121,8 +172,22 @@ function activePlayers(room) {
 function armTurn(room) {
   if (room.turnTimer) clearTimeout(room.turnTimer);
   room.turnDeadline = Date.now() + 15000;
-  room.turnTimer = setTimeout(() => performAction(room, room.currentTurn, 'FOLD', 0, true), 15000);
+  scheduleTurnTimer(room);
   room.broadcast('TABLE_STATE');
+}
+
+function scheduleTurnTimer(room) {
+  if (room.turnTimer) clearTimeout(room.turnTimer);
+  if (!room.currentTurn || !room.turnDeadline || room.phase === 'WAITING' || room.phase === 'SHOWDOWN') return;
+  const delay = Math.max(0, Number(room.turnDeadline) - Date.now());
+  room.turnTimer = setTimeout(() => {
+    void withRedisLock(`room:${room.roomCode}`, async () => {
+      await restoreRoomSnapshot(room);
+      if (room.currentTurn && Number(room.turnDeadline) <= Date.now()) {
+        performAction(room, room.currentTurn, 'FOLD', 0, true);
+      }
+    });
+  }, delay);
 }
 
 function handScore(cards) {
@@ -256,12 +321,109 @@ const ROOMS = new Map();
 const CLIENTS = new Map();
 const wss = new WebSocketServer({ noServer: true });
 
+function deliverRoomEvent(event) {
+  const room = ROOMS.get(event.roomCode);
+  if (!room) return;
+  if (event.version && event.version <= room.eventVersion) return;
+  room.eventVersion = event.version || room.eventVersion;
+  room.applyInternalState(event.snapshot);
+  scheduleTurnTimer(room);
+  const stateEvent = ['TABLE_STATE', 'GAME_STARTED', 'SHOWDOWN'].includes(event.type);
+  for (const player of room.currentPlayers.values()) {
+    room.send(player.ws, event.type, stateEvent ? null : event.params);
+  }
+}
+
+async function ensurePubSub() {
+  if (pubSubPromise) return pubSubPromise;
+  pubSubPromise = (async () => {
+    const subscriber = await getRedisSubscriber();
+    const publisher = await getRedisPublisher();
+    if (!subscriber || !publisher) return false;
+    await subscriber.subscribe(PUBSUB_CHANNEL);
+    subscriber.on('message', (channel, raw) => {
+      if (channel !== PUBSUB_CHANNEL) return;
+      try {
+        deliverRoomEvent(JSON.parse(raw));
+      } catch (error) {
+        console.error('[redis] invalid table event:', error.message);
+      }
+    });
+    return true;
+  })().catch((error) => {
+    pubSubPromise = null;
+    console.error('[redis] pub/sub unavailable:', error.message);
+    return false;
+  });
+  return pubSubPromise;
+}
+
+async function publishRoomEvent(room, type, params) {
+  publishQueue = publishQueue.then(async () => {
+    try {
+      await ensurePubSub();
+      const publisher = await getRedisPublisher();
+      if (publisher) {
+        const version = await publisher.incr(`table-event:${room.roomCode}`);
+        const event = {
+          event_id: randomUUID(),
+          instance_id: INSTANCE_ID,
+          version,
+          roomCode: room.roomCode,
+          type,
+          params: params ?? room.state(),
+          snapshot: room.internalState(),
+        };
+        await publisher.set(`table-snapshot:${room.roomCode}`, JSON.stringify({ version, snapshot: event.snapshot }), 'EX', 3600);
+        await publisher.publish(PUBSUB_CHANNEL, JSON.stringify(event));
+        return;
+      }
+      if (env.isProd) {
+        console.error('[redis] table event unavailable; refusing local-only state in production');
+        return;
+      }
+    } catch (error) {
+      console.error('[redis] table event publish failed:', error.message);
+      if (env.isProd) return;
+    }
+    deliverRoomEvent({
+      event_id: randomUUID(),
+      instance_id: INSTANCE_ID,
+      roomCode: room.roomCode,
+      type,
+      params: params ?? room.state(),
+      snapshot: room.internalState(),
+    });
+  });
+  return publishQueue;
+}
+
+async function restoreRoomSnapshot(room) {
+  try {
+    const redis = await getRedis();
+    const saved = redis && await redis.get(`table-snapshot:${room.roomCode}`);
+    if (!saved) return;
+    const { version, snapshot } = JSON.parse(saved);
+    room.eventVersion = Number(version) || 0;
+    room.applyInternalState(snapshot);
+  } catch (error) {
+    console.error('[redis] table snapshot restore failed:', error.message);
+  }
+}
+
 async function joinRoom(params, ws) {
   const data = validate(joinTableSchema, params);
   if (String(ws.userId) !== String(data.clientId)) {
     return ws.send(JSON.stringify({ type: 'error', error: 'Client identity does not match token' }));
   }
-  const room = ROOMS.get(data.roomCode);
+  await ensurePubSub();
+  let room = ROOMS.get(data.roomCode);
+  if (!room) {
+    const table = await getTableSummary(data.roomCode);
+    room = new Room(table);
+    await restoreRoomSnapshot(room);
+    ROOMS.set(data.roomCode, room);
+  }
   if (!room) return ws.send(JSON.stringify({ type: 'error', error: 'Room not found' }));
 
   let client = CLIENTS.get(data.clientId);
@@ -276,41 +438,53 @@ async function joinRoom(params, ws) {
     return ws.send(JSON.stringify({ type: 'error', error: 'Table is full' }));
   }
 
-  try {
-    await joinTable(data.clientId, data.roomCode, { buy_in: data.buyIn });
-  } catch (error) {
-    const messages = {
-      ROOM_IN_PROGRESS: 'Table is already in progress',
-      ROOM_CLOSED: 'Table is closed',
-      ROOM_FULL: 'Table is full',
-      BUY_IN_TOO_LOW: 'Buy-in is too low',
-      BUY_IN_TOO_HIGH: 'Buy-in is too high',
-      INSUFFICIENT_BALANCE: 'Insufficient balance',
-    };
-    return ws.send(JSON.stringify({ type: 'error', error: messages[error.code] || error.message }));
-  }
-
-  const profile = await getUserProfile(data.clientId);
-  client.ws = ws;
-  client.username = profile.display_name || profile.username;
-  client.chips = Number(profile.balance || 0);
-  client.avatarId = profile.avatar_id ?? null;
-  client.joinedRoom = room;
-  room.currentPlayers.set(data.clientId, client);
-  room.status = room.currentPlayers.size >= room.maxPlayer ? 'IN_PROGRESS' : 'OPEN';
-  room.broadcast();
+  const joined = await withRedisLock(`room:${room.roomCode}`, async () => {
+    await restoreRoomSnapshot(room);
+    if (!room.currentPlayers.has(data.clientId) && room.currentPlayers.size >= room.maxPlayer) {
+      return { error: 'Table is full' };
+    }
+    try {
+      await joinTable(data.clientId, data.roomCode, { buy_in: data.buyIn });
+    } catch (error) {
+      const messages = {
+        ROOM_IN_PROGRESS: 'Table is already in progress',
+        ROOM_CLOSED: 'Table is closed',
+        ROOM_FULL: 'Table is full',
+        BUY_IN_TOO_LOW: 'Buy-in is too low',
+        BUY_IN_TOO_HIGH: 'Buy-in is too high',
+        INSUFFICIENT_BALANCE: 'Insufficient balance',
+      };
+      return { error: messages[error.code] || error.message };
+    }
+    const profile = await getUserProfile(data.clientId);
+    client.ws = ws;
+    client.username = profile.display_name || profile.username;
+    client.chips = Number(profile.balance || 0);
+    client.avatarId = profile.avatar_id ?? null;
+    client.joinedRoom = room;
+    room.currentPlayers.set(data.clientId, client);
+    room.status = room.currentPlayers.size >= room.maxPlayer ? 'IN_PROGRESS' : 'OPEN';
+    room.broadcast();
+    return { ok: true };
+  });
+  if (joined === false) return ws.send(JSON.stringify({ type: 'error', error: 'Table is busy, please retry' }));
+  if (joined.error) return ws.send(JSON.stringify({ type: 'error', error: joined.error }));
 }
 
-function leaveRoom(ws) {
+async function leaveRoom(ws) {
   for (const room of ROOMS.values()) {
-    for (const [clientId, client] of room.currentPlayers) {
-      if (client.ws !== ws) continue;
-      room.currentPlayers.delete(clientId);
-      client.joinedRoom = null;
-      if (String(room.host) === String(clientId)) {
+    const client = [...room.currentPlayers.values()].find((item) => item.ws === ws);
+    if (!client) continue;
+    await withRedisLock(`room:${room.roomCode}`, async () => {
+      await restoreRoomSnapshot(room);
+      const current = room.currentPlayers.get(client.clientId);
+      if (!current || current.ws !== ws) return;
+      room.currentPlayers.delete(client.clientId);
+      current.joinedRoom = null;
+      if (String(room.host) === String(client.clientId)) {
         room.host = room.currentPlayers.keys().next().value || room.host;
       }
-      room.lastAction = { client_id: clientId, action: 'LEAVE', amount: 0, timed_out: false };
+      room.lastAction = { client_id: client.clientId, action: 'LEAVE', amount: 0, timed_out: false };
       room.status = 'OPEN';
       room.phase = 'WAITING';
       room.currentTurn = null;
@@ -323,15 +497,15 @@ function leaveRoom(ws) {
         room.turnTimer = null;
       }
       room.broadcast();
-    }
+    });
   }
 }
 
-function leaveRoomByClient(client) {
+async function leaveRoomByClient(client) {
   if (!client?.joinedRoom) return false;
   const room = client.joinedRoom;
   const socket = client.ws;
-  leaveRoom(socket);
+  await leaveRoom(socket);
   if (socket.readyState === WebSocket.OPEN) {
     socket.send(JSON.stringify({ type: 'LEFT_ROOM', params: { room_code: room.roomCode } }));
     socket.close(1000, 'Left room');
@@ -347,37 +521,47 @@ wss.on('connection', (ws) => {
       if (message.type === 'join') await joinRoom(message.params || {}, ws);
       else if (message.type === 'LEAVE_ROOM') {
         const client = [...CLIENTS.values()].find((item) => item.ws === ws);
-        if (!leaveRoomByClient(client)) ws.send(JSON.stringify({ type: 'error', error: 'You are not in a room' }));
+        if (!(await leaveRoomByClient(client))) ws.send(JSON.stringify({ type: 'error', error: 'You are not in a room' }));
       }
       else if (message.type === 'START_GAME') {
         const client = [...CLIENTS.values()].find((item) => item.ws === ws);
         if (!client?.joinedRoom || String(client.clientId) !== String(client.joinedRoom.host)) {
           return ws.send(JSON.stringify({ type: 'error', error: 'Only the room host can start the game' }));
         }
-        if (!startGame(client.joinedRoom)) {
+        const started = await withRedisLock(`room:${client.joinedRoom.roomCode}`, async () => {
+          await restoreRoomSnapshot(client.joinedRoom);
+          if (String(client.joinedRoom.host) !== String(client.clientId)) return false;
+          return startGame(client.joinedRoom);
+        });
+        if (started === false) {
           return ws.send(JSON.stringify({ type: 'error', error: 'At least 2 players are required to start' }));
         }
       }
       else if (message.type === 'GAME_ACTION') {
         const client = [...CLIENTS.values()].find((item) => item.ws === ws);
         const room = client?.joinedRoom;
-        if (!room || room.phase === 'WAITING') return;
-        if (String(room.currentTurn) !== String(client.clientId)) {
-          return ws.send(JSON.stringify({ type: 'error', error: 'It is not your turn' }));
-        }
+        if (!room) return;
         const action = String(message.params?.action || '').toUpperCase();
         if (!['FOLD', 'CHECK', 'CALL', 'BET', 'RAISE'].includes(action)) {
           return ws.send(JSON.stringify({ type: 'error', error: 'Invalid game action' }));
         }
         const amount = Math.max(0, Number(message.params?.amount || 0));
-        performAction(room, client.clientId, action, amount);
+        await withRedisLock(`room:${room.roomCode}`, async () => {
+          await restoreRoomSnapshot(room);
+          if (room.phase === 'WAITING') return;
+          if (String(room.currentTurn) !== String(client.clientId)) {
+            ws.send(JSON.stringify({ type: 'error', error: 'It is not your turn' }));
+            return;
+          }
+          performAction(room, client.clientId, action, amount);
+        });
       }
     } catch (error) {
       ws.send(JSON.stringify({ type: 'error', error: error.message || 'Invalid message' }));
     }
   });
-  ws.on('close', () => leaveRoom(ws));
-  ws.on('error', () => leaveRoom(ws));
+  ws.on('close', () => { void leaveRoom(ws); });
+  ws.on('error', () => { void leaveRoom(ws); });
 });
 
 export function handleTableUpgrade(request, socket, head) {

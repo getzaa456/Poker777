@@ -102,6 +102,9 @@ export default function PokerTablePage() {
     }
 
     let cancelled = false;
+    let reconnectTimer = null;
+    let reconnectAttempt = 0;
+    let intentionallyClosed = false;
     (async () => {
       try {
         const current = await Auth.me();
@@ -109,22 +112,34 @@ export default function PokerTablePage() {
         if (cancelled) return;
         setUser(current);
         setTable(tableInfo);
-        const wsUrl = `${API_BASE.replace(/^http/, 'ws')}/ws?token=${encodeURIComponent(getToken())}`;
-        const socket = new WebSocket(wsUrl);
-        socketRef.current = socket;
-        socket.addEventListener('open', () => {
-          setRoomStatus('Connected. Joining table...');
-          socket.send(JSON.stringify({ type: 'join', params: { type: 'join', clientId: String(current.id), roomCode: roomCode.toUpperCase(), buyIn: Number(tableInfo.min_bet) } }));
-        });
-        socket.addEventListener('message', (event) => {
-          const message = JSON.parse(event.data);
-          if (['TABLE_STATE', 'GAME_STARTED', 'SHOWDOWN'].includes(message.type)) setState(message.params);
-          if (message.type === 'GAME_ACTION') setRoomStatus(`${message.params.client_id} selected ${message.params.action}`);
-          if (message.type === 'LEFT_ROOM') navigate('/lobby');
-          if (message.type === 'error') setRoomStatus(message.error || 'Unable to join table');
-        });
-        socket.addEventListener('close', () => setRoomStatus('Disconnected from table'));
-        socket.addEventListener('error', () => setRoomStatus('WebSocket connection failed'));
+        const connect = () => {
+          if (cancelled || intentionallyClosed) return;
+          setRoomStatus(reconnectAttempt ? 'Reconnecting to table...' : 'Connecting to table...');
+          const wsUrl = `${API_BASE.replace(/^http/, 'ws')}/ws?token=${encodeURIComponent(getToken())}`;
+          const socket = new WebSocket(wsUrl);
+          socketRef.current = socket;
+          socket.addEventListener('open', () => {
+            reconnectAttempt = 0;
+            setRoomStatus('Connected. Joining table...');
+            socket.send(JSON.stringify({ type: 'join', params: { type: 'join', clientId: String(current.id), roomCode: roomCode.toUpperCase(), buyIn: Number(tableInfo.min_bet) } }));
+          });
+          socket.addEventListener('message', (event) => {
+            const message = JSON.parse(event.data);
+            if (['TABLE_STATE', 'GAME_STARTED', 'SHOWDOWN'].includes(message.type)) setState(message.params);
+            if (message.type === 'GAME_ACTION') setRoomStatus(`${message.params.client_id} selected ${message.params.action}`);
+            if (message.type === 'LEFT_ROOM') navigate('/lobby');
+            if (message.type === 'error') setRoomStatus(message.error || 'Unable to join table');
+          });
+          socket.addEventListener('close', () => {
+            if (cancelled || intentionallyClosed) return;
+            setRoomStatus('Connection lost. Reconnecting...');
+            const delay = Math.min(5000, 500 * (2 ** reconnectAttempt));
+            reconnectAttempt += 1;
+            reconnectTimer = setTimeout(connect, delay);
+          });
+          socket.addEventListener('error', () => setRoomStatus('WebSocket connection failed'));
+        };
+        connect();
       } catch (error) {
         if (!cancelled) setRoomStatus(error.message || 'Unable to join table');
       }
@@ -132,6 +147,8 @@ export default function PokerTablePage() {
 
     return () => {
       cancelled = true;
+      intentionallyClosed = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
       socketRef.current?.close();
     };
   }, [navigate, roomCode]);
