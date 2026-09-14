@@ -10,7 +10,14 @@ body {
 
 body {
   font-family: 'Nunito', Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: #0f0b1a;
+  background-color: #0d0914;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px),
+    radial-gradient(circle at 15% 50%, rgba(143,123,255,0.15), transparent 45%),
+    radial-gradient(circle at 85% 20%, rgba(255,111,176,0.12), transparent 45%);
+  background-size: 40px 40px, 40px 40px, 100% 100%, 100% 100%;
+  background-position: center center;
   overflow-x: hidden;
 }
 
@@ -31,7 +38,7 @@ button {
   min-height: 100vh;
   overflow: hidden;
   color: white;
-  background: radial-gradient(circle at 50% -20%, rgba(48, 31, 84, 0.55) 0%, rgba(21, 16, 37, 0.28) 60%, rgba(12, 8, 23, 0.12) 100%);
+  background: transparent;
 }
 
 .background {
@@ -41,35 +48,13 @@ button {
   pointer-events: none;
 }
 
-.background::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image:
-    linear-gradient(rgba(255,255,255,.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,.02) 1px, transparent 1px);
-  background-size: 50px 50px;
-}
-
+.background::before,
 .background::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(rgba(255,255,255,0.15) 1.5px, transparent 1.5px);
-  background-size: 50px 50px;
-  background-position: -1px -1px;
+  content: none;
 }
 
 .cityscape {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  width: 100%;
-  height: 250px;
-  background: url('data:image/svg+xml;utf8,<svg preserveAspectRatio="none" viewBox="0 0 1000 200" xmlns="http://www.w3.org/2000/svg"><path d="M0,200 L0,150 L50,150 L50,100 L100,100 L100,160 L150,160 L150,80 L200,80 L200,140 L250,140 L250,60 L300,60 L300,130 L350,130 L350,90 L400,90 L400,150 L450,150 L450,110 L500,110 L500,170 L550,170 L550,70 L600,70 L600,120 L650,120 L650,50 L700,50 L700,140 L750,140 L750,100 L800,100 L800,160 L850,160 L850,80 L900,80 L900,130 L950,130 L950,110 L1000,110 L1000,200 Z" fill="%23130e24"/></svg>') repeat-x bottom;
-  background-size: 1000px 100%;
-  opacity: 0.8;
-  z-index: 1;
+  display: none;
 }
 
 .suit-badge {
@@ -95,13 +80,7 @@ button {
 }
 
 .glow {
-  position: absolute;
-  width: 600px;
-  height: 600px;
-  border-radius: 50%;
-  filter: blur(120px);
-  opacity: .3;
-  z-index: 0;
+  display: none;
 }
 .glow-1 { top: -10%; left: -10%; background: #6c429c; opacity: .4; }
 .glow-2 { top: 20%; right: -20%; background: #28448a; opacity: .3; }
