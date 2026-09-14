@@ -31,7 +31,7 @@ button {
   min-height: 100vh;
   overflow: hidden;
   color: white;
-  background: radial-gradient(circle at 50% -20%, #301f54 0%, #151025 60%, #0c0817 100%);
+  background: radial-gradient(circle at 50% -20%, rgba(48, 31, 84, 0.55) 0%, rgba(21, 16, 37, 0.28) 60%, rgba(12, 8, 23, 0.12) 100%);
 }
 
 .background {
