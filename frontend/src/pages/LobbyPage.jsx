@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Auth, Tables, Wallet, fmtChips } from '../lib/api.js';
-import { AvatarFace, avatarIds, normalizeAvatarId } from '../lib/avatars.jsx';
+import { AvatarFace, avatarIds, normalizeAvatarId } from '../components/avatars.jsx';
 import { usePageStyles } from '../hooks/usePageStyles.js';
 import { GlassButton } from '../components/GlassButton.jsx';
 

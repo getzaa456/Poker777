@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { API_BASE, Auth, Tables, fmtChips, getToken } from '../lib/api.js';
-import { AvatarFace, normalizeAvatarId } from '../lib/avatars.jsx';
+import { AvatarFace, normalizeAvatarId } from '../components/avatars.jsx';
 import { usePageStyles } from '../hooks/usePageStyles.js';
 
 const RANK_VALUE = { 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, 10: 10, J: 11, Q: 12, K: 13, A: 14 };
