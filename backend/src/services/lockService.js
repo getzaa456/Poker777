@@ -1,4 +1,4 @@
-import { redisState } from './redisClient.js';
+import { redisState } from '../config/redisClient.js';
 
 // สคริปต์ Lua สำหรับปลดล็อก: จะลบ Key ก็ต่อเมื่อ Token ตรงกับคนที่สร้างขึ้นเท่านั้น
 // หมายความว่า: ป้องกันไม่ให้ EC2 เครื่องเราไปเผลอลบ Lock ของ EC2 เครื่องอื่นที่อาจจะทำงานช้าจน Lock เราหมดอายุไปแล้ว
