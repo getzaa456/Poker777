@@ -1,17 +1,10 @@
 import { WebSocketServer } from 'ws';
-import { redisPub, redisSub } from './redisClient.js';
-import {
-  updateRoom,
-  getRoom,
-  addPot,
-  getPlayerBet,
-  setPlayerBet,
-  setPlayerFolded,
-} from './roomService.js';
-import { withLock } from './lockService.js';
+import { redisPub, redisSub } from '../config/redisClient.js';
+import { updateRoom, getRoom, addPot, getPlayerBet, setPlayerBet, setPlayerFolded } from '../services/ExRoomService.js';
+import { withLock } from '../services/lockService.js';
 
 // เปิด WebSocket Server บนพอร์ต 8080 ของ EC2 เครื่องนี้
-const wss = new WebSocketServer({ port: 8080 });
+const wss = new WebSocketServer({ port: process.env.PORT || 8080 });
 const CHANNEL = 'poker:events'; // ชื่อช่องสัญญาณ Redis Pub/Sub
 
 // -------------------------------------------------------------------

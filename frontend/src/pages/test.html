@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Poker UI Testing Container</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: #120924;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .poker-table-container {
+            width: 850px;
+            background-color: #1a1033;
+            border-radius: 20px;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        /* ส่วนแสดงสถานะโต๊ะ/เกม */
+        .game-status-bar {
+            display: flex;
+            gap: 20px;
+            background-color: #0d0718;
+            padding: 8px 16px;
+            border-radius: 10px;
+            font-size: 13px;
+            color: #a594c7;
+            border: 1px solid #2a1b4e;
+        }
+
+        .game-status-bar span {
+            color: #ffffff;
+            font-weight: bold;
+        }
+
+        /* 1. ช่องว่างสำหรับแสดง Pot */
+        .pot-container {
+            background-color: #0d0718;
+            border: 2px dashed #332454;
+            padding: 8px 24px;
+            border-radius: 20px;
+            font-size: 18px;
+            font-weight: bold;
+            color: #d6bbfb;
+            display: flex;
+            gap: 10px;
+            min-width: 150px;
+            min-height: 40px;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 2. ช่องว่างสำหรับแสดงไพ่กลางโต๊ะ (Community Cards) */
+        .community-cards-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .cards-row {
+            display: flex;
+            gap: 10px;
+            min-height: 70px;
+            padding: 5px;
+            border: 1px dashed #332454;
+            border-radius: 8px;
+            min-width: 290px;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* 3. จัดวางส่วนผู้เล่น 4 คน (Grid 2x2) */
+        .players-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            width: 100%;
+        }
+
+        .player-section {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background-color: #231640;
+            padding: 10px 15px;
+            border-radius: 15px;
+            border: 1px dashed #3d2b63;
+            min-height: 74px;
+        }
+
+        .profile-box {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .avatar-placeholder {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background-color: #2a1b4e;
+            border: 2px dashed #6b52ff;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .avatar-placeholder img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .player-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            min-width: 80px;
+        }
+
+        .player-name {
+            font-weight: bold;
+            font-size: 13px;
+            min-height: 16px;
+        }
+
+        .player-chips {
+            color: #ffb800;
+            font-size: 12px;
+            font-weight: bold;
+            min-height: 15px;
+        }
+
+        .hole-cards {
+            display: flex;
+            gap: 5px;
+            min-width: 90px;
+            min-height: 60px;
+            border: 1px dashed #332454;
+            border-radius: 6px;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 4. ส่วนปุ่มควบคุม */
+        .controls-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .bet-adjuster {
+            display: flex;
+            align-items: center;
+            background-color: #23193e;
+            border-radius: 8px;
+            padding: 4px;
+            gap: 8px;
+        }
+
+        .btn-step {
+            background-color: #312356;
+            color: #a594c7;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .btn-step:hover {
+            background-color: #433072;
+            color: #ffffff;
+        }
+
+        .bet-amount {
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 14px;
+            min-width: 60px;
+            text-align: center;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn-action {
+            width: 90px;
+            height: 60px;
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 12px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #ffffff;
+            text-transform: uppercase;
+            transition: transform 0.1s;
+        }
+
+        .btn-action:active {
+            transform: scale(0.95);
+        }
+
+        .btn-fold {
+            background-color: #3b3154;
+        }
+
+        .btn-check {
+            background-color: #6b52ff;
+        }
+
+        .btn-call {
+            background-color: #6b52ff;
+        }
+
+        .btn-bet {
+            background-color: #ff8a00;
+        }
+
+        .btn-raise {
+            background-color: #ff3366;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="poker-table-container">
+
+        <!-- แถบแสดงข้อมูลสถานะเกม / Seat / Status -->
+        <div class="game-status-bar">
+            <div>Seat: <span id="seat-number-display">-</span></div>
+            <div>Turn: <span id="current-turn-display">-</span></div>
+            <div>Status: <span id="player-status-display">-</span></div>
+        </div>
+
+        <!-- ช่องว่างสำหรับ Pot -->
+        <div class="pot-container">
+            <span>POT:</span>
+            <span class="pot-amount" id="pot-display"></span>
+        </div>
+
+        <!-- ช่องว่างสำหรับไพ่กลางโต๊ะ (Community Cards) -->
+        <div class="community-cards-container">
+            <div class="cards-row" id="community-cards"></div>
+        </div>
+
+        <!-- ช่องว่างสำหรับผู้เล่น 4 คน -->
+        <div class="players-grid">
+            <!-- Player 1 -->
+            <div class="player-section" id="player-section-1">
+                <div class="profile-box">
+                    <div class="avatar-placeholder" id="p1-avatar-container"></div>
+                    <div class="player-info">
+                        <span class="player-name" id="p1-name"></span>
+                        <span class="player-chips" id="p1-chips"></span>
+                    </div>
+                </div>
+                <div class="hole-cards" id="p1-hole-cards"></div>
+            </div>
+
+            <!-- Player 2 -->
+            <div class="player-section" id="player-section-2">
+                <div class="profile-box">
+                    <div class="avatar-placeholder" id="p2-avatar-container"></div>
+                    <div class="player-info">
+                        <span class="player-name" id="p2-name"></span>
+                        <span class="player-chips" id="p2-chips"></span>
+                    </div>
+                </div>
+                <div class="hole-cards" id="p2-hole-cards"></div>
+            </div>
+
+            <!-- Player 3 -->
+            <div class="player-section" id="player-section-3">
+                <div class="profile-box">
+                    <div class="avatar-placeholder" id="p3-avatar-container"></div>
+                    <div class="player-info">
+                        <span class="player-name" id="p3-name"></span>
+                        <span class="player-chips" id="p3-chips"></span>
+                    </div>
+                </div>
+                <div class="hole-cards" id="p3-hole-cards"></div>
+            </div>
+
+            <!-- Player 4 -->
+            <div class="player-section" id="player-section-4">
+                <div class="profile-box">
+                    <div class="avatar-placeholder" id="p4-avatar-container"></div>
+                    <div class="player-info">
+                        <span class="player-name" id="p4-name"></span>
+                        <span class="player-chips" id="p4-chips"></span>
+                    </div>
+                </div>
+                <div class="hole-cards" id="p4-hole-cards"></div>
+            </div>
+        </div>
+
+        <!-- แผงปุ่มกดทดสอบ -->
+        <div class="controls-wrapper">
+            <div class="bet-adjuster">
+                <input type="button" id="btn-minus" class="btn-step" value="-">
+                <span class="bet-amount" id="bet-value"></span>
+                <input type="button" id="btn-plus" class="btn-step" value="+">
+            </div>
+
+            <div class="action-buttons">
+                <button id="btn-fold" class="btn-action btn-fold">
+                    <span>✕</span>
+                    <span>FOLD</span>
+                </button>
+
+                <button id="btn-check" class="btn-action btn-check">
+                    <span>✓</span>
+                    <span>CHECK</span>
+                </button>
+
+                <button id="btn-call" class="btn-action btn-call">
+                    <span>CALL</span>
+                    <span id="call-amount"></span>
+                </button>
+
+                <button id="btn-bet" class="btn-action btn-bet">
+                    <span>BET</span>
+                    <span id="bet-amount-text"></span>
+                </button>
+
+                <button id="btn-raise" class="btn-action btn-raise">
+                    <span>RAISE TO</span>
+                    <span id="raise-amount"></span>
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let currentBet = 100;
+        let stepAmount = 50;
+
+        // Event Listeners
+        document.getElementById('btn-fold').addEventListener('click', () => onActionClick('FOLD'));
+        document.getElementById('btn-check').addEventListener('click', () => onActionClick('CHECK'));
+        document.getElementById('btn-call').addEventListener('click', () => {
+            const amount = document.getElementById('call-amount').textContent;
+            onActionClick('CALL', amount);
+        });
+        document.getElementById('btn-bet').addEventListener('click', () => {
+            const amount = document.getElementById('bet-amount-text').textContent;
+            onActionClick('BET', amount);
+        });
+        document.getElementById('btn-raise').addEventListener('click', () => {
+            const amount = document.getElementById('raise-amount').textContent;
+            onActionClick('RAISE', amount);
+        });
+
+        document.getElementById('btn-minus').addEventListener('click', () => onBetAdjustClick('MINUS'));
+        document.getElementById('btn-plus').addEventListener('click', () => onBetAdjustClick('PLUS'));
+
+        function onActionClick(actionType, amount = null) {
+            console.log(`Action Executed: ${actionType}`, amount ? `Amount: ${amount}` : '');
+        }
+
+        function onBetAdjustClick(type) {
+            if (type === 'PLUS') {
+                currentBet += stepAmount;
+            } else if (type === 'MINUS') {
+                currentBet = Math.max(0, currentBet - stepAmount);
+            }
+
+            document.getElementById('bet-value').textContent = currentBet;
+            document.getElementById('bet-amount-text').textContent = currentBet;
+            document.getElementById('raise-amount').textContent = currentBet;
+        }
+
+        // --- setTableData แบบสมบูรณ์ (รวม Seat, Status, Turn และ HTML Render Cards) ---
+        function setTableData(data = {}) {
+            // 1. แมปค่า Text ทั่วไปรวมถึง Seat, Status, Turn
+            const textMappings = {
+                pot: 'pot-display',
+                betValue: 'bet-value',
+                callAmount: 'call-amount',
+                betAmount: 'bet-amount-text',
+                raiseAmount: 'raise-amount',
+
+                // สถานะเกมและผู้เล่น
+                seatNumber: 'seat-number-display',
+                currentTurn: 'current-turn-display',
+                playerStatus: 'player-status-display',
+
+                // ผู้เล่น 1-4
+                p1Name: 'p1-name', p1Chips: 'p1-chips',
+                p2Name: 'p2-name', p2Chips: 'p2-chips',
+                p3Name: 'p3-name', p3Chips: 'p3-chips',
+                p4Name: 'p4-name', p4Chips: 'p4-chips'
+            };
+
+            Object.entries(textMappings).forEach(([key, elementId]) => {
+                const el = document.getElementById(elementId);
+                if (data[key] !== undefined && el) {
+                    el.textContent = data[key];
+                }
+            });
+
+            // 2. ซิงค์ค่าตัวแปร currentBet
+            if (data.betValue !== undefined) {
+                currentBet = Number(data.betValue);
+            }
+
+            // 3. Render รูปภาพโปรไฟล์ (Avatars)
+            const avatars = {
+                p1AvatarUrl: 'p1-avatar-container',
+                p2AvatarUrl: 'p2-avatar-container',
+                p3AvatarUrl: 'p3-avatar-container',
+                p4AvatarUrl: 'p4-avatar-container'
+            };
+
+            Object.entries(avatars).forEach(([key, containerId]) => {
+                if (data[key]) {
+                    const el = document.getElementById(containerId);
+                    if (el) el.innerHTML = `<img src="${data[key]}" alt="Avatar">`;
+                }
+            });
+
+            // 4. Render HTML ไพ่ (Community Cards & Player Hole Cards)
+            // 4. Render รูปภาพไพ่ (Community Cards & Player Hole Cards)
+            const cardMappings = {
+                communityCards: 'community-cards',
+                p1HoleCards: 'p1-hole-cards',
+                p2HoleCards: 'p2-hole-cards',
+                p3HoleCards: 'p3-hole-cards',
+                p4HoleCards: 'p4-hole-cards'
+            };
+
+            Object.entries(cardMappings).forEach(([key, containerId]) => {
+                if (data[key] && Array.isArray(data[key])) {
+                    const el = document.getElementById(containerId);
+                    if (el) {
+                        // วนลูปสร้าง <img> จาก Array ของชื่อไฟล์
+                        el.innerHTML = data[key]
+                            .map(cardFile => `<img src="images/cards/${cardFile}" alt="Card" style="height: 100%;">`)
+                            .join('');
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+
+</html>
