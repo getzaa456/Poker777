@@ -1,5 +1,5 @@
 import { pool } from '../config/db.js';
-import { getRedis } from '../config/redis.js';
+// import { getRedis } from '../config/redis.js';  fix ที่หลัง
 import { errors, ApiError } from '../middleware/errors.js';
 import { validate } from '../middleware/validate.js';
 import { createTableSchema, joinTableSchema, roomCodeSchema } from '../validators/tables.js';
