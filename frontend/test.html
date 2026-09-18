@@ -262,6 +262,8 @@
 
         <!-- แถบแสดงข้อมูลสถานะเกม / Seat / Status -->
         <div class="game-status-bar">
+            <div>Room ID: <span id="room-id">-</span></div>
+            <div>Game Started: <span id="game-start">-</span></div>
             <div>Seat: <span id="seat-number-display">-</span></div>
             <div>Turn: <span id="current-turn-display">-</span></div>
             <div>Status: <span id="player-status-display">-</span></div>
@@ -279,55 +281,8 @@
         </div>
 
         <!-- ช่องว่างสำหรับผู้เล่น 4 คน -->
-        <div class="players-grid">
-            <!-- Player 1 -->
-            <div class="player-section" id="player-section-1">
-                <div class="profile-box">
-                    <div class="avatar-placeholder" id="p1-avatar-container"></div>
-                    <div class="player-info">
-                        <span class="player-name" id="p1-name"></span>
-                        <span class="player-chips" id="p1-chips"></span>
-                    </div>
-                </div>
-                <div class="hole-cards" id="p1-hole-cards"></div>
-            </div>
-
-            <!-- Player 2 -->
-            <div class="player-section" id="player-section-2">
-                <div class="profile-box">
-                    <div class="avatar-placeholder" id="p2-avatar-container"></div>
-                    <div class="player-info">
-                        <span class="player-name" id="p2-name"></span>
-                        <span class="player-chips" id="p2-chips"></span>
-                    </div>
-                </div>
-                <div class="hole-cards" id="p2-hole-cards"></div>
-            </div>
-
-            <!-- Player 3 -->
-            <div class="player-section" id="player-section-3">
-                <div class="profile-box">
-                    <div class="avatar-placeholder" id="p3-avatar-container"></div>
-                    <div class="player-info">
-                        <span class="player-name" id="p3-name"></span>
-                        <span class="player-chips" id="p3-chips"></span>
-                    </div>
-                </div>
-                <div class="hole-cards" id="p3-hole-cards"></div>
-            </div>
-
-            <!-- Player 4 -->
-            <div class="player-section" id="player-section-4">
-                <div class="profile-box">
-                    <div class="avatar-placeholder" id="p4-avatar-container"></div>
-                    <div class="player-info">
-                        <span class="player-name" id="p4-name"></span>
-                        <span class="player-chips" id="p4-chips"></span>
-                    </div>
-                </div>
-                <div class="hole-cards" id="p4-hole-cards"></div>
-            </div>
-        </div>
+        <div class="players-grid" id="players-grid"></div>
+        
 
         <!-- แผงปุ่มกดทดสอบ -->
         <div class="controls-wrapper">
@@ -370,6 +325,189 @@
     <script>
         let currentBet = 100;
         let stepAmount = 50;
+        let gameStarted = false;
+        let roomId = null;
+        let roomName = null;
+        let playerNum = null;
+        let maxPlayer = null;
+        let currentPlayers = null;
+        let user = JSON.parse(localStorage.getItem("poker777_user"));
+
+        /* currentPlayers container player object
+        player object = {
+            clientId : <clientId>,
+            username : <username>,
+            money : <int amount>
+        }
+        */
+
+        function generatePlayerDiv(playerNumber) {
+            const playerSection = document.createElement('div');
+            playerSection.className = 'player-section';
+            playerSection.id = `player-section-${playerNumber}`;
+            playerSection.innerHTML = `
+                <div class="profile-box">
+                    <div class="avatar-placeholder" id="p${playerNumber}-avatar-container"></div>
+                    <div class="player-info">
+                        <span class="player-name" id="p${playerNumber}-name"></span>
+                        <span class="player-chips" id="p${playerNumber}-chips"></span>
+                    </div>
+                </div>
+                <div class="hole-cards" id="p${playerNumber}-hole-cards"></div>
+            `;
+            return playerSection;
+        }
+
+        function generatePlayerDivs(playerCount = 4) {
+            const playersGrid = document.getElementById('players-grid');
+            if (!playersGrid) {
+                return;
+            }
+
+            playersGrid.replaceChildren();
+            for (let playerNumber = 1; playerNumber <= playerCount; playerNumber += 1) {
+                playersGrid.appendChild(generatePlayerDiv(playerNumber));
+            }
+        }
+
+        generatePlayerDivs();
+
+        // ------------- Helper function -------------
+
+        function checkNoNullParams(params){
+            Object.keys(params).forEach((key) => {
+                if (params[key] == null){
+                    return false;
+                }
+            });
+            return true;
+        }
+
+
+        // ---------------- Update dom function ---------------
+
+        function updatePlayers(){
+            currentPlayers.forEach((player, index) => {
+                document.getElementById(`p${index + 1}-avatar-container`).innerHTML = `<img src="<Change to actual url>" alt="Avatar">` //TODO
+                document.getElementById(`p${index + 1}-name`).innerText = player.username;
+                document.getElementById(`p${index + 1}-chips`).innerText = player.money;
+            });
+        }
+
+        //------------- callback functions for websocket -------------
+
+        function joinHandler(params) {
+            if (!checkNoNullParams(params)){
+                return "Error joinHandler have null or undefined key value"
+            }
+            const success = params.success;
+            roomId = params.roomId;
+            roomName = params.roomName;
+            playerNum = params.playerNum;
+            maxPlayer = params.maxPlayer;
+            currentPlayers = params.currentPlayers;
+            if (!success) {
+                return "[join-result] Unsuccessful"
+            }
+
+            generatePlayerDivs(maxPlayer);
+            document.getElementById("room-id").innerText = roomId;
+
+            updatePlayers();
+
+            return `[join-result] ${params}`
+        }
+
+        function playerJoinHandler(params) {
+            if (!checkNoNullParams(params)){
+                return "Error playerJoinHandler have null or undefined key value"
+            };
+
+            if (clientId === user.id){
+                return "playerJoinHandler: It's this user no need to update";
+            }
+
+            currentPlayers = params.currentPlayers;
+            playerNum = params.playerNum
+
+            const username = currentPlayers.find((player) => player.clientId == params.clientId);
+
+            updatePlayers();
+
+            return `${params.clientId}:${username} joined the room`;
+
+        }
+
+        function startGameHandler(params) {
+            gameStarted = true;
+        }
+
+        const TYPE_LOOKUP = { //Type look up table mapping to a call back function for each type response
+            "join": () => joinHandler,
+            "web_socket": () => {
+                return "web_socket not impremented";
+            },
+            "player-join": () => playerJoinHandler,
+            "start-game": () => startGameHandler,
+            "turn-start": () => {
+                return "Not implemented";
+            },
+            "game-action": () => {
+                return "Not implemented";
+            },
+            "deal-flop": () =>{
+                return "Not implemented";
+            },
+            "deal-turn": () => {
+                return "Not implemented";
+            },
+            "winner": () => {
+                return "Not implemented";
+            },
+            "error": () =>  {
+                return "Not implemented";
+            },
+            "left-room": () => {
+                return "Not implemented";
+            },
+            "table-state": () => {
+                return "Not implemented";
+            },
+            "game-started": () => {
+                return "Not implemented";
+            },
+            "showdown": () => {
+                return "Not implemented";
+            },
+            "connection" : () => {
+                return "Not implemented";
+            }
+
+        };
+        const socket = new WebSocket("wss://://localhost:4000");
+
+        socket.addEventListener("open", (event) => {
+            console.log("Connected to the server!");
+            socket.send("Hello Server!"); // Send a message
+        });
+
+
+        socket.addEventListener("message", (event) => {
+            console.log("Message from server: ", event.data);
+            console.log(event.data);
+            
+            try {
+                const message = JSON.parse(event.data);
+                if (!message.type){
+                    throw new Error("No type attribute");
+                }
+                const result = TYPE_LOOKUP[message.type](message.params);
+                console.log(result);
+            } 
+            catch (error) {
+                console.error("Failed to parse JSON:", error.message);
+            }
+        });
 
         // Event Listeners
         document.getElementById('btn-fold').addEventListener('click', () => onActionClick('FOLD'));
