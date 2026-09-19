@@ -1,6 +1,6 @@
 import { WebSocketServer } from 'ws';
 import { getUserProfile } from '../services/auth.js';
-import { redisPub, redisSub } from '../config/redisClient.js';
+import { redisPub, redisSub, redisState } from '../config/redisClient.js';
 import {
   updateRoom,
   getRoom,
@@ -8,6 +8,10 @@ import {
   getPlayerBet,
   setPlayerBet,
   setPlayerFolded,
+  getPlayer,
+  updatePlayer,
+  getRoomSeats,
+  resetRoundState
 } from '../services/roomService.js';
 import { withLock } from '../services/lockService.js';
 import { joinTable } from '../services/tables.js';
@@ -15,27 +19,50 @@ import { joinTable } from '../services/tables.js';
 export const wss = new WebSocketServer({ noServer: true });
 const CHANNEL = 'poker:events';
 
-
 redisSub.subscribe(CHANNEL);
 redisSub.on('message', (channel, message) => {
   if (channel !== CHANNEL) return;
 
   try {
     const data = JSON.parse(message);
-    const { eventType, roomCode, room, holeCardsMap, clientId } = data;
+    const {
+      eventType,
+      roomCode,
+      room,
+      holeCardsMap,
+      clientId,
+      action,
+      amount,
+      timedOut,
+      nextTurn,
+      dealFlop,
+      dealTurn,
+      winner
+    } = data;
 
     wss.clients.forEach((client) => {
       if (client.readyState === 1 && client.roomCode === roomCode) {
 
         switch (eventType) {
-
           // เมื่อมีคน Join เข้ามา
           case 'player_join': {
             if (client.clientId !== clientId) {
-              const privateHoleCards = {};
-              const payload = formatTablePayload('table_state', room, privateHoleCards);
+              const currentPlayers = Object.values(room.players || {}).map((p) => ({
+                clientId: p.clientId,
+                username: p.username,
+                money: p.chips,
+              }));
+
+              const payload = {
+                type: 'player-join',
+                params: {
+                  clientId: clientId,
+                  playerNum: currentPlayers.length,
+                  currentPlayers: currentPlayers,
+                },
+              };
+
               client.send(JSON.stringify(payload));
-              
             }
             break;
           }
@@ -50,6 +77,59 @@ redisSub.on('message', (channel, message) => {
             break;
           }
 
+          case 'game_action_performed': {
+            client.send(
+              JSON.stringify({
+                type: 'game-action',
+                params: {
+                  clientId: clientId,
+                  action,
+                  amount,
+                  timed_out: timedOut || false,
+                },
+              })
+            );
+
+            if (nextTurn) {
+              client.send(
+                JSON.stringify({
+                  type: 'turn-start',
+                  params: { clientId: nextTurn },
+                })
+              );
+            }
+
+            if (dealFlop) {
+              client.send(
+                JSON.stringify({
+                  type: 'deal-flop',
+                  params: { card: dealFlop },
+                })
+              );
+            }
+
+            if (dealTurn) {
+              client.send(
+                JSON.stringify({
+                  type: 'deal-turn',
+                  params: { card: dealTurn },
+                })
+              );
+            }
+
+            if (winner) {
+              client.send(
+                JSON.stringify({
+                  type: 'winner',
+                  params: {
+                    winnerId: winner.winnerId,
+                    current_money: winner.currentMoney,
+                  },
+                })
+              );
+            }
+            break;
+          }
           // กรณีอัปเดตสถานะโต๊ะ (เช่น มีคนออก, หมุน Turn, ลง Bet, เก้าอี้เปลี่ยน)
           case 'table_updated': {
             const privateHoleCards = {};
@@ -60,14 +140,12 @@ redisSub.on('message', (channel, message) => {
             client.send(JSON.stringify(payload));
             break;
           }
-
           // กรณีเปิดไพ่จบมือ (Showdown) - ส่งไพ่ของทุกคนให้เห็นครบ ไม่ต้องซ่อน
           case 'showdown': {
             const payload = formatTablePayload('showdown', room, holeCardsMap || {});
             client.send(JSON.stringify(payload));
             break;
           }
-
           // กรณี Event ทั่วไปที่ไม่มีการปรับแต่ง Payload พิเศษ
           default: {
             client.send(JSON.stringify(data));
@@ -81,10 +159,9 @@ redisSub.on('message', (channel, message) => {
   }
 });
 
-const suits = ['H', 'D', 'C', 'S']; // โพดำ, โพแดง, ข้าวหลามตัด, ดอกจิก
+const suits = ['H', 'D', 'C', 'S'];
 const values = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'];
 
-// ฟังก์ชันสร้างและสับไพ่
 function createShuffledDeck() {
   const deck = [];
   for (const s of suits) {
@@ -98,7 +175,6 @@ function createShuffledDeck() {
   return deck;
 }
 
-// ฟังก์ชันแปลง string ไพ่ เช่น "AH" -> { rank: "A", suit: "H" }
 function parseCard(cardStr) {
   if (!cardStr || cardStr.length < 2) return null;
   return {
@@ -107,43 +183,41 @@ function parseCard(cardStr) {
   };
 }
 
-// ฟังก์ชันแปลง State จาก Redis ให้เป็น Payload 
 function formatTablePayload(eventType, room, holeCardsMap = {}) {
   const playerIds = Object.keys(room.players || {});
 
-  const playersList = playerIds.map((pid, index) => {
+  const playersList = playerIds.map((pid) => {
     const p = room.players[pid];
-    // ดึงไพ่โฮลการ์ดตาม Map ที่ส่งเข้ามา
     const rawCards = holeCardsMap[pid] || [];
 
     return {
       client_id: pid,
-      seat: index + 1,
+      seat: (p.seatIndex !== undefined ? Number(p.seatIndex) : 0) + 1,
       username: p.username || '',
-      chips: p.chips || 0,
+      chips: Number(p.chips) || 0,
       avatar_id: p.avatarId ?? null,
       hole_cards: rawCards.map(parseCard).filter(Boolean),
-      status: p.status || 'ACTIVE',
+      status: p.isFolded ? 'FOLDED' : (p.status || 'ACTIVE'),
     };
   });
 
-  const currentTurnPlayer = room.players[room.currentTurn];
+  const currentTurnPlayer = room.players ? room.players[room.currentTurn] : null;
 
   return {
-    type: eventType, // กำหนดประเภทตามที่ส่งเข้ามา ('GAME_STARTED', 'TABLE_STATE', 'SHOWDOWN')
+    type: eventType,
     params: {
       room_code: room.roomCode,
       room_name: room.roomName || '',
       player_count: playerIds.length,
-      max_players: room.maxPlayer || 6,
+      max_players: Number(room.maxPlayer) || 6,
       status: room.status,
       phase: room.phase,
       host_id: room.hostId,
       current_turn: room.currentTurn,
       current_turn_name: currentTurnPlayer ? currentTurnPlayer.username : '',
       turn_deadline: room.turnDeadline || null,
-      pot: room.pot || 0,
-      current_bet: room.currentBet || 0,
+      pot: Number(room.pot) || 0,
+      current_bet: Number(room.currentBet) || 0,
       winner: room.winner || null,
       winner_name: room.winnerName || null,
       winning_hand: room.winningHand || null,
@@ -153,10 +227,92 @@ function formatTablePayload(eventType, room, holeCardsMap = {}) {
         amount: 0,
         timed_out: false,
       },
-      community_cards: (room.communityCards || []).map(parseCard).filter(Boolean),
+      community_cards: (typeof room.communityCards === 'string' 
+        ? JSON.parse(room.communityCards) 
+        : room.communityCards || []).map(parseCard).filter(Boolean),
       players: playersList,
     },
   };
+}
+
+// ฟังก์ชันสำหรับจัดการคนออกจากห้อง (ใช้ซ้ำได้ทั้งสั่งผ่าน WS และตอน disconnect)
+async function handleLeaveRoom(ws) {
+  const roomCode = ws.roomCode;
+  const clientId = ws.clientId;
+
+  if (!roomCode || !clientId) return;
+
+  try {
+    await withLock(roomCode, async () => {
+      const room = await getRoom(roomCode);
+      if (!room) return;
+
+      const seats = (await getRoomSeats(roomCode)) || {};
+      let leavingSeatKey = null;
+
+      for (const [seatKey, playerId] of Object.entries(seats)) {
+        if (playerId === clientId) {
+          leavingSeatKey = seatKey;
+          break;
+        }
+      }
+
+      if (leavingSeatKey) {
+        await redisState.hdel(`room:${roomCode}:seats`, leavingSeatKey);
+      }
+
+      const updatedSeats = (await getRoomSeats(roomCode)) || {};
+      const remainingPlayerIds = Object.values(updatedSeats);
+
+      const roomUpdates = {};
+
+      if (remainingPlayerIds.length === 0) {
+        await resetRoundState(roomCode);
+        roomUpdates.status = 'OPEN';
+        roomUpdates.hostId = '';
+      } else {
+        if (String(room.hostId) === String(clientId)) {
+          roomUpdates.hostId = remainingPlayerIds[0];
+        }
+
+        if (remainingPlayerIds.length < 2) {
+          await resetRoundState(roomCode);
+          roomUpdates.status = 'OPEN';
+        }
+      }
+
+      if (Object.keys(roomUpdates).length > 0) {
+        await updateRoom(roomCode, roomUpdates);
+      }
+
+      const remainingPlayersMap = {};
+      for (const pid of remainingPlayerIds) {
+        const pData = await getPlayer(roomCode, pid);
+        if (pData) {
+          remainingPlayersMap[pid] = pData;
+        }
+      }
+
+      const updatedRoom = await getRoom(roomCode);
+
+      await redisPub.publish(
+        CHANNEL,
+        JSON.stringify({
+          eventType: 'table_updated',
+          roomCode,
+          room: {
+            ...updatedRoom,
+            players: remainingPlayersMap,
+          },
+        })
+      );
+    });
+  } catch (err) {
+    console.error('Leave room error:', err);
+  } finally {
+    ws.roomCode = null;
+    ws.clientId = null;
+  }
 }
 
 wss.on('connection', (ws) => {
@@ -172,10 +328,8 @@ wss.on('connection', (ws) => {
       const message = JSON.parse(raw.toString());
       const { type, params } = message;
 
-      // กรณีผู้เล่นส่งคำขอเข้าห้อง ({ type: 'join', params: { roomCode, clientId, buyIn } })
       if (type === 'join') {
         const { roomCode, clientId, buyIn } = params || {};
-
 
         if (String(ws.userId) !== String(clientId)) {
           return ws.send(
@@ -183,134 +337,134 @@ wss.on('connection', (ws) => {
           );
         }
 
-        await withLock(roomCode, async () => {
-          let tableInfo;
-          try {
-            tableInfo = await joinTable(clientId, roomCode, { buy_in: buyIn });
-          } catch (error) {
-            const messages = {
-              ROOM_IN_PROGRESS: 'Table is already in progress',
-              ROOM_CLOSED: 'Table is closed',
-              ROOM_FULL: 'Table is full',
-              BUY_IN_TOO_LOW: 'Buy-in is too low',
-              BUY_IN_TOO_HIGH: 'Buy-in is too high',
-              INSUFFICIENT_BALANCE: 'Insufficient balance',
-            };
-            return ws.send(
-              JSON.stringify({ type: 'error', error: messages[error.code] || error.message })
-            );
-          }
+        try {
+          await withLock(roomCode, async () => {
+            let tableInfo;
+            try {
+              tableInfo = await joinTable(clientId, roomCode, { buy_in: buyIn });
+            } catch (error) {
+              const messages = {
+                ROOM_IN_PROGRESS: 'Table is already in progress',
+                ROOM_CLOSED: 'Table is closed',
+                ROOM_FULL: 'Table is full',
+                BUY_IN_TOO_LOW: 'Buy-in is too low',
+                BUY_IN_TOO_HIGH: 'Buy-in is too high',
+                INSUFFICIENT_BALANCE: 'Insufficient balance',
+              };
+              return ws.send(
+                JSON.stringify({ type: 'error', error: messages[error.code] || error.message })
+              );
+            }
 
-          const profile = await getUserProfile(clientId);
+            const profile = await getUserProfile(clientId);
 
-          ws.roomCode = roomCode;
-          ws.clientId = clientId;
+            ws.roomCode = roomCode;
+            ws.clientId = clientId;
 
-          let room = await getRoom(roomCode);
-          if (!room) {
-            room = {
-              roomCode: tableInfo.room_code || roomCode,
-              roomId: tableInfo.id,
-              roomName: tableInfo.name || '',
-              minBet: tableInfo.min_bet,
-              maxBet: tableInfo.max_bet,
-              maxPlayer: tableInfo.max_seats || 6,
-              status: 'OPEN',
-              currentBet: 0,
-              pot: 0,
-              players: {},
-            };
-          }
+            let room = await getRoom(roomCode);
+            if (!room) {
+              const initialRoom = {
+                roomCode: tableInfo.room_code || roomCode,
+                roomId: tableInfo.id,
+                roomName: tableInfo.name || '',
+                minBet: tableInfo.min_bet,
+                maxBet: tableInfo.max_bet,
+                maxPlayer: tableInfo.max_seats || 6,
+                status: 'OPEN',
+                currentBet: 0,
+                pot: 0,
+                hostId: clientId,
+              };
+              await updateRoom(roomCode, initialRoom);
+              room = await getRoom(roomCode);
+            }
 
-          const actualBuyIn = buyIn ?? tableInfo.min_bet;
-          room.players[clientId] = {
-            clientId,
-            username: profile.display_name || profile.username,
-            chips: Number(actualBuyIn),
-            avatarId: profile.avatar_id ?? null,
-          };
+            const seats = (await getRoomSeats(roomCode)) || {};
+            const occupiedSeatIndices = Object.keys(seats).map((s) => Number(s.replace('seat_', '')));
+            const maxSeats = Number(room.maxPlayer) || 6;
 
-          await updateRoom(roomCode, room);
+            let availableSeatIndex = -1;
+            for (let i = 0; i < maxSeats; i++) {
+              if (!occupiedSeatIndices.includes(i)) {
+                availableSeatIndex = i;
+                break;
+              }
+            }
 
-          const currentPlayers = Object.values(room.players).map((p) => ({
-            clientId: p.clientId,
-            username: p.username,
-            money: p.chips,
-          }));
+            const actualBuyIn = buyIn ?? tableInfo.min_bet;
 
-          ws.send(
-            JSON.stringify({
-              type: 'join',
-              params: {
-                success: true,
-                roomId: room.roomId,
-                roomName: room.roomName || '',
-                playerNum: Object.keys(room.players).length,
-                maxPlayer: room.maxPlayer,
-                currentPlayers: currentPlayers,
-              },
-            })
-          );
-
-          await redisPub.publish(
-            CHANNEL,
-            JSON.stringify({
-              eventType: 'player_join',
-              roomCode,
+            await updatePlayer(roomCode, clientId, {
               clientId,
-              room,
-            })
+              username: profile.display_name || profile.username,
+              chips: Number(actualBuyIn),
+              avatarId: profile.avatar_id ?? '',
+              seatIndex: availableSeatIndex >= 0 ? availableSeatIndex : 0,
+            });
+
+            if (availableSeatIndex >= 0) {
+              await setPlayerSeat(roomCode, availableSeatIndex, clientId);
+            }
+
+            const updatedSeats = (await getRoomSeats(roomCode)) || {};
+            const playerIds = Object.values(updatedSeats);
+
+            const currentPlayers = [];
+            const playersMap = {};
+
+            for (const pid of playerIds) {
+              const pData = await getPlayer(roomCode, pid);
+              if (pData) {
+                currentPlayers.push({
+                  clientId: pData.clientId,
+                  username: pData.username,
+                  money: pData.chips,
+                });
+                playersMap[pData.clientId] = pData;
+              }
+            }
+
+            ws.send(
+              JSON.stringify({
+                type: 'join',
+                params: {
+                  success: true,
+                  roomId: room.roomId,
+                  roomName: room.roomName || '',
+                  playerNum: currentPlayers.length,
+                  maxPlayer: Number(room.maxPlayer),
+                  currentPlayers: currentPlayers,
+                },
+              })
+            );
+
+            await redisPub.publish(
+              CHANNEL,
+              JSON.stringify({
+                eventType: 'player_join',
+                roomCode,
+                clientId,
+                room: {
+                  ...room,
+                  players: playersMap,
+                },
+              })
+            );
+          });
+        } catch (err) {
+          ws.send(
+            JSON.stringify({ type: 'error', error: err.message || 'Join room failed' })
           );
-        });
+        }
       }
-      // กรณีผู้เล่นขอออกจากห้อง ({ type: 'leave-room' })
       else if (type === 'leave-room') {
         const roomCode = ws.roomCode;
-        const clientId = ws.clientId;
-
-        if (!roomCode || !clientId) {
+        if (!roomCode) {
           return ws.send(
             JSON.stringify({ type: 'error', error: 'You are not in a room' })
           );
         }
 
-        await withLock(roomCode, async () => {
-          let room = await getRoom(roomCode);
-
-          if (room && room.players) {
-            delete room.players[clientId];
-            const remainingPlayerIds = Object.keys(room.players);
-
-            if (remainingPlayerIds.length === 0) {
-              room.status = 'OPEN';
-              room.pot = 0;
-              room.currentBet = 0;
-            } else {
-              if (String(room.hostId) === String(clientId)) {
-                room.hostId = remainingPlayerIds[0];
-              }
-
-              if (remainingPlayerIds.length < 2) {
-                room.status = 'OPEN';
-                room.pot = 0;
-                room.currentBet = 0;
-              }
-            }
-            await updateRoom(roomCode, room);
-          }
-
-          await redisPub.publish(
-            CHANNEL,
-            JSON.stringify({
-              eventType: 'table_updated',
-              roomCode,
-              room,
-            })
-          );
-        });
-
-        ws.roomCode = null;
-        ws.clientId = null;
+        await handleLeaveRoom(ws);
 
         ws.send(
           JSON.stringify({
@@ -319,8 +473,6 @@ wss.on('connection', (ws) => {
           })
         );
       }
-
-      // กรณี Host สั่งเริ่มเกม ({ type: 'start-game' })
       else if (type === 'start-game') {
         const roomCode = ws.roomCode;
         const clientId = ws.clientId;
@@ -348,7 +500,9 @@ wss.on('connection', (ws) => {
             );
           }
 
-          const playerIds = Object.keys(room.players || {});
+          const seats = await getRoomSeats(roomCode);
+          const playerIds = seats ? Object.values(seats).filter(Boolean) : [];
+
           if (playerIds.length < 2) {
             return ws.send(
               JSON.stringify({
@@ -360,33 +514,46 @@ wss.on('connection', (ws) => {
 
           const deck = createShuffledDeck();
           const holeCardsMap = {};
-          playerIds.forEach((pid) => {
+          const playersMap = {};
+
+          for (const pid of playerIds) {
             holeCardsMap[pid] = [deck.pop(), deck.pop()];
-          });
 
-          room.status = 'IN_PROGRESS';
-          room.phase = 'PREFLOP';
-          room.pot = 0;
-          room.currentBet = room.minBet || 0;
-          room.communityCards = [];
-          room.currentTurn = playerIds[0];
-          room.deck = deck;
+            await setPlayerBet(roomCode, pid, 0);
+            await updatePlayer(roomCode, pid, { isFolded: false });
+            
+            const pData = await getPlayer(roomCode, pid);
+            if (pData) playersMap[pid] = pData;
+          }
 
-          await updateRoom(roomCode, room);
+          const minBet = Number(room.minBet) || 0;
+          const roomUpdates = {
+            status: 'IN_PROGRESS',
+            phase: 'PREFLOP',
+            pot: 0,
+            currentBet: minBet,
+            currentTurn: playerIds[0],
+            communityCards: JSON.stringify([]),
+            deck: JSON.stringify(deck),
+          };
+
+          await updateRoom(roomCode, roomUpdates);
+          const updatedRoom = await getRoom(roomCode);
 
           await redisPub.publish(
             CHANNEL,
             JSON.stringify({
               eventType: 'game_started',
               roomCode,
-              room,
+              room: {
+                ...updatedRoom,
+                players: playersMap,
+              },
               holeCardsMap,
             })
           );
         });
       }
-
-      // กรณีผู้เล่นทำ Action ในเกม ({ type: 'GAME_ACTION', params: { action, amount } })
       else if (type === 'game-action') {
         const { action, amount } = params || {};
         const clientId = ws.clientId;
@@ -398,73 +565,92 @@ wss.on('connection', (ws) => {
 
         const upperAction = String(action || '').toUpperCase();
 
+        try {
+          await withLock(roomCode, async () => {
+            const room = await getRoom(roomCode);
+            const player = await getPlayer(roomCode, clientId);
 
-        await withLock(roomCode, async () => {
-          const room = await getRoom(roomCode);
-          const playerBet = await getPlayerBet(roomCode, clientId);
+            if (!room || !player) {
+              return ws.send(JSON.stringify({ type: 'error', error: 'Player or Room not found' }));
+            }
 
-          let chipsToPut = 0;
-          let eventType = '';
+            if (room.currentTurn && String(room.currentTurn) !== String(clientId)) {
+              return ws.send(JSON.stringify({ type: 'error', error: 'Not your turn' }));
+            }
 
-          switch (upperAction) {
-            case 'BET':
-              chipsToPut = Number(amount) || 0;
-              await updateRoom(roomCode, { currentBet: chipsToPut, currentTurn: nextTurn });
-              await setPlayerBet(roomCode, clientId, chipsToPut);
-              eventType = 'BET_SUCCESS';
-              break;
+            const playerBet = await getPlayerBet(roomCode, clientId);
+            let chipsToPut = 0;
 
-            case 'RAISE':
-              const newBetAmount = Number(amount) || 0;
-              chipsToPut = newBetAmount - playerBet;
-              await updateRoom(roomCode, { currentBet: newBetAmount, currentTurn: nextTurn });
-              await setPlayerBet(roomCode, clientId, newBetAmount);
-              eventType = 'RAISE_SUCCESS';
-              break;
+            const seats = await getRoomSeats(roomCode);
+            const playerIds = seats ? Object.values(seats) : [];
+            
+            // ค้นหาผู้เล่นคนถัดไปที่ยังไม่หมอบ (isFolded !== true)
+            let nextTurn = null;
+            if (playerIds.length > 0) {
+              const currentIndex = playerIds.indexOf(clientId);
+              for (let i = 1; i < playerIds.length; i++) {
+                const checkPid = playerIds[(currentIndex + i) % playerIds.length];
+                const checkPlayer = await getPlayer(roomCode, checkPid);
+                if (checkPlayer && !checkPlayer.isFolded) {
+                  nextTurn = checkPid;
+                  break;
+                }
+              }
+            }
 
-            case 'CALL':
-              chipsToPut = room.currentBet - playerBet;
+            switch (upperAction) {
+              case 'BET':
+                chipsToPut = Number(amount) || 0;
+                await updateRoom(roomCode, { currentBet: chipsToPut });
+                break;
+              case 'RAISE':
+                const newBetAmount = Number(amount) || 0;
+                chipsToPut = newBetAmount - playerBet;
+                await updateRoom(roomCode, { currentBet: newBetAmount });
+                break;
+              case 'CALL':
+                chipsToPut = (room.currentBet || 0) - playerBet;
+                break;
+              case 'CHECK':
+                chipsToPut = 0;
+                break;
+              case 'FOLD':
+                chipsToPut = 0;
+                await setPlayerFolded(roomCode, clientId);
+                break;
+              default:
+                return ws.send(JSON.stringify({ type: 'error', error: 'Invalid game action' }));
+            }
+
+            if (chipsToPut > 0) {
+              if (player.chips < chipsToPut) {
+                return ws.send(JSON.stringify({ type: 'error', error: 'Insufficient balance' }));
+              }
+              await updatePlayer(roomCode, clientId, { chips: player.chips - chipsToPut });
+              await addPot(roomCode, chipsToPut);
+              await setPlayerBet(roomCode, clientId, playerBet + chipsToPut);
+            }
+
+            if (nextTurn) {
               await updateRoom(roomCode, { currentTurn: nextTurn });
-              await setPlayerBet(roomCode, clientId, room.currentBet);
-              eventType = 'CALL_SUCCESS';
-              break;
+            }
 
-            case 'CHECK':
-              chipsToPut = 0;
-              await updateRoom(roomCode, { currentTurn: nextTurn });
-              eventType = 'CHECK_SUCCESS';
-              break;
-
-            case 'FOLD':
-              chipsToPut = 0;
-              await setPlayerFolded(roomCode, clientId);
-              await updateRoom(roomCode, { currentTurn: nextTurn });
-              eventType = 'FOLD_SUCCESS';
-              break;
-
-            default:
-              throw new Error('Invalid game action');
-          }
-
-          let updatedPot = room.pot || 0;
-          if (chipsToPut > 0) {
-            updatedPot = await addPot(roomCode, chipsToPut);
-          }
-
-          const eventData = {
-            type: 'GAME_ACTION',
-            eventType,
-            roomCode,
-            clientId,
-            action: upperAction,
-            amount: chipsToPut,
-            currentBet: upperAction === 'BET' || upperAction === 'RAISE' ? amount : room.currentBet,
-            pot: updatedPot,
-            nextTurn,
-          };
-
-          await redisPub.publish(CHANNEL, JSON.stringify(eventData));
-        });
+            await redisPub.publish(
+              CHANNEL,
+              JSON.stringify({
+                eventType: 'game_action_performed',
+                roomCode,
+                clientId,
+                action: upperAction,
+                amount: chipsToPut,
+                timedOut: false,
+                nextTurn,
+              })
+            );
+          });
+        } catch (error) {
+          ws.send(JSON.stringify({ type: 'error', error: error.message || 'Invalid game action request' }));
+        }
       }
     } catch (error) {
       ws.send(
@@ -475,13 +661,12 @@ wss.on('connection', (ws) => {
       );
     }
   });
+
   ws.on('close', () => {
-    void leaveRoom(ws);
+    void handleLeaveRoom(ws);
   });
 
   ws.on('error', () => {
-    void leaveRoom(ws);
+    void handleLeaveRoom(ws);
   });
 });
-
-

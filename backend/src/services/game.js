@@ -1,7 +1,7 @@
 import { URL } from 'node:url';
 import { jwt } from '../middleware/auth.js';
 import { env } from '../config/env.js';
-import { wss } from '../ws/Old-server.js';
+import { wss } from '../ws/ws-server.js';
 
 
 export function handleTableUpgrade(request, socket, head) {

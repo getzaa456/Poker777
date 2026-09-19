@@ -1,4 +1,4 @@
-import { redisState } from './redisClient.js';
+import { redisState } from '../config/redisClient.js';
 
 // 1. บันทึก/แก้ไขข้อมูลห้องแบบ Hash (HSET)
 export async function updateRoom(roomId, fields) {
