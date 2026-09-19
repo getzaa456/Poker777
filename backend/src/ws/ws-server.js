@@ -43,12 +43,14 @@ redisSub.on('message', (channel, message) => {
     } = data;
 
     wss.clients.forEach((client) => {
-      if (client.readyState === 1 && client.roomCode === roomCode) {
+      const isSameRoom = String(client.roomCode) === String(roomCode);
+
+      if (client.readyState === 1 && isSameRoom) {
 
         switch (eventType) {
-          // เมื่อมีคน Join เข้ามา
+          // เมื่อมีคน Join เข้ามา (ส่งแจ้งเตือนหาคนอื่นในห้อง)
           case 'player_join': {
-            if (client.clientId !== clientId) {
+            if (String(client.clientId) !== String(clientId)) {
               const currentPlayers = Object.values(room.players || {}).map((p) => ({
                 clientId: p.clientId,
                 username: p.username,
@@ -64,10 +66,14 @@ redisSub.on('message', (channel, message) => {
                 },
               };
 
+              console.log(`[WS] Sending player-join notification to client: ${client.clientId}`);
               client.send(JSON.stringify(payload));
+            } else {
+              console.log(`[WS] Skipped sending to self (${client.clientId})`);
             }
             break;
           }
+
           // กรณีเริ่มเกมใหม่
           case 'game_started': {
             const privateHoleCards = {};
@@ -79,6 +85,7 @@ redisSub.on('message', (channel, message) => {
             break;
           }
 
+          // กรณีทำ Action ในเกม (Bet, Raise, Call, Check, Fold)
           case 'game_action_performed': {
             client.send(
               JSON.stringify({
@@ -132,6 +139,7 @@ redisSub.on('message', (channel, message) => {
             }
             break;
           }
+
           // กรณีอัปเดตสถานะโต๊ะ (เช่น มีคนออก, หมุน Turn, ลง Bet, เก้าอี้เปลี่ยน)
           case 'table_updated': {
             const privateHoleCards = {};
@@ -142,12 +150,14 @@ redisSub.on('message', (channel, message) => {
             client.send(JSON.stringify(payload));
             break;
           }
+
           // กรณีเปิดไพ่จบมือ (Showdown) - ส่งไพ่ของทุกคนให้เห็นครบ ไม่ต้องซ่อน
           case 'showdown': {
             const payload = formatTablePayload('showdown', room, holeCardsMap || {});
             client.send(JSON.stringify(payload));
             break;
           }
+
           // กรณี Event ทั่วไปที่ไม่มีการปรับแต่ง Payload พิเศษ
           default: {
             client.send(JSON.stringify(data));
@@ -229,8 +239,8 @@ function formatTablePayload(eventType, room, holeCardsMap = {}) {
         amount: 0,
         timed_out: false,
       },
-      community_cards: (typeof room.communityCards === 'string' 
-        ? JSON.parse(room.communityCards) 
+      community_cards: (typeof room.communityCards === 'string'
+        ? JSON.parse(room.communityCards)
         : room.communityCards || []).map(parseCard).filter(Boolean),
       players: playersList,
     },
@@ -341,6 +351,15 @@ wss.on('connection', (ws) => {
 
         try {
           await withLock(roomCode, async () => {
+            const existingSeats = (await getRoomSeats(roomCode)) || {};
+            const isAlreadyInRoom = Object.values(existingSeats).includes(clientId);
+
+            if (isAlreadyInRoom) {
+              return ws.send(
+                JSON.stringify({ type: 'error', error: 'Player is already in this room' })
+              );
+            }
+
             let tableInfo;
             try {
               tableInfo = await joinTable(clientId, roomCode, { buy_in: buyIn });
@@ -381,8 +400,7 @@ wss.on('connection', (ws) => {
               room = await getRoom(roomCode);
             }
 
-            const seats = (await getRoomSeats(roomCode)) || {};
-            const occupiedSeatIndices = Object.keys(seats).map((s) => Number(s.replace('seat_', '')));
+            const occupiedSeatIndices = Object.keys(existingSeats).map((s) => Number(s.replace('seat_', '')));
             const maxSeats = Number(room.maxPlayer) || 6;
 
             let availableSeatIndex = -1;
@@ -523,7 +541,7 @@ wss.on('connection', (ws) => {
 
             await setPlayerBet(roomCode, pid, 0);
             await updatePlayer(roomCode, pid, { isFolded: false });
-            
+
             const pData = await getPlayer(roomCode, pid);
             if (pData) playersMap[pid] = pData;
           }
@@ -585,7 +603,7 @@ wss.on('connection', (ws) => {
 
             const seats = await getRoomSeats(roomCode);
             const playerIds = seats ? Object.values(seats) : [];
-            
+
             // ค้นหาผู้เล่นคนถัดไปที่ยังไม่หมอบ (isFolded !== true)
             let nextTurn = null;
             if (playerIds.length > 0) {
