@@ -575,6 +575,7 @@
                 const message = JSON.parse(event.data);
                 const messageType = message.type;
                 const handler = TYPE_LOOKUP[messageType];
+                console.log(message);
 
                 if (!handler) {
                     throw new Error(`Unsupported message type: ${messageType}`);
