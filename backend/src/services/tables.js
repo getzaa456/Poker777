@@ -1,5 +1,5 @@
 import { pool } from '../config/db.js';
-// import { getRedis } from '../config/redis.js';  fix ที่หลัง
+import { redisState } from '../config/redisClient.js'; 
 import { errors, ApiError } from '../middleware/errors.js';
 import { validate } from '../middleware/validate.js';
 import { createTableSchema, joinTableSchema, roomCodeSchema } from '../validators/tables.js';
@@ -18,15 +18,15 @@ function randomRoomCode() {
   return out;
 }
 
-/**
- * Best-effort live seat count for a table. The Game/WebSocket team owns the
- * `table:{id}:seats` Redis key (see schema.sql header comment) — we only
- * ever read it here. Returns null (unknown) if Redis is disabled/unreachable
- * so callers can degrade gracefully instead of hard-failing.
- */
+// /**
+//  * Best-effort live seat count for a table. The Game/WebSocket team owns the
+//  * `table:{id}:seats` Redis key (see schema.sql header comment) — we only
+//  * ever read it here. Returns null (unknown) if Redis is disabled/unreachable
+//  * so callers can degrade gracefully instead of hard-failing.
+//  */
 async function getLiveSeatCount(tableId) {
   try {
-    const redis = await getRedis();
+    const redis = redisState;
     if (!redis) return null;
     const count = await redis.scard(`table:${tableId}:seats`);
     return Number.isFinite(count) ? count : null;
@@ -58,16 +58,16 @@ async function findTableRow(roomCode) {
   return rows[0] || null;
 }
 
-function roomNotFoundError() {
-  return new ApiError('ROOM_NOT_FOUND', 'Room not found — double-check the room code and try again.', 404);
-}
+// function roomNotFoundError() {
+//   return new ApiError('ROOM_NOT_FOUND', 'Room not found — double-check the room code and try again.', 404);
+// }
 
-/**
- * Create a room. Retries on room_code collisions (the column has a UNIQUE
- * constraint) — astronomically unlikely at 6 chars from a 33-char alphabet
- * (~1.3B combinations), but we defend against the race anyway rather than
- * pre-checking then inserting.
- */
+// /**
+//  * Create a room. Retries on room_code collisions (the column has a UNIQUE
+//  * constraint) — astronomically unlikely at 6 chars from a 33-char alphabet
+//  * (~1.3B combinations), but we defend against the race anyway rather than
+//  * pre-checking then inserting.
+//  */
 export async function createTable(hostId, input) {
   const data = validate(createTableSchema, input);
 
@@ -99,10 +99,10 @@ export async function createTable(hostId, input) {
   throw errors.internal('Could not allocate a free room code — please try again.');
 }
 
-/**
- * List all open tables with optional live seat counts (from Redis).
- * Returns an array of serialized table objects.
- */
+// /**
+//  * List all open tables with optional live seat counts (from Redis).
+//  * Returns an array of serialized table objects.
+//  */
 export async function listOpenTables() {
   const [rows] = await pool.query(
     `SELECT * FROM tables WHERE status = 'OPEN' ORDER BY created_at DESC`
@@ -117,10 +117,10 @@ export async function listOpenTables() {
   return results;
 }
 
-/**
- * Table info for the waiting-room screen / join preview: DB row + best-effort
- * live seat count. Does not touch the caller's wallet or change anything.
- */
+// /**
+//  * Table info for the waiting-room screen / join preview: DB row + best-effort
+//  * live seat count. Does not touch the caller's wallet or change anything.
+//  */
 export async function getTableSummary(roomCode) {
   const row = await findTableRow(roomCode);
   if (!row) throw roomNotFoundError();
@@ -128,18 +128,18 @@ export async function getTableSummary(roomCode) {
   return serializeTable(row, seatsTaken);
 }
 
-/**
- * Validate a join attempt against every failure mode we can check from here:
- *  - room doesn't exist            -> 404 ROOM_NOT_FOUND
- *  - room closed / already playing -> 409 ROOM_CLOSED / ROOM_IN_PROGRESS
- *  - room full (live seat count)   -> 409 ROOM_FULL
- *  - buy-in outside the table's min/max_bet -> 400 BUY_IN_TOO_LOW / TOO_HIGH
- *  - wallet balance can't cover it -> 400 INSUFFICIENT_BALANCE
- *
- * On success returns the table so the client can proceed to the table screen
- * / open a game session. Core API does not itself seat the player — that is
- * the Game/WebSocket team's job once the client connects.
- */
+// /**
+//  * Validate a join attempt against every failure mode we can check from here:
+//  *  - room doesn't exist            -> 404 ROOM_NOT_FOUND
+//  *  - room closed / already playing -> 409 ROOM_CLOSED / ROOM_IN_PROGRESS
+//  *  - room full (live seat count)   -> 409 ROOM_FULL
+//  *  - buy-in outside the table's min/max_bet -> 400 BUY_IN_TOO_LOW / TOO_HIGH
+//  *  - wallet balance can't cover it -> 400 INSUFFICIENT_BALANCE
+//  *
+//  * On success returns the table so the client can proceed to the table screen
+//  * / open a game session. Core API does not itself seat the player — that is
+//  * the Game/WebSocket team's job once the client connects.
+//  */
 export async function joinTable(userId, roomCode, input) {
   const { buy_in } = validate(joinTableSchema, input || {});
 
@@ -186,15 +186,15 @@ export async function joinTable(userId, roomCode, input) {
   return serializeTable(row, seatsTaken);
 }
 
-export async function isClientExist(clientId) {
-  const [rows] = await pool.query(`SELECT id FROM users WHERE id = :clientId LIMIT 1;`, { clientId });
-  return rows.length > 0;
-}
+// export async function isClientExist(clientId) {
+//   const [rows] = await pool.query(`SELECT id FROM users WHERE id = :clientId LIMIT 1;`, { clientId });
+//   return rows.length > 0;
+// }
 
-export async function getClientUsername(clientId) {
-  const [rows] = await pool.query(`SELECT username FROM users WHERE id = :clientId LIMIT 1;`, { clientId });
-  if (rows.length > 0) {
-    return rows[0].username;
-  }
-  return null;
-}
+// export async function getClientUsername(clientId) {
+//   const [rows] = await pool.query(`SELECT username FROM users WHERE id = :clientId LIMIT 1;`, { clientId });
+//   if (rows.length > 0) {
+//     return rows[0].username;
+//   }
+//   return null;
+// }

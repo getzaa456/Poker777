@@ -11,10 +11,12 @@ import {
   getPlayer,
   updatePlayer,
   getRoomSeats,
-  resetRoundState
+  resetRoundState,
+  setPlayerSeat
 } from '../services/roomService.js';
 import { withLock } from '../services/lockService.js';
 import { joinTable } from '../services/tables.js';
+
 
 export const wss = new WebSocketServer({ noServer: true });
 const CHANNEL = 'poker:events';
