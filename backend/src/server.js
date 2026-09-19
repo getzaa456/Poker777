@@ -12,7 +12,7 @@ import { router as authRouter } from './routes/auth.js';
 import { router as usersRouter } from './routes/users.js';
 import { router as walletRouter } from './routes/wallet.js';
 import { router as tablesRouter } from './routes/tables.js';
-import { handleTableUpgrade } from './services/game.js';
+import { handleTableUpgrade } from './ws/wsUpgrade.js';
 
 export async function createApp() {
   const app = express();

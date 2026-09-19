@@ -12,10 +12,14 @@ import {
   updatePlayer,
   getRoomSeats,
   resetRoundState,
-  setPlayerSeat
+  setPlayerSeat,
+  getActivePlayers,
+  finishGameWithWinner,
+  advanceTurn
 } from '../services/roomService.js';
 import { withLock } from '../services/lockService.js';
 import { joinTable } from '../services/tables.js';
+import { createShuffledDeck, parseCard } from '../services/game.js';
 
 
 export const wss = new WebSocketServer({ noServer: true });
@@ -37,9 +41,15 @@ redisSub.on('message', (channel, message) => {
       amount,
       timedOut,
       nextTurn,
+      currentTurn,
+      currentSeat,
+      timeLimit,
       dealFlop,
       dealTurn,
-      winner
+      winner,
+      winnerId,
+      pot,
+      currentBet,
     } = data;
 
     wss.clients.forEach((client) => {
@@ -51,7 +61,8 @@ redisSub.on('message', (channel, message) => {
           // เมื่อมีคน Join เข้ามา (ส่งแจ้งเตือนหาคนอื่นในห้อง)
           case 'player_join': {
             if (String(client.clientId) !== String(clientId)) {
-              const currentPlayers = Object.values(room.players || {}).map((p) => ({
+              const playersObj = room?.players || {};
+              const currentPlayers = Object.values(playersObj).map((p) => ({
                 clientId: p.clientId,
                 username: p.username,
                 money: p.chips,
@@ -89,6 +100,32 @@ redisSub.on('message', (channel, message) => {
             client.send(JSON.stringify(payload));
             break;
           }
+          // รองรับการสลับ Turn เมื่อมีคนออกหรือหมดเวลา
+          case 'next_turn': {
+            client.send(
+              JSON.stringify({
+                type: 'turn-start',
+                params: {
+                  clientId: currentTurn
+                },
+              })
+            );
+            break;
+          }
+
+          // รองรับการจบเกมจากการหมอบหมด/คนออกจนเหลือคนเดียว
+          case 'game_finished': {
+            client.send(
+              JSON.stringify({
+                type: 'winner',
+                params: {
+                  winnerId: winnerId,
+                  current_money: data.currentMoney || 0,
+                },
+              })
+            );
+            break;
+          }
           // กรณีเริ่มเกมใหม่
           case 'game_started': {
             const privateHoleCards = {};
@@ -107,9 +144,11 @@ redisSub.on('message', (channel, message) => {
                 type: 'game-action',
                 params: {
                   clientId: clientId,
-                  action,
-                  amount,
+                  action: action,
+                  amount: amount,
                   timed_out: timedOut || false,
+                  pot: pot || 0,
+                  currentBet: currentBet || 0,
                 },
               })
             );
@@ -186,29 +225,6 @@ redisSub.on('message', (channel, message) => {
   }
 });
 
-const suits = ['H', 'D', 'C', 'S'];
-const values = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'];
-
-function createShuffledDeck() {
-  const deck = [];
-  for (const s of suits) {
-    for (const v of values) deck.push(v + s);
-  }
-
-  for (let i = deck.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
-  }
-  return deck;
-}
-
-function parseCard(cardStr) {
-  if (!cardStr || cardStr.length < 2) return null;
-  return {
-    rank: cardStr.slice(0, -1),
-    suit: cardStr.slice(-1),
-  };
-}
 
 function formatTablePayload(eventType, room, holeCardsMap = {}) {
   const playerIds = Object.keys(room.players || {});
@@ -290,21 +306,63 @@ async function handleLeaveRoom(ws) {
 
       const updatedSeats = (await getRoomSeats(roomCode)) || {};
       const remainingPlayerIds = Object.values(updatedSeats);
-
       const roomUpdates = {};
 
+      const isGameRunning = room.status === 'PLAYING' || room.status === 'RUNNING';
+
       if (remainingPlayerIds.length === 0) {
+        // 1. กรณีไม่มีคนเหลือในห้องเลย
         await resetRoundState(roomCode);
         roomUpdates.status = 'OPEN';
         roomUpdates.hostId = '';
-      } else {
+      } else if (remainingPlayerIds.length < 2) {
+        // กรณีเหลือผู้เล่นคนเดียวในห้อง
         if (String(room.hostId) === String(clientId)) {
           roomUpdates.hostId = remainingPlayerIds[0];
         }
 
-        if (remainingPlayerIds.length < 2) {
+        // ถ้าเกมกำลังเล่นอยู่ ต้องมอบ Pot ให้คนสุดท้ายที่เหลืออยู่ก่อน Reset
+        if (isGameRunning) {
+          await finishGameWithWinner(roomCode, remainingPlayerIds[0]);
+        } else {
           await resetRoundState(roomCode);
-          roomUpdates.status = 'OPEN';
+        }
+        roomUpdates.status = 'OPEN';
+      } else {
+        // 3. กรณีเหลือผู้เล่นตั้งแต่ 2 คนขึ้นไป
+        if (String(room.hostId) === String(clientId)) {
+          roomUpdates.hostId = remainingPlayerIds[0];
+        }
+
+        if (isGameRunning) {
+          // Mark ผู้เล่นที่ออกเป็น FOLDED
+          await updatePlayer(roomCode, clientId, { isFolded: 'true', status: 'FOLDED' });
+
+          // ดึงรายชื่อผู้เล่นที่ยังอยู่ในเกม (ยังไม่ FOLD)
+          const activePlayerIds = await getActivePlayers(roomCode);
+
+          if (activePlayerIds.length === 1) {
+            // ถ้าเหลือคนไม่หมอบแค่ 1 คน -> จบรอบและแจก Pot ให้ผู้ชนะทันที
+            await finishGameWithWinner(roomCode, activePlayerIds[0]);
+          } else {
+            // ถ้ายังมีคนแข่งกันต่อ >= 2 คน และเป็น Turn ของคนที่ออก -> เลื่อน Turn
+            const isCurrentTurn = Boolean(room.currentTurn) && (
+              String(room.currentTurn) === String(clientId) ||
+              String(room.currentTurnSeat) === String(leavingSeatKey)
+            );
+
+            if (isCurrentTurn) {
+              const turnResult = await advanceTurn(roomCode);
+              await redisPub.publish(
+                CHANNEL,
+                JSON.stringify({
+                  eventType: 'next_turn',
+                  roomCode,
+                  currentTurn: turnResult.nextPlayerId
+                })
+              );
+            }
+          }
         }
       }
 
@@ -312,13 +370,11 @@ async function handleLeaveRoom(ws) {
         await updateRoom(roomCode, roomUpdates);
       }
 
+      // เตรียมข้อมูลยิงแจ้งเตือน player_left
       const currentPlayers = [];
-      const remainingPlayersMap = {};
-
       for (const pid of remainingPlayerIds) {
         const pData = await getPlayer(roomCode, pid);
         if (pData) {
-          remainingPlayersMap[pid] = pData;
           currentPlayers.push({
             clientId: pData.clientId,
             username: pData.username,
@@ -672,6 +728,7 @@ wss.on('connection', (ws) => {
             if (nextTurn) {
               await updateRoom(roomCode, { currentTurn: nextTurn });
             }
+            const updatedRoom = await getRoom(roomCode);
 
             await redisPub.publish(
               CHANNEL,
@@ -683,6 +740,8 @@ wss.on('connection', (ws) => {
                 amount: chipsToPut,
                 timedOut: false,
                 nextTurn,
+                pot: updatedRoom?.pot || 0,
+                currentBet: updatedRoom?.currentBet || 0,
               })
             );
           });
