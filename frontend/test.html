@@ -371,20 +371,11 @@
         let roomName = null;
         let playerNum = null;
         let maxPlayer = null;
-        let currentPlayers = null;
+        let currentPlayers = [];
         let user = JSON.parse(localStorage.getItem("poker777_user"));
         let socket = null;
         let currentTurnPlayer = null;
         let token = localStorage.getItem("poker777_token");
-
-        /* currentPlayers container player object
-        player object = {
-            clientId : <clientId>,
-            username : <username>,
-            avatarUrl : <s3 url>,
-            money : <int amount>
-        }
-        */
 
         function generatePlayerDiv(playerNumber) {
             const playerSection = document.createElement('div');
@@ -419,27 +410,40 @@
 
         // ------------- Helper function -------------
 
-        function checkNoNullParams(params){
+        function checkNoNullParams(params) {
+            if (!params) return false;
+            let isValid = true;
             Object.keys(params).forEach((key) => {
-                if (params[key] == null){
-                    return false;
+                if (params[key] == null) {
+                    isValid = false;
                 }
             });
-            return true;
+            return isValid;
         }
-
 
         // ---------------- Update dom function ---------------
 
-        function updatePlayers(){
+        function updatePlayers() {
+            if (!Array.isArray(currentPlayers)) return;
+
             currentPlayers.forEach((player, index) => {
-                document.getElementById(`p${index + 1}-avatar-container`).innerHTML = `<img src="<Change to actual url>" alt="Avatar">` //TODO
-                document.getElementById(`p${index + 1}-name`).innerText = player.username;
-                document.getElementById(`p${index + 1}-chips`).innerText = player.money;
+                const avatarEl = document.getElementById(`p${index + 1}-avatar-container`);
+                const nameEl = document.getElementById(`p${index + 1}-name`);
+                const chipsEl = document.getElementById(`p${index + 1}-chips`);
+
+                if (avatarEl && player.avatarUrl) {
+                    avatarEl.innerHTML = `<img src="${player.avatarUrl}" alt="Avatar">`;
+                }
+                if (nameEl) {
+                    nameEl.innerText = player.username || player.clientId;
+                }
+                if (chipsEl) {
+                    chipsEl.innerText = player.money ?? 0;
+                }
             });
         }
 
-        function updateGameStatusBar(){
+        function updateGameStatusBar() {
             let gameStartText = "No";
             let playerStatusText = "Not joined";
 
@@ -476,44 +480,47 @@
         //------------- callback functions for websocket -------------
 
         function joinHandler(params) {
-            if (!checkNoNullParams(params)){
-                return "Error joinHandler have null or undefined key value"
+            if (!checkNoNullParams(params)) {
+                return "Error joinHandler have null or undefined key value";
             }
             const success = params.success;
             roomId = params.roomId;
             roomName = params.roomName;
             playerNum = params.playerNum;
             maxPlayer = params.maxPlayer;
-            currentPlayers = params.currentPlayers;
+            currentPlayers = params.currentPlayers || [];
+            
             if (!success) {
-                return "[join-result] Unsuccessful"
+                return "[join-result] Unsuccessful";
             }
 
             generatePlayerDivs(maxPlayer);
             updateGameStatusBar();
             updatePlayers();
 
-            return `[join-result] ${params}`
+            return `[join-result] Joined room successfully`;
         }
 
         function playerJoinHandler(params) {
-            if (!checkNoNullParams(params)){
-                return "Error playerJoinHandler have null or undefined key value"
-            };
+            if (!checkNoNullParams(params)) {
+                return "Error playerJoinHandler have null or undefined key value";
+            }
 
-            if (clientId === user.id){
+            // ✅ แก้ไข 1: เปลี่ยน clientId เป็น params.clientId
+            if (params.clientId === user?.id) {
                 return "playerJoinHandler: It's this user no need to update";
             }
 
-            currentPlayers = params.currentPlayers;
-            playerNum = params.playerNum
+            currentPlayers = params.currentPlayers || [];
+            if (params.playerNum) playerNum = params.playerNum;
 
-            const username = currentPlayers.find((player) => player.clientId == params.clientId);
+            // ✅ แก้ไข 2: หาชื่อผู้เล่นอย่างถูกต้อง
+            const joinedPlayer = currentPlayers.find((player) => player.clientId == params.clientId);
+            const username = joinedPlayer ? joinedPlayer.username : params.clientId;
 
             updatePlayers();
 
             return `${params.clientId}:${username} joined the room`;
-
         }
 
         function startGameHandler(params) {
@@ -521,53 +528,31 @@
             updateGameStatusBar();
         }
 
-        function turnStartHandler (params) {
-            if (!checkNoNullParams(params)){
-                return "Error turnStartHandler have null or undefined key value"
-            };
-            currentTurnPlayer = params.clientId
+        function turnStartHandler(params) {
+            if (!checkNoNullParams(params)) {
+                return "Error turnStartHandler have null or undefined key value";
+            }
+            currentTurnPlayer = params.clientId;
             updateGameStatusBar();
         }
 
-        const TYPE_LOOKUP = { // Maps server message types to their handlers.
+        // ✅ แก้ไข 3: อ้างอิงฟังก์ชันตรงๆ โดยไม่ใช้ () =>
+        const TYPE_LOOKUP = {
             "join": joinHandler,
-            "web_socket": () => {
-                return "web_socket not impremented";
-            },
-            "player-join": () => playerJoinHandler,
-            "start-game": () => startGameHandler,
-            "turn-start": () => turnStartHandler,
-            "game-action": () => {
-                return "Not implemented2";
-            },
-            "deal-flop": () =>{
-                return "Not implemente3";
-            },
-            "deal-turn": () => {
-                return "Not implemented4";
-            },
-            "winner": () => {
-                return "Not implemented5";
-            },
-            "error": () =>  {
-                return "Not implemented6";
-            },
-            "left-room": () => {
-                return "Not implemented7";
-            },
-            "table-state": () => {
-                return "Not implemented8";
-            },
-            "game-started": () => {
-                return "Not implemented9";
-            },
-            "showdown": () => {
-                return "Not implemented10";
-            },
-            "connection" : () => {
-                return "Not implemented";
-            }
-
+            "web_socket": () => "web_socket not implemented",
+            "player-join": playerJoinHandler,
+            "start-game": startGameHandler,
+            "turn-start": turnStartHandler,
+            "game-action": () => "Not implemented2",
+            "deal-flop": () => "Not implemented3",
+            "deal-turn": () => "Not implemented4",
+            "winner": () => "Not implemented5",
+            "error": () => "Not implemented6",
+            "left-room": () => "Not implemented7",
+            "table-state": () => "Not implemented8",
+            "game-started": () => "Not implemented9",
+            "showdown": () => "Not implemented10",
+            "connection": () => "Not implemented"
         };
 
         function handleSocketMessage(event) {
@@ -659,22 +644,16 @@
             document.getElementById('raise-amount').textContent = currentBet;
         }
 
-        // --- setTableData แบบสมบูรณ์ (รวม Seat, Status, Turn และ HTML Render Cards) ---
         function setTableData(data = {}) {
-            // 1. แมปค่า Text ทั่วไปรวมถึง Seat, Status, Turn
             const textMappings = {
                 pot: 'pot-display',
                 betValue: 'bet-value',
                 callAmount: 'call-amount',
                 betAmount: 'bet-amount-text',
                 raiseAmount: 'raise-amount',
-
-                // สถานะเกมและผู้เล่น
                 seatNumber: 'seat-number-display',
                 currentTurn: 'current-turn-display',
                 playerStatus: 'player-status-display',
-
-                // ผู้เล่น 1-4
                 p1Name: 'p1-name', p1Chips: 'p1-chips',
                 p2Name: 'p2-name', p2Chips: 'p2-chips',
                 p3Name: 'p3-name', p3Chips: 'p3-chips',
@@ -688,12 +667,10 @@
                 }
             });
 
-            // 2. ซิงค์ค่าตัวแปร currentBet
             if (data.betValue !== undefined) {
                 currentBet = Number(data.betValue);
             }
 
-            // 3. Render รูปภาพโปรไฟล์ (Avatars)
             const avatars = {
                 p1AvatarUrl: 'p1-avatar-container',
                 p2AvatarUrl: 'p2-avatar-container',
@@ -708,8 +685,6 @@
                 }
             });
 
-            // 4. Render HTML ไพ่ (Community Cards & Player Hole Cards)
-            // 4. Render รูปภาพไพ่ (Community Cards & Player Hole Cards)
             const cardMappings = {
                 communityCards: 'community-cards',
                 p1HoleCards: 'p1-hole-cards',
@@ -722,7 +697,6 @@
                 if (data[key] && Array.isArray(data[key])) {
                     const el = document.getElementById(containerId);
                     if (el) {
-                        // วนลูปสร้าง <img> จาก Array ของชื่อไฟล์
                         el.innerHTML = data[key]
                             .map(cardFile => `<img src="images/cards/${cardFile}" alt="Card" style="height: 100%;">`)
                             .join('');
