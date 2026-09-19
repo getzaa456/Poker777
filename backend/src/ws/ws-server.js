@@ -73,7 +73,22 @@ redisSub.on('message', (channel, message) => {
             }
             break;
           }
+          // เมื่อมีคนออกจากห้อง (ส่งแจ้งเตือนหาคนอื่นในห้อง)
+          case 'player_left': {
+            const currentPlayersList = data.currentPlayers || [];
 
+            const payload = {
+              type: 'left-room',
+              params: {
+                clientId: clientId,
+                playerNum: currentPlayersList.length,
+                currentPlayers: currentPlayersList,
+              },
+            };
+
+            client.send(JSON.stringify(payload));
+            break;
+          }
           // กรณีเริ่มเกมใหม่
           case 'game_started': {
             const privateHoleCards = {};
@@ -297,25 +312,28 @@ async function handleLeaveRoom(ws) {
         await updateRoom(roomCode, roomUpdates);
       }
 
+      const currentPlayers = [];
       const remainingPlayersMap = {};
+
       for (const pid of remainingPlayerIds) {
         const pData = await getPlayer(roomCode, pid);
         if (pData) {
           remainingPlayersMap[pid] = pData;
+          currentPlayers.push({
+            clientId: pData.clientId,
+            username: pData.username,
+            money: Number(pData.chips) || 0,
+          });
         }
       }
-
-      const updatedRoom = await getRoom(roomCode);
 
       await redisPub.publish(
         CHANNEL,
         JSON.stringify({
-          eventType: 'table_updated',
+          eventType: 'player_left',
           roomCode,
-          room: {
-            ...updatedRoom,
-            players: remainingPlayersMap,
-          },
+          clientId,
+          currentPlayers,
         })
       );
     });
