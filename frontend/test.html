@@ -483,6 +483,24 @@
             });
         }
 
+        function updateActionButtonsState() {
+            const actionButtons = [
+                document.getElementById('btn-fold'),
+                document.getElementById('btn-check'),
+                document.getElementById('btn-call'),
+                document.getElementById('btn-bet'),
+                document.getElementById('btn-raise')
+            ].filter(Boolean);
+
+            const isMyTurn = Boolean(gameStarted && currentTurnPlayer && String(currentTurnPlayer) === String(user?.id));
+
+            actionButtons.forEach((button) => {
+                button.disabled = !isMyTurn;
+                button.style.opacity = isMyTurn ? '1' : '0.45';
+                button.style.cursor = isMyTurn ? 'pointer' : 'not-allowed';
+            });
+        }
+
         function updatePot(value = pot) {
             pot = Number(value ?? 0);
             const potDisplay = document.getElementById('pot-display');
@@ -506,6 +524,8 @@
             playerNum = params.playerNum;
             maxPlayer = params.maxPlayer;
             currentPlayers = params.currentPlayers || [];
+            currentTurnPlayer = null;
+            gameStarted = false;
             
             if (!success) {
                 return "[join-result] Unsuccessful";
@@ -514,6 +534,7 @@
             generatePlayerDivs(maxPlayer);
             updateGameStatusBar();
             updatePlayers();
+            updateActionButtonsState();
 
             return `[join-result] Joined room successfully`;
         }
@@ -543,6 +564,7 @@
         function startGameHandler(params) {
             gameStarted = true;
             updateGameStatusBar();
+            updateActionButtonsState();
         }
 
         function turnStartHandler(params) {
@@ -551,6 +573,7 @@
             }
             currentTurnPlayer = params.clientId;
             updateGameStatusBar();
+            updateActionButtonsState();
         }
 
         function leftRoomHandler(params) {
@@ -580,18 +603,19 @@
                 generatePlayerDivs();
                 updatePlayers();
                 updateGameStatusBar();
+                updateActionButtonsState();
 
                 return `[left-room] Left room ${roomCode}`;
             }
 
             currentPlayers = remainingPlayers;
             playerNum = leavingPlayerNum;
-            gameStarted = false;
             currentTurnPlayer = null;
             updatePot(0);
             generatePlayerDivs(maxPlayer || currentPlayers.length || 4);
             updatePlayers();
             updateGameStatusBar();
+            updateActionButtonsState();
 
             return `[left-room] ${leavingClientId} left the room`;
         }
@@ -646,6 +670,7 @@
                 return;
             }
 
+            updateActionButtonsState();
             joinButton.disabled = true;
             socket = new WebSocket(`ws://localhost:4000/ws?token=${encodeURIComponent(token)}`);
 
