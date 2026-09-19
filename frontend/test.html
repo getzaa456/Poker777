@@ -374,6 +374,7 @@
         let currentPlayers = null;
         let user = JSON.parse(localStorage.getItem("poker777_user"));
         let socket = null;
+        let token = localStorage.getItem("poker777_token");
 
         /* currentPlayers container player object
         player object = {
@@ -493,34 +494,34 @@
             "player-join": () => playerJoinHandler,
             "start-game": () => startGameHandler,
             "turn-start": () => {
-                return "Not implemented";
+                return "Not implemented1";
             },
             "game-action": () => {
-                return "Not implemented";
+                return "Not implemented2";
             },
             "deal-flop": () =>{
-                return "Not implemented";
+                return "Not implemente3";
             },
             "deal-turn": () => {
-                return "Not implemented";
+                return "Not implemented4";
             },
             "winner": () => {
-                return "Not implemented";
+                return "Not implemented5";
             },
             "error": () =>  {
-                return "Not implemented";
+                return "Not implemented6";
             },
             "left-room": () => {
-                return "Not implemented";
+                return "Not implemented7";
             },
             "table-state": () => {
-                return "Not implemented";
+                return "Not implemented8";
             },
             "game-started": () => {
-                return "Not implemented";
+                return "Not implemented9";
             },
             "showdown": () => {
-                return "Not implemented";
+                return "Not implemented10";
             },
             "connection" : () => {
                 return "Not implemented";
@@ -555,7 +556,7 @@
             }
 
             joinButton.disabled = true;
-            socket = new WebSocket("wss://://localhost:4000");
+            socket = new WebSocket(`ws://localhost:4000/ws?token=${encodeURIComponent(token)}`);
 
             socket.addEventListener("open", () => {
                 console.log("Connected to the server!");

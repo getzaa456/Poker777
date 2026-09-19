@@ -4,7 +4,7 @@ import Redis from 'ioredis';
 const config = {
   host: process.env.REDIS_HOST, // อ่านค่า AWS ElastiCache Primary Endpoint จาก env
   port: 6379,                   // พอร์ตมาตรฐาน Redis
-  tls: {},                      // เปิด SSL/TLS เพื่อความปลอดภัยบน AWS (จำเป็นสำหรับ ElastiCache)
+  //tls: {},                      // เปิด SSL/TLS เพื่อความปลอดภัยบน AWS (จำเป็นสำหรับ ElastiCache)
 };
 
 // 1. ท่ออ่าน-เขียน State: ใช้สำหรับคำสั่ง HSET, HGETALL, HINCRBY (อัปเดต/อ่านสถานะเกม)
