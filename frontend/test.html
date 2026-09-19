@@ -65,6 +65,10 @@
             font-weight: bold;
         }
 
+        .leave-room-button {
+            background-color: #d94c5d;
+        }
+
         .join-room-button:disabled {
             cursor: not-allowed;
             opacity: 0.6;
@@ -297,6 +301,7 @@
         <input type="text" id="room-code-input" class="room-code-input" placeholder="Enter room code"
             aria-label="Room code">
         <button type="button" id="join-room-button" class="join-room-button">JOIN ROOM</button>
+        <button type="button" id="leave-room-button" class="join-room-button leave-room-button">LEAVE ROOM</button>
     </div>
 
     <div class="poker-table-container">
@@ -536,6 +541,30 @@
             updateGameStatusBar();
         }
 
+        function leftRoomHandler(params) {
+            const roomCode = params?.room_code || roomId;
+
+            roomId = null;
+            roomName = null;
+            playerNum = null;
+            maxPlayer = null;
+            currentPlayers = [];
+            gameStarted = false;
+            currentTurnPlayer = null;
+
+            if (socket) {
+                socket.close();
+                socket = null;
+            }
+
+            document.getElementById("room-code-input").value = "";
+            generatePlayerDivs();
+            updatePlayers();
+            updateGameStatusBar();
+
+            return `[left-room] Left room ${roomCode}`;
+        }
+
         // ✅ แก้ไข 3: อ้างอิงฟังก์ชันตรงๆ โดยไม่ใช้ () =>
         const TYPE_LOOKUP = {
             "join": joinHandler,
@@ -548,7 +577,8 @@
             "deal-turn": () => "Not implemented4",
             "winner": () => "Not implemented5",
             "error": () => "Not implemented6",
-            "left-room": () => "Not implemented7",
+            "left-room": leftRoomHandler,
+            "left_room": leftRoomHandler,
             "table-state": () => "Not implemented8",
             "game-started": () => "Not implemented9",
             "showdown": () => "Not implemented10",
@@ -607,7 +637,23 @@
             });
         }
 
+        function leaveRoom() {
+            if (!socket || !roomId) {
+                console.warn("No active room to leave.");
+                return;
+            }
+
+            socket.send(JSON.stringify({
+                type: "leave-room",
+                params: {
+                    roomCode: roomId,
+                    clientId: user?.id
+                }
+            }));
+        }
+
         document.getElementById("join-room-button").addEventListener("click", joinRoom);
+        document.getElementById("leave-room-button").addEventListener("click", leaveRoom);
 
         // Event Listeners
         document.getElementById('btn-fold').addEventListener('click', () => onActionClick('FOLD'));
@@ -630,6 +676,14 @@
 
         function onActionClick(actionType, amount = null) {
             console.log(`Action Executed: ${actionType}`, amount ? `Amount: ${amount}` : '');
+            payload = {
+                    type: "game-action",
+                    params: {
+                        action: actionType,
+                        amount: amount
+                    }
+            };
+            socket.send(JSON.stringify(payload));
         }
 
         function onBetAdjustClick(type) {
