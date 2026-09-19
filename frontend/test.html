@@ -383,6 +383,7 @@
         let socket = null;
         let currentTurnPlayer = null;
         let token = localStorage.getItem("poker777_token");
+        let communityCards = [];
 
         function generatePlayerDiv(playerNumber) {
             const playerSection = document.createElement('div');
@@ -428,15 +429,22 @@
             return isValid;
         }
 
-        function playerConstructor(clientId, username, money) {
+        function playerConstructor(clientId, seats, username, chips, holeCards, status) {
             return {
                 clientId: clientId,
+                seat: seat,
                 username: username,
-                money: money,
-                bettedChips: 0
+                chips: chips,
+                bettedChips: 0,
+                holeCards: holeCards,
+                status: status,
+                avatarUrl: avatar_id
             };
         }
 
+        function updatePlayer(player, attributes){
+            //TODO Later update player attributes
+        }
         // ---------------- Update dom function ---------------
 
         function updatePlayers() {
@@ -533,7 +541,12 @@
             roomName = params.roomName;
             playerNum = params.playerNum;
             maxPlayer = params.maxPlayer;
-            currentPlayers = params.currentPlayers || [];
+            currentPlayers = [];
+            params.currentPlayers.forEach( (player) => {
+                ////TODO Fix playerConstructor here
+                let playerObject = playerConstructor(player.clientId, player.username, player.money)
+                currentPlayers.push(playerObject);
+            });
             currentTurnPlayer = null;
             gameStarted = false;
             
@@ -559,7 +572,13 @@
                 return "playerJoinHandler: It's this user no need to update";
             }
 
-            currentPlayers = params.currentPlayers || [];
+            currentPlayers = [];
+            params.currentPlayers.forEach( (player) => {
+                //TODO Fix playerConstructor here
+                let playerObject = playerConstructor(player.clientId, player.username, player.money);
+                currentPlayers.push(playerObject);
+            });
+
             if (params.playerNum) playerNum = params.playerNum;
 
             // ✅ แก้ไข 2: หาชื่อผู้เล่นอย่างถูกต้อง
@@ -637,6 +656,10 @@
             };
         }
 
+        function dealCardsHandler() {
+
+        }
+
         function leftRoomHandler(params) {
             const leavingClientId = params.clientId;
             const leavingPlayerNum = params.playerNum ?? currentPlayers.length;
@@ -693,13 +716,13 @@
             "start-game": startGameHandler,
             "turn-start": turnStartHandler,
             "game-action": gameActionHandler,
-            "deal-flop": () => "Not implemented3",
+            "deal-flop": () => dealCardsHandler(3), //TODO fix here
             "deal-turn": () => "Not implemented4",
             "winner": () => "Not implemented5",
             "error": () => "Not implemented6",
             "left-room": leftRoomHandler,
             "table-state": () => "Not implemented8",
-            "game-started": () => "Not implemented9",
+            "game-started": startGameHandler,
             "showdown": () => "Not implemented10",
             "connection": connection
         };
