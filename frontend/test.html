@@ -17,6 +17,7 @@
             color: #ffffff;
             font-family: Arial, sans-serif;
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
             min-height: 100vh;
@@ -32,6 +33,41 @@
             align-items: center;
             gap: 20px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .join-room-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            width: min(850px, calc(100% - 40px));
+            margin-bottom: 20px;
+        }
+
+        .room-code-input,
+        .join-room-button {
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            padding: 10px 14px;
+        }
+
+        .room-code-input {
+            flex: 1;
+            background-color: #0d0718;
+            color: #ffffff;
+            border: 1px solid #3d2b63;
+        }
+
+        .join-room-button {
+            background-color: #35c48a;
+            color: #ffffff;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .join-room-button:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
         }
 
         /* ส่วนแสดงสถานะโต๊ะ/เกม */
@@ -257,6 +293,11 @@
 </head>
 
 <body>
+    <div class="join-room-controls">
+        <input type="text" id="room-code-input" class="room-code-input" placeholder="Enter room code"
+            aria-label="Room code">
+        <button type="button" id="join-room-button" class="join-room-button">JOIN ROOM</button>
+    </div>
 
     <div class="poker-table-container">
 
@@ -332,11 +373,13 @@
         let maxPlayer = null;
         let currentPlayers = null;
         let user = JSON.parse(localStorage.getItem("poker777_user"));
+        let socket = null;
 
         /* currentPlayers container player object
         player object = {
             clientId : <clientId>,
             username : <username>,
+            avatarUrl : <s3 url>,
             money : <int amount>
         }
         */
@@ -442,8 +485,8 @@
             gameStarted = true;
         }
 
-        const TYPE_LOOKUP = { //Type look up table mapping to a call back function for each type response
-            "join": () => joinHandler,
+        const TYPE_LOOKUP = { // Maps server message types to their handlers.
+            "join": joinHandler,
             "web_socket": () => {
                 return "web_socket not impremented";
             },
@@ -484,30 +527,59 @@
             }
 
         };
-        const socket = new WebSocket("wss://://localhost:4000");
 
-        socket.addEventListener("open", (event) => {
-            console.log("Connected to the server!");
-            socket.send("Hello Server!"); // Send a message
-        });
-
-
-        socket.addEventListener("message", (event) => {
-            console.log("Message from server: ", event.data);
-            console.log(event.data);
-            
+        function handleSocketMessage(event) {
             try {
                 const message = JSON.parse(event.data);
-                if (!message.type){
-                    throw new Error("No type attribute");
+                const messageType = message.Type || message.type;
+                const handler = TYPE_LOOKUP[messageType];
+
+                if (!handler) {
+                    throw new Error(`Unsupported message type: ${messageType}`);
                 }
-                const result = TYPE_LOOKUP[message.type](message.params);
-                console.log(result);
-            } 
-            catch (error) {
-                console.error("Failed to parse JSON:", error.message);
+
+                console.log(handler(message.params));
+            } catch (error) {
+                console.error("Failed to handle WebSocket message:", error.message);
             }
-        });
+        }
+
+        function joinRoom() {
+            const roomCode = document.getElementById("room-code-input").value.trim();
+            const clientId = user?.id;
+            const joinButton = document.getElementById("join-room-button");
+
+            if (!roomCode || !clientId) {
+                console.error("A room code and a logged-in user are required to join a room.");
+                return;
+            }
+
+            joinButton.disabled = true;
+            socket = new WebSocket("ws://localhost:4000");
+
+            socket.addEventListener("open", () => {
+                console.log("Connected to the server!");
+                socket.send(JSON.stringify({
+                    Type: "join",
+                    params: {
+                        roomCode,
+                        clientId,
+                        buyIn: 1000
+                    }
+                }));
+            });
+
+            socket.addEventListener("message", handleSocketMessage);
+            socket.addEventListener("error", (error) => {
+                console.error("WebSocket connection failed:", error);
+                joinButton.disabled = false;
+            });
+            socket.addEventListener("close", () => {
+                joinButton.disabled = false;
+            });
+        }
+
+        document.getElementById("join-room-button").addEventListener("click", joinRoom);
 
         // Event Listeners
         document.getElementById('btn-fold').addEventListener('click', () => onActionClick('FOLD'));
