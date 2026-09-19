@@ -55,7 +55,7 @@ export async function createApp() {
 const app = await createApp();
 let server = null;
 
-if (!env.isTest) {
+if (!env.isTest) { // ทำทำไม
   server = http.createServer(app);
   server.on('upgrade', (request, socket, head) => {
     if (request.url?.split('?')[0] !== '/ws') {

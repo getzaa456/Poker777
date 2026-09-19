@@ -374,6 +374,8 @@
         let currentPlayers = null;
         let user = JSON.parse(localStorage.getItem("poker777_user"));
         let socket = null;
+        let currentTurnPlayer = null;
+        const token = localStorage.getItem("poker777_token");
 
         /* currentPlayers container player object
         player object = {
@@ -437,6 +439,40 @@
             });
         }
 
+        function updateGameStatusBar(){
+            let gameStartText = "No";
+            let playerStatusText = "Not joined";
+
+            if (gameStarted) {
+                gameStartText = "Yes";
+            }
+
+            if (roomId) {
+                playerStatusText = "Joined";
+            }
+
+            const statusValues = {
+                "room-id": roomId,
+                "game-start": gameStartText,
+                "seat-number-display": playerNum,
+                "current-turn-display": currentTurnPlayer,
+                "player-status-display": playerStatusText
+            };
+
+            Object.entries(statusValues).forEach(([elementId, value]) => {
+                const element = document.getElementById(elementId);
+                let displayValue = value;
+
+                if (displayValue == null) {
+                    displayValue = "-";
+                }
+
+                if (element) {
+                    element.textContent = displayValue;
+                }
+            });
+        }
+
         //------------- callback functions for websocket -------------
 
         function joinHandler(params) {
@@ -454,8 +490,7 @@
             }
 
             generatePlayerDivs(maxPlayer);
-            document.getElementById("room-id").innerText = roomId;
-
+            updateGameStatusBar();
             updatePlayers();
 
             return `[join-result] ${params}`
@@ -483,6 +518,15 @@
 
         function startGameHandler(params) {
             gameStarted = true;
+            updateGameStatusBar();
+        }
+
+        function turnStartHandler (params) {
+            if (!checkNoNullParams(params)){
+                return "Error turnStartHandler have null or undefined key value"
+            };
+            currentTurnPlayer = params.clientId
+            updateGameStatusBar();
         }
 
         const TYPE_LOOKUP = { // Maps server message types to their handlers.
@@ -492,9 +536,7 @@
             },
             "player-join": () => playerJoinHandler,
             "start-game": () => startGameHandler,
-            "turn-start": () => {
-                return "Not implemented";
-            },
+            "turn-start": () => turnStartHandler,
             "game-action": () => {
                 return "Not implemented";
             },
@@ -531,7 +573,7 @@
         function handleSocketMessage(event) {
             try {
                 const message = JSON.parse(event.data);
-                const messageType = message.Type || message.type;
+                const messageType = message.type;
                 const handler = TYPE_LOOKUP[messageType];
 
                 if (!handler) {
@@ -555,12 +597,12 @@
             }
 
             joinButton.disabled = true;
-            socket = new WebSocket("wss://://localhost:4000");
+            socket = new WebSocket(`ws://localhost:4000/ws?token=${encodeURIComponent(token)}`);
 
             socket.addEventListener("open", () => {
                 console.log("Connected to the server!");
                 socket.send(JSON.stringify({
-                    Type: "join",
+                    type: "join",
                     params: {
                         roomCode,
                         clientId,
