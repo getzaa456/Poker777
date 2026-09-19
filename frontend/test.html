@@ -372,6 +372,7 @@
         let currentBet = 100;
         let stepAmount = 50;
         let pot = 0;
+        let currentTurnTotalBet = 0;
         let gameStarted = false;
         let roomId = null;
         let roomName = null;
@@ -425,6 +426,15 @@
                 }
             });
             return isValid;
+        }
+
+        function playerConstructor(clientId, username, money) {
+            return {
+                clientId: clientId,
+                username: username,
+                money: money,
+                bettedChips: 0
+            };
         }
 
         // ---------------- Update dom function ---------------
@@ -576,6 +586,57 @@
             updateActionButtonsState();
         }
 
+        function gameActionHandler(params) {
+            if (!checkNoNullParams(params)) {
+                return "Error gameActionHandler have null or undefined key value";
+            }
+
+            const action = params.action;
+            const clientId = params.clientId;
+            const amount = Number(params.amount ?? 0);
+            // const timedOut = Boolean(params.timed_out);
+
+            currentTurnTotalBet = Number(params.currentBet);
+
+            const player = currentPlayers.find(player => player.clientId == clientId);
+
+            let tempPotAmount = pot;
+            if (action == "BET") {
+                currentTurnTotalBet = amount;
+                player.money -= amount;
+                player.bettedChips = amount
+            }
+            else if (action == "CHECK"){
+                // may Add animation
+            }
+            else if (action == "RAISE") {
+                currentTurnTotalBet = amount;
+                player.money -= currentTurnTotalBet - player.bettedChips;
+                player.bettedChips = amount;
+            }
+            else if (action == "CALL") {
+                currentTurnTotalBet = amount;
+                player.money -= currentTurnTotalBet - player.bettedChips;
+                player.bettedChips = amount;
+            }
+            else {
+                console.log("Unknown game action : " + action);
+            }
+
+            updatePot(params.pot);
+            updatePlayers();
+
+            console.log(`[game-action] ${clientId} ${action} amount=${amount}`);
+            return {
+                clientId,
+                action,
+                amount,
+                timed_out: timedOut,
+                pot: pot,
+                currentBet: currentBet
+            };
+        }
+
         function leftRoomHandler(params) {
             const leavingClientId = params.clientId;
             const leavingPlayerNum = params.playerNum ?? currentPlayers.length;
@@ -631,7 +692,7 @@
             "player-join": playerJoinHandler,
             "start-game": startGameHandler,
             "turn-start": turnStartHandler,
-            "game-action": () => "Not implemented2",
+            "game-action": gameActionHandler,
             "deal-flop": () => "Not implemented3",
             "deal-turn": () => "Not implemented4",
             "winner": () => "Not implemented5",
