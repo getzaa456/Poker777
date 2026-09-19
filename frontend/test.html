@@ -371,6 +371,7 @@
     <script>
         let currentBet = 100;
         let stepAmount = 50;
+        let pot = 0;
         let gameStarted = false;
         let roomId = null;
         let roomName = null;
@@ -482,6 +483,17 @@
             });
         }
 
+        function updatePot(value = pot) {
+            pot = Number(value ?? 0);
+            const potDisplay = document.getElementById('pot-display');
+
+            if (potDisplay) {
+                potDisplay.textContent = pot;
+            }
+
+            return pot;
+        }
+
         //------------- callback functions for websocket -------------
 
         function joinHandler(params) {
@@ -542,27 +554,50 @@
         }
 
         function leftRoomHandler(params) {
-            const roomCode = params?.room_code || roomId;
+            const leavingClientId = params.clientId;
+            const leavingPlayerNum = params.playerNum ?? currentPlayers.length;
+            const remainingPlayers = params.currentPlayers || [];
 
-            roomId = null;
-            roomName = null;
-            playerNum = null;
-            maxPlayer = null;
-            currentPlayers = [];
-            gameStarted = false;
-            currentTurnPlayer = null;
+            if (String(leavingClientId) === String(user?.id)) {
+                const roomCode = params?.room_code || roomId;
 
-            if (socket) {
-                socket.close();
-                socket = null;
+                roomId = null;
+                roomName = null;
+                playerNum = null;
+                maxPlayer = null;
+                currentPlayers = [];
+                gameStarted = false;
+                currentTurnPlayer = null;
+                pot = 0;
+                updatePot(0);
+
+                if (socket) {
+                    socket.close();
+                    socket = null;
+                }
+
+                document.getElementById("room-code-input").value = "";
+                generatePlayerDivs();
+                updatePlayers();
+                updateGameStatusBar();
+
+                return `[left-room] Left room ${roomCode}`;
             }
 
-            document.getElementById("room-code-input").value = "";
-            generatePlayerDivs();
+            currentPlayers = remainingPlayers;
+            playerNum = leavingPlayerNum;
+            gameStarted = false;
+            currentTurnPlayer = null;
+            updatePot(0);
+            generatePlayerDivs(maxPlayer || currentPlayers.length || 4);
             updatePlayers();
             updateGameStatusBar();
 
-            return `[left-room] Left room ${roomCode}`;
+            return `[left-room] ${leavingClientId} left the room`;
+        }
+
+        function connection(params) {
+            return `[connection] ${params.message}`;
         }
 
         // ✅ แก้ไข 3: อ้างอิงฟังก์ชันตรงๆ โดยไม่ใช้ () =>
@@ -578,11 +613,10 @@
             "winner": () => "Not implemented5",
             "error": () => "Not implemented6",
             "left-room": leftRoomHandler,
-            "left_room": leftRoomHandler,
             "table-state": () => "Not implemented8",
             "game-started": () => "Not implemented9",
             "showdown": () => "Not implemented10",
-            "connection": () => "Not implemented"
+            "connection": connection
         };
 
         function handleSocketMessage(event) {
