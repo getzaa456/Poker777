@@ -385,6 +385,8 @@
         let token = localStorage.getItem("poker777_token");
         let communityCards = [];
 
+        // DOM generation
+
         function generatePlayerDiv(playerNumber) {
             const playerSection = document.createElement('div');
             playerSection.className = 'player-section';
@@ -416,6 +418,45 @@
 
         generatePlayerDivs();
 
+        function generateWinnerNotification(winnerId) {
+            const winner = currentPlayers.find((player) =>
+                String(player.clientId) === String(winnerId)
+            );
+            const winnerName = winner?.username || winnerId;
+            const notificationId = 'winner-notification';
+            const existingNotification = document.getElementById(notificationId);
+
+            if (existingNotification) {
+                existingNotification.remove();
+            }
+
+            const notification = document.createElement('div');
+            notification.id = notificationId;
+            notification.setAttribute('role', 'status');
+            notification.setAttribute('aria-live', 'polite');
+            notification.textContent = `Winner: ${winnerName}`;
+            Object.assign(notification.style, {
+                position: 'fixed',
+                top: '24px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: '1000',
+                padding: '14px 24px',
+                border: '1px solid #ffb800',
+                borderRadius: '10px',
+                backgroundColor: '#231640',
+                color: '#ffffff',
+                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.45)',
+                fontSize: '18px',
+                fontWeight: 'bold',
+                textAlign: 'center',
+                whiteSpace: 'nowrap'
+            });
+
+            document.body.appendChild(notification);
+            window.setTimeout(() => notification.remove(), 5000);
+        }
+
         // ------------- Helper function -------------
 
         function checkNoNullParams(params) {
@@ -432,18 +473,19 @@
         function playerConstructor(clientId, seats, username, chips, holeCards, status) {
             return {
                 clientId: clientId,
-                seat: seat,
+                seat: seat, //Seat Number
                 username: username,
-                chips: chips,
-                bettedChips: 0,
+                chips: chips, //Total chips in game
+                bettedChips: 0, //bettedChips each Round
                 holeCards: holeCards,
-                status: status,
+                status: status, // "playing" | "folded"
                 avatarUrl: avatar_id
             };
         }
 
         function updatePlayer(player, attributes){
             //TODO Later update player attributes
+
         }
         // ---------------- Update dom function ---------------
 
@@ -528,6 +570,10 @@
             }
 
             return pot;
+        }
+
+        function updateCards() {
+            // TODO MARK
         }
 
         //------------- callback functions for websocket -------------
@@ -658,16 +704,33 @@
 
         function dealCardsHandler(params) {
             if (!checkNoNullParams(params)) {
-                return "Error gameActionHandler have null or undefined key value";
+                return "Error dealCardsHandler have null or undefined key value";
             }
             // Deal the community card that is send from the server and display on ther table
             params.card.forEach((card) => communityCards.push(card));
+            updateCards();
             return `${params.card} community card delt`;
         }
 
         function winnerHandler(params) {
-            
+            // show winner and update players money
+            if (!checkNoNullParams(params)) {
+                return "Error winnerHandler have null or undefined key value";
+            }
+            const winnerId = params.winnerId;
+            const currentMoney = params.current_money;
+            currentMoney.forEach((client) => {
+                const player = currentPlayers.find((player) => player.clientId == client.clientId);
+                player.chips = Number(client.money);
+                player.bettedChips = 0;
+                player.holeCards = [];
+                player.status = "";
+            })
+            updatePlayers();
+            generateWinnerNotification(winnerId);
+            return;
         }
+
 
         function leftRoomHandler(params) {
             const leavingClientId = params.clientId;
@@ -727,7 +790,7 @@
             "game-action": gameActionHandler,
             "deal-flop": dealCardsHandler, //TODO fix here
             "deal-turn": dealCardsHandler,
-            "winner": () => "Not implemented5",
+            "winner": winnerHandler,
             "error": () => "Not implemented6",
             "left-room": leftRoomHandler,
             "table-state": () => "Not implemented8",
