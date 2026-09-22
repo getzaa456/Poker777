@@ -26,41 +26,16 @@ import {
 } from '../services/game.js';
 import { syncPlayerBalances } from '../services/wallet.js';
 
+
+export const wss = new WebSocketServer({ noServer: true });
+const CHANNEL = 'poker:events';
 // [เพิ่มแก้ไข]: เพิ่ม Helper Function ป้องกัน Bug Redis String 'false' ถูกตีความว่าเป็น Boolean true
 const parseBool = (val) => val === true || val === 'true';
-
-// [เพิ่มแก้ไข]: ฟังก์ชันจัดการคนชนะเมื่อหมอบหมดจนเหลือคนเดียว พร้อม Sync DB
-async function handleEarlyFinishGame(roomCode, winnerId) {
-  clearTurnTimer(roomCode);
-  await finishGameWithWinner(roomCode, winnerId);
-
-  // รวบรวมชิปล่าสุดและ buyIn เพื่อ Sync DB
-  const seats = await getRoomSeats(roomCode);
-  const allPlayerIds = seats ? Object.values(seats).filter(Boolean) : [];
-  const playerChipsMap = {};
-  const playerBuyInsMap = {};
-
-  for (const pid of allPlayerIds) {
-    const pData = await getPlayer(roomCode, pid);
-    if (pData) {
-      playerChipsMap[pid] = Number(pData.chips) || 0;
-      playerBuyInsMap[pid] = Number(pData.buyIn) || Number(pData.chips) || 0;
-    }
-  }
-
-  syncPlayerBalances(roomCode, playerChipsMap, playerBuyInsMap).catch(err =>
-    console.error('Error syncing DB balances on early finish:', err)
-  );
-}
-
 // กำหนดเวลาแต่ละ Turn (เช่น 15 วินาที)
 const TURN_TIMEOUT_MS = 15000;
 
 // Object สำหรับเก็บ reference ของ setTimeout แต่ละ roomCode บน Server Node.js
 const roomTimers = {};
-
-export const wss = new WebSocketServer({ noServer: true });
-const CHANNEL = 'poker:events';
 
 redisSub.subscribe(CHANNEL);
 redisSub.on('message', (channel, message) => {
@@ -111,6 +86,7 @@ redisSub.on('message', (channel, message) => {
                   clientId: clientId,
                   playerNum: currentPlayers.length,
                   currentPlayers: currentPlayers,
+                  pot: Number(room?.pot) || 0,
                 },
               };
 
@@ -343,7 +319,8 @@ async function handleLeaveRoom(ws) {
       if (leavingPlayer) {
         const finalChips = Number(leavingPlayer.chips) || 0;
         const initialBuyIn = Number(leavingPlayer.buyIn) || finalChips;
-        syncPlayerBalances(roomCode, { [clientId]: finalChips }, { [clientId]: initialBuyIn }).catch(err =>
+        const roundId = room.roundId || Date.now();
+        syncPlayerBalances(roomCode, roundId, { [clientId]: finalChips }, { [clientId]: initialBuyIn }).catch(err =>
           console.error('Error syncing leaving player balance:', err)
         );
       }
@@ -588,6 +565,7 @@ wss.on('connection', (ws) => {
                   playerNum: currentPlayers.length,
                   maxPlayer: Number(room.maxPlayer),
                   currentPlayers: currentPlayers,
+                  pot: Number(room.pot) || 0,
                 },
               })
             );
@@ -695,6 +673,7 @@ wss.on('connection', (ws) => {
             turnDeadline: turnDeadline,
             communityCards: JSON.stringify([]),
             deck: JSON.stringify(deck),
+            roundId: Date.now(), // [แก้ไข]: เพิ่ม roundId สำหรับอ้างอิงรอบการเล่นใน Idempotency Settlement
           };
 
           await updateRoom(roomCode, roomUpdates);
@@ -750,15 +729,15 @@ wss.on('connection', (ws) => {
             const seats = await getRoomSeats(roomCode);
             const playerIds = seats ? Object.values(seats) : [];
 
-            // ค้นหาผู้เล่นคนถัดไปที่ยังไม่หมอบ (isFolded !== true)
+            // ค้นหาผู้เล่นคนถัดไปที่ยังไม่หมอบ และชิปยังไม่หมด (ไม่ All-in)
             let nextTurn = null;
             if (playerIds.length > 0) {
               const currentIndex = playerIds.indexOf(clientId);
               for (let i = 1; i < playerIds.length; i++) {
                 const checkPid = playerIds[(currentIndex + i) % playerIds.length];
                 const checkPlayer = await getPlayer(roomCode, checkPid);
-                // [เพิ่มแก้ไข]: ใช้ parseBool ป้องกันปัญหา String 'false' ใน Redis
-                if (checkPlayer && !parseBool(checkPlayer.isFolded)) {
+                // [เพิ่มแก้ไข]: ใช้ parseBool ป้องกันปัญหา String 'false' ใน Redis + ข้ามคนที่ชิปหมด (All-in)
+                if (checkPlayer && !parseBool(checkPlayer.isFolded) && Number(checkPlayer.chips) > 0) {
                   nextTurn = checkPid;
                   break;
                 }
@@ -770,14 +749,21 @@ wss.on('connection', (ws) => {
                 chipsToPut = Number(amount) || 0;
                 await updateRoom(roomCode, { currentBet: chipsToPut });
                 break;
-              case 'RAISE':
+              case 'RAISE': {
                 const newBetAmount = Number(amount) || 0;
+                if (newBetAmount <= Number(room.currentBet || 0)) {
+                  return ws.send(JSON.stringify({ type: 'error', error: 'Raise must be higher than current bet' }));
+                }
                 chipsToPut = newBetAmount - playerBet;
                 await updateRoom(roomCode, { currentBet: newBetAmount });
                 break;
-              case 'CALL':
-                chipsToPut = (room.currentBet || 0) - playerBet;
+              }
+              case 'CALL': {
+                const maxToCall = (Number(room.currentBet) || 0) - playerBet;
+                // [แก้ไข]: ถ้าชิปไม่พอให้ Call เท่าที่มี (All-in)
+                chipsToPut = Math.min(Number(player.chips) || 0, Math.max(0, maxToCall));
                 break;
+              }
               case 'CHECK':
                 chipsToPut = 0;
                 break;
@@ -797,6 +783,9 @@ wss.on('connection', (ws) => {
               await addPot(roomCode, chipsToPut);
               await setPlayerBet(roomCode, clientId, playerBet + chipsToPut);
             }
+
+            // บันทึกว่าผู้เล่นรายนี้ได้กระทำ Action ในรอบนี้แล้ว
+            await redisState.sadd(`room:${roomCode}:acted_players`, clientId);
 
             if (nextTurn) {
               const turnDeadline = Date.now() + TURN_TIMEOUT_MS;
@@ -890,8 +879,8 @@ async function startTurnTimer(roomCode, currentTurnPlayerId) {
             for (let i = 1; i < playerIds.length; i++) {
               const checkPid = playerIds[(currentIndex + i) % playerIds.length];
               const checkPlayer = await getPlayer(roomCode, checkPid);
-              // [เพิ่มแก้ไข]: ใช้ parseBool ป้องกันปัญหา String 'false' ใน Redis
-              if (checkPlayer && !parseBool(checkPlayer.isFolded)) {
+              // [เพิ่มแก้ไข]: ใช้ parseBool ป้องกันปัญหา String 'false' ใน Redis + ข้ามคน All-in
+              if (checkPlayer && !parseBool(checkPlayer.isFolded) && Number(checkPlayer.chips) > 0) {
                 nextTurn = checkPid;
                 break;
               }
@@ -901,6 +890,8 @@ async function startTurnTimer(roomCode, currentTurnPlayerId) {
           if (autoAction === 'FOLD') {
             await setPlayerFolded(roomCode, currentTurnPlayerId);
           }
+
+          await redisState.sadd(`room:${roomCode}:acted_players`, currentTurnPlayerId);
 
           let turnDeadline = null;
           if (nextTurn) {
@@ -955,6 +946,33 @@ function clearTurnTimer(roomCode) {
   }
 }
 
+// [เพิ่มแก้ไข]: ฟังก์ชันจัดการคนชนะเมื่อหมอบหมดจนเหลือคนเดียว พร้อม Sync DB
+async function handleEarlyFinishGame(roomCode, winnerId) {
+  clearTurnTimer(roomCode);
+  await finishGameWithWinner(roomCode, winnerId);
+
+  // รวบรวมชิปล่าสุดและ buyIn เพื่อ Sync DB
+  const seats = await getRoomSeats(roomCode);
+  const allPlayerIds = seats ? Object.values(seats).filter(Boolean) : [];
+  const playerChipsMap = {};
+  const playerBuyInsMap = {};
+
+  for (const pid of allPlayerIds) {
+    const pData = await getPlayer(roomCode, pid);
+    if (pData) {
+      playerChipsMap[pid] = Number(pData.chips) || 0;
+      playerBuyInsMap[pid] = Number(pData.buyIn) || Number(pData.chips) || 0;
+    }
+  }
+
+  const room = await getRoom(roomCode);
+  const roundId = room?.roundId || Date.now();
+
+  syncPlayerBalances(roomCode, roundId, playerChipsMap, playerBuyInsMap).catch(err =>
+    console.error('Error syncing DB balances on early finish:', err)
+  );
+}
+
 // ฟังก์ชันตรวจสอบและเปลี่ยน Phase การเล่น (Preflop -> Flop -> Turn -> River -> Showdown)
 async function advancePhaseIfNeeded(roomCode) {
   const room = await getRoom(roomCode);
@@ -969,11 +987,18 @@ async function advancePhaseIfNeeded(roomCode) {
     return true;
   }
 
-  // ตรวจสอบว่าทุกคนที่ยังเล่นอยู่ ลงเงินเดิมพันเท่ากับ currentBet หรือยัง
+  // [แก้ไข]: ตรวจสอบว่าผู้เล่นทุกคนในรอบนี้ได้กระทำ Action แล้วหรือยัง
+  const actedPlayers = (await redisState.smembers(`room:${roomCode}:acted_players`)) || [];
+  const allActed = activePlayerIds.every((pid) => actedPlayers.includes(pid));
+  if (!allActed) return false;
+
+  // ตรวจสอบว่าทุกคนที่ยังเล่นอยู่ ลงเงินเดิมพันเท่ากับ currentBet หรือยัง (ยกเว้นผู้เล่นที่ All-in)
   let isRoundComplete = true;
   for (const pid of activePlayerIds) {
+    const player = await getPlayer(roomCode, pid);
     const bet = await getPlayerBet(roomCode, pid);
-    if (Number(bet) !== Number(room.currentBet)) {
+    // หากชิปยังเหลือแต่ยังสู้เงินไม่เท่า currentBet ถือว่ายังรอบไม่จบ
+    if (player && Number(player.chips) > 0 && Number(bet) !== Number(room.currentBet)) {
       isRoundComplete = false;
       break;
     }
@@ -981,7 +1006,8 @@ async function advancePhaseIfNeeded(roomCode) {
 
   if (!isRoundComplete) return false; // ยังลงเงินไม่ครบทุกคน ให้รอการกด Action ต่อไป
 
-  // รีเซ็ตยอด Bet ของผู้เล่นทุกคนเพื่อเตรียมเข้าสู่รอบใหม่
+  // รีเซ็ตการบันทึก Acted Players และยอด Bet ของผู้เล่นทุกคนเพื่อเตรียมเข้าสู่รอบใหม่
+  await redisState.del(`room:${roomCode}:acted_players`);
   for (const pid of activePlayerIds) {
     await setPlayerBet(roomCode, pid, 0);
   }
@@ -1116,7 +1142,8 @@ async function handleShowdown(roomCode, room, communityCards, activePlayerIds) {
 
   // 4. เรียกฟังก์ชัน Sync ชิปลง DB
   // [เพิ่มแก้ไข]: ส่ง playerBuyInsMap ในพารามิเตอร์ที่ 3
-  syncPlayerBalances(roomCode, playerChipsMap, playerBuyInsMap).catch(err =>
+  const roundId = room.roundId || Date.now();
+  syncPlayerBalances(roomCode, roundId, playerChipsMap, playerBuyInsMap).catch(err =>
     console.error('Error syncing DB balances:', err)
   );
 

@@ -328,7 +328,7 @@
 
         <!-- ช่องว่างสำหรับผู้เล่น 4 คน -->
         <div class="players-grid" id="players-grid"></div>
-        
+
 
         <!-- แผงปุ่มกดทดสอบ -->
         <div class="controls-wrapper">
@@ -474,20 +474,20 @@
             return isValid;
         }
 
-        function playerConstructor(clientId, seats, username, chips, holeCards, status, avatarUrl = null) {
+        function playerConstructor(clientId, seat, username, chips, holeCards = [], status = "", avatarUrl = "") {
             return {
                 clientId: clientId,
-                seat: seats,
+                seat: seat,
                 username: username,
                 chips: chips,
                 bettedChips: 0,
                 holeCards: holeCards,
-                status: status,
+                status: status, // "playing" | "folded"
                 avatarUrl: avatarUrl
             };
         }
 
-        function setPlayerObjectAttributes(player, attributes){
+        function setPlayerObjectAttributes(player, attributes) {
             if (!player || !attributes) {
                 return player;
             }
@@ -708,25 +708,19 @@
             playerNum = params.playerNum;
             maxPlayer = params.maxPlayer;
             currentPlayers = [];
-            params.currentPlayers.forEach((player) => {
-                const playerObject = playerConstructor(
-                    player.clientId ?? player.client_id,
-                    player.seat,
-                    player.username,
-                    player.chips ?? player.money,
-                    player.holeCards ?? player.hole_cards,
-                    player.status,
-                    player.avatarUrl ?? player.avatar_id
-                );
+            params.currentPlayers.forEach((player, index) => {
+                ////TODO Fix playerConstructor here
+                let playerObject = playerConstructor(player.clientId, player.seat || (index + 1), player.username, player.money ?? player.chips ?? 0);
                 currentPlayers.push(playerObject);
             });
             currentTurnPlayer = null;
             gameStarted = false;
-            
+
             if (!success) {
                 return "[join-result] Unsuccessful";
             }
 
+            updatePot(params.pot ?? 0);
             generatePlayerDivs(maxPlayer);
             updateGameStatusBar();
             updatePlayers();
@@ -746,15 +740,12 @@
             }
 
             currentPlayers = [];
-            params.currentPlayers.forEach((player) => {
-                const playerObject = playerConstructor(
-                    player.clientId ?? player.client_id,
-                    player.seat,
-                    player.username,
-                    player.chips ?? player.money,
-                    player.holeCards ?? player.hole_cards,
-                    player.status,
-                    player.avatarUrl ?? player.avatar_id
+            params.currentPlayers.forEach((player, index) => {
+                let playerObject = playerConstructor(
+                    player.clientId,
+                    player.seat || (index + 1), // seats
+                    player.username,            // username
+                    player.money ?? player.chips ?? 0                // chips
                 );
                 currentPlayers.push(playerObject);
             });
@@ -765,6 +756,11 @@
             const joinedPlayer = currentPlayers.find((player) => player.clientId == params.clientId);
             const username = joinedPlayer ? joinedPlayer.username : params.clientId;
 
+            if (params.pot !== undefined) {
+                updatePot(params.pot);
+            } else {
+                updatePot(0);
+            }
             updatePlayers();
 
             return `${params.clientId}:${username} joined the room`;
@@ -807,7 +803,7 @@
                 player.chips -= amount;
                 player.bettedChips = amount
             }
-            else if (action == "CHECK"){
+            else if (action == "CHECK") {
                 // may Add animation
             }
             else if (action == "RAISE") {
@@ -925,7 +921,14 @@
                 return `[left-room] Left room ${roomCode}`;
             }
 
-            currentPlayers = remainingPlayers;
+            currentPlayers = remainingPlayers.map((player, index) =>
+                playerConstructor(
+                    player.clientId,
+                    player.seat || (index + 1),
+                    player.username,
+                    player.money
+                )
+            );
             playerNum = leavingPlayerNum;
             currentTurnPlayer = null;
             updatePot(0);
@@ -1001,7 +1004,8 @@
         }
 
         function connection(params) {
-            return `[connection] ${params}`;
+            const msg = params?.message || "WebSocket connection established";
+            return `[connection] ${msg}`;
         }
 
         // ✅ แก้ไข 3: อ้างอิงฟังก์ชันตรงๆ โดยไม่ใช้ () =>
@@ -1046,6 +1050,7 @@
             const roomCode = document.getElementById("room-code-input").value.trim();
             const clientId = user?.id;
             const joinButton = document.getElementById("join-room-button");
+            const userBuyIn = Number(user?.money ?? user?.chips ?? 1000);
 
             if (!roomCode || !clientId) {
                 console.error("A room code and a logged-in user are required to join a room.");
@@ -1063,7 +1068,7 @@
                     params: {
                         roomCode,
                         clientId,
-                        buyIn: 1000
+                        buyIn: userBuyIn
                     }
                 }));
             });
