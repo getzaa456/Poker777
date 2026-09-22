@@ -381,7 +381,12 @@
         let playerNum = null;
         let maxPlayer = null;
         let currentPlayers = [];
-        let user = JSON.parse(localStorage.getItem("poker777_user"));
+        let user = null;
+        try {
+            user = JSON.parse(localStorage.getItem("poker777_user") || "null");
+        } catch (error) {
+            console.warn("Invalid poker777_user data in localStorage.");
+        }
         let socket = null;
         let currentTurnPlayer = null;
         let token = localStorage.getItem("poker777_token");
@@ -468,7 +473,7 @@
             if (!params) return false;
             let isValid = true;
             Object.keys(params).forEach((key) => {
-                if (params[key] === null || params[key] === undefined) {
+                if (params[key] === undefined) {
                     isValid = false;
                 }
             });
@@ -605,6 +610,8 @@
         }
 
         function updateCards() {
+            // WARNING: Deferred finding 4. Deal events currently use raw card codes,
+            // while this renderer expects { rank, suit } card objects.
             const communityCardsContainer = document.getElementById('community-cards');
             if (!communityCardsContainer) {
                 return;
@@ -661,12 +668,17 @@
                 cardsContainer.replaceChildren();
 
                 if (String(player.status || '').toLowerCase() === 'folded') {
+                    cardsContainer.setAttribute('aria-label', 'Folded player hole cards');
                     return;
                 }
 
                 const holeCards = Array.isArray(player.holeCards)
                     ? player.holeCards
                     : [];
+                cardsContainer.setAttribute(
+                    'aria-label',
+                    holeCards.length ? 'Player hole cards' : 'No hole cards available'
+                );
 
                 holeCards.forEach((card) => {
                     if (!card || card.rank == null || card.suit == null) {
@@ -710,7 +722,6 @@
             maxPlayer = params.maxPlayer;
             currentPlayers = [];
             params.currentPlayers.forEach((player, index) => {
-                ////TODO Fix playerConstructor here
                 let playerObject = playerConstructor(player.clientId, player.seat || (index + 1), player.username, player.money ?? player.chips ?? 0);
                 currentPlayers.push(playerObject);
             });
@@ -742,11 +753,14 @@
 
             currentPlayers = [];
             params.currentPlayers.forEach((player, index) => {
-                let playerObject = playerConstructor(
+                const playerObject = playerConstructor(
                     player.clientId,
                     player.seat || (index + 1), // seats
                     player.username,            // username
-                    player.money ?? player.chips ?? 0                // chips
+                    player.money ?? player.chips ?? 0,
+                    player.holeCards ?? [],
+                    player.status ?? '',
+                    player.avatarUrl ?? ''
                 );
                 currentPlayers.push(playerObject);
             });
@@ -835,11 +849,12 @@
                 amount,
                 timed_out: timedOut,
                 pot: pot,
-                currentBet: currentBet
+                currentBet: currentTurnTotalBet
             };
         }
 
         function dealCardsHandler(params) {
+            // WARNING: Deferred finding 4. Do not normalize raw deal-card codes here.
             if (!checkNoNullParams(params)) {
                 return "Error dealCardsHandler have null or undefined key value";
             }
@@ -885,6 +900,7 @@
         }
 
         function errorHandler(errorMessage) {
+            // WARNING: Deferred finding 5. Server error payloads are not normalized here.
             return `Server sent error: ${errorMessage || ":3 default error"}`;
         }
 
@@ -958,8 +974,11 @@
             communityCards = Array.isArray(params.community_cards)
                 ? params.community_cards
                 : [];
+            // WARNING: Deferred finding 9. Join and table-state payloads intentionally
+            // retain different camelCase and snake_case field conventions.
             const playerToBeAdded = [];
-            params.players.forEach((paramplayer) => {
+            const players = Array.isArray(params.players) ? params.players : [];
+            players.forEach((paramplayer) => {
                 const selectedPlayer = currentPlayers.find((player) =>
                     String(player.clientId) === String(paramplayer.client_id)
                 );
@@ -1018,13 +1037,17 @@
             "start-game": startGameHandler,
             "turn-start": turnStartHandler,
             "game-action": gameActionHandler,
-            "deal-flop": dealCardsHandler, //TODO fix here
+            "deal-flop": dealCardsHandler,
             "deal-turn": dealCardsHandler,
+            "deal-river": dealCardsHandler,
             "winner": winnerHandler,
             "error": errorHandler,
             "left-room": leftRoomHandler,
+            "left_room": leftRoomHandler,
             "table-state": tableStateHandler,
+            "table_state": tableStateHandler,
             "game-started": startGameHandler,
+            "game_started": startGameHandler,
             "showdown": showdownHandler,
             "connection": connection
         };
@@ -1136,7 +1159,12 @@
 
         function onActionClick(actionType, amount = null) {
             console.log(`Action Executed: ${actionType}`, amount ? `Amount: ${amount}` : '');
-            let payload = {
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+                console.warn("A connected room is required to perform a game action.");
+                return;
+            }
+
+            const payload = {
                     type: "game-action",
                     params: {
                         action: actionType,
