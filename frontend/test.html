@@ -302,6 +302,7 @@
             aria-label="Room code">
         <button type="button" id="join-room-button" class="join-room-button">JOIN ROOM</button>
         <button type="button" id="leave-room-button" class="join-room-button leave-room-button">LEAVE ROOM</button>
+        <button type="button" id="start-game-button" class="join-room-button">START GAME</button>
     </div>
 
     <div class="poker-table-container">
@@ -773,6 +774,7 @@
         }
 
         function turnStartHandler(params) {
+            //TODO Add timeout Function
             if (!checkNoNullParams(params)) {
                 return "Error turnStartHandler have null or undefined key value";
             }
@@ -789,7 +791,7 @@
             const action = params.action;
             const clientId = params.clientId;
             const amount = Number(params.amount ?? 0);
-            const timedOut = Boolean(params.timed_out);
+            const timedOut = Boolean(params.timed_out); 
 
             currentTurnTotalBet = Number(params.currentBet ?? currentTurnTotalBet);
 
@@ -883,7 +885,7 @@
         }
 
         function errorHandler(errorMessage) {
-            return `Server sent error: ${errorMessage}`;
+            return `Server sent error: ${errorMessage || ":3 default error"}`;
         }
 
         function leftRoomHandler(params) {
@@ -1098,9 +1100,21 @@
             }));
         }
 
+        function startGame() {
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+                console.warn("A connected room is required to start the game.");
+                return;
+            }
+
+            socket.send(JSON.stringify({
+                type: "start-game"
+            }));
+        }
+
         // Event Listeners
         document.getElementById("join-room-button").addEventListener("click", joinRoom);
         document.getElementById("leave-room-button").addEventListener("click", leaveRoom);
+        document.getElementById("start-game-button").addEventListener("click", startGame);
 
         document.getElementById('btn-fold').addEventListener('click', () => onActionClick('FOLD'));
         document.getElementById('btn-check').addEventListener('click', () => onActionClick('CHECK'));
