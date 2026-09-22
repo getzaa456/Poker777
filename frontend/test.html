@@ -376,6 +376,7 @@
         let gameStarted = false;
         let roomId = null;
         let roomName = null;
+        let hostId = null;
         let playerNum = null;
         let maxPlayer = null;
         let currentPlayers = [];
@@ -384,6 +385,7 @@
         let currentTurnPlayer = null;
         let token = localStorage.getItem("poker777_token");
         let communityCards = [];
+        let turnDeadline = null;
 
         // DOM generation
 
@@ -399,7 +401,9 @@
                         <span class="player-chips" id="p${playerNumber}-chips"></span>
                     </div>
                 </div>
-                <div class="hole-cards" id="p${playerNumber}-hole-cards"></div>
+                <div class="hole-cards" id="p${playerNumber}-hole-cards">
+                    <div class="showdown-cards" id="p${playerNumber}-showdown-cards"></div>
+                </div>
             `;
             return playerSection;
         }
@@ -470,22 +474,43 @@
             return isValid;
         }
 
-        function playerConstructor(clientId, seats, username, chips, holeCards, status) {
+        function playerConstructor(clientId, seats, username, chips, holeCards, status, avatarUrl = null) {
             return {
                 clientId: clientId,
-                seat: seat, //Seat Number
+                seat: seats,
                 username: username,
-                chips: chips, //Total chips in game
-                bettedChips: 0, //bettedChips each Round
+                chips: chips,
+                bettedChips: 0,
                 holeCards: holeCards,
-                status: status, // "playing" | "folded"
-                avatarUrl: avatar_id
+                status: status,
+                avatarUrl: avatarUrl
             };
         }
 
-        function updatePlayer(player, attributes){
-            //TODO Later update player attributes
+        function setPlayerObjectAttributes(player, attributes){
+            if (!player || !attributes) {
+                return player;
+            }
 
+            const playerAttributeNames = [
+                'clientId',
+                'seat',
+                'username',
+                'chips',
+                'bettedChips',
+                'holeCards',
+                'status',
+                'avatarUrl'
+            ];
+
+            playerAttributeNames.forEach((attributeName) => {
+                if (Object.prototype.hasOwnProperty.call(attributes, attributeName)
+                    && attributes[attributeName] !== undefined) {
+                    player[attributeName] = attributes[attributeName];
+                }
+            });
+
+            return player;
         }
         // ---------------- Update dom function ---------------
 
@@ -497,14 +522,20 @@
                 const nameEl = document.getElementById(`p${index + 1}-name`);
                 const chipsEl = document.getElementById(`p${index + 1}-chips`);
 
-                if (avatarEl && player.avatarUrl) {
-                    avatarEl.innerHTML = `<img src="${player.avatarUrl}" alt="Avatar">`;
+                if (avatarEl) {
+                    avatarEl.replaceChildren();
+                    if (player.avatarUrl) {
+                        const avatarImage = document.createElement('img');
+                        avatarImage.src = player.avatarUrl;
+                        avatarImage.alt = 'Avatar';
+                        avatarEl.appendChild(avatarImage);
+                    }
                 }
                 if (nameEl) {
                     nameEl.innerText = player.username || player.clientId;
                 }
                 if (chipsEl) {
-                    chipsEl.innerText = player.money ?? 0;
+                    chipsEl.innerText = player.chips ?? 0;
                 }
             });
         }
@@ -573,7 +604,96 @@
         }
 
         function updateCards() {
-            // TODO MARK
+            const communityCardsContainer = document.getElementById('community-cards');
+            if (!communityCardsContainer) {
+                return;
+            }
+
+            communityCards.forEach((card, index) => {
+                const rankCode = String(card.rank).toUpperCase();
+                const suitCode = String(card.suit).toUpperCase();
+                const rank = rankCode === 'T' ? '10' : rankCode;
+                const suit = {
+                    H: '♥',
+                    D: '♦',
+                    C: '♣',
+                    S: '♠'
+                }[suitCode] || suitCode;
+                let cardElement = communityCardsContainer.children[index];
+
+                if (!cardElement || cardElement.tagName !== 'SPAN') {
+                    cardElement = document.createElement('span');
+                    cardElement.style.display = 'inline-flex';
+                    cardElement.style.alignItems = 'center';
+                    cardElement.style.justifyContent = 'center';
+                    cardElement.style.minWidth = '42px';
+                    cardElement.style.height = '60px';
+                    cardElement.style.padding = '6px';
+                    cardElement.style.borderRadius = '6px';
+                    cardElement.style.backgroundColor = '#ffffff';
+                    cardElement.style.color = '#111111';
+                    cardElement.style.fontSize = '22px';
+                    cardElement.style.fontWeight = 'bold';
+                    communityCardsContainer.children[index]?.replaceWith(cardElement);
+                    if (!cardElement.isConnected) {
+                        communityCardsContainer.appendChild(cardElement);
+                    }
+                }
+
+                cardElement.textContent = `${rank}${suit}`;
+                cardElement.style.color = suit === '♥' || suit === '♦' ? '#d94c5d' : '#111111';
+                cardElement.setAttribute('aria-label', `${rank} of ${suitCode}`);
+            });
+
+            while (communityCardsContainer.children.length > communityCards.length) {
+                communityCardsContainer.lastElementChild.remove();
+            }
+        }
+
+        function showdown() {
+            currentPlayers.forEach((player, index) => {
+                const cardsContainer = document.getElementById(`p${index + 1}-showdown-cards`);
+                if (!cardsContainer) {
+                    return;
+                }
+
+                cardsContainer.replaceChildren();
+
+                if (String(player.status || '').toLowerCase() === 'folded') {
+                    return;
+                }
+
+                const holeCards = Array.isArray(player.holeCards)
+                    ? player.holeCards
+                    : [];
+
+                holeCards.forEach((card) => {
+                    if (!card || card.rank == null || card.suit == null) {
+                        return;
+                    }
+
+                    const rank = String(card.rank).toUpperCase() === 'T'
+                        ? '10'
+                        : String(card.rank).toUpperCase();
+                    const suitCode = String(card.suit).toUpperCase();
+                    const suit = {
+                        H: '♥',
+                        D: '♦',
+                        C: '♣',
+                        S: '♠'
+                    }[suitCode] || suitCode;
+                    const cardElement = document.createElement('span');
+
+                    cardElement.textContent = `${rank}${suit}`;
+                    cardElement.setAttribute('aria-label', `${rank} of ${suitCode}`);
+                    cardElement.style.color = suit === '♥' || suit === '♦'
+                        ? '#d94c5d'
+                        : '#111111';
+                    cardElement.style.fontWeight = 'bold';
+                    cardElement.style.fontSize = '18px';
+                    cardsContainer.appendChild(cardElement);
+                });
+            });
         }
 
         //------------- callback functions for websocket -------------
@@ -588,9 +708,16 @@
             playerNum = params.playerNum;
             maxPlayer = params.maxPlayer;
             currentPlayers = [];
-            params.currentPlayers.forEach( (player) => {
-                ////TODO Fix playerConstructor here
-                let playerObject = playerConstructor(player.clientId, player.username, player.money)
+            params.currentPlayers.forEach((player) => {
+                const playerObject = playerConstructor(
+                    player.clientId ?? player.client_id,
+                    player.seat,
+                    player.username,
+                    player.chips ?? player.money,
+                    player.holeCards ?? player.hole_cards,
+                    player.status,
+                    player.avatarUrl ?? player.avatar_id
+                );
                 currentPlayers.push(playerObject);
             });
             currentTurnPlayer = null;
@@ -619,9 +746,16 @@
             }
 
             currentPlayers = [];
-            params.currentPlayers.forEach( (player) => {
-                //TODO Fix playerConstructor here
-                let playerObject = playerConstructor(player.clientId, player.username, player.money);
+            params.currentPlayers.forEach((player) => {
+                const playerObject = playerConstructor(
+                    player.clientId ?? player.client_id,
+                    player.seat,
+                    player.username,
+                    player.chips ?? player.money,
+                    player.holeCards ?? player.hole_cards,
+                    player.status,
+                    player.avatarUrl ?? player.avatar_id
+                );
                 currentPlayers.push(playerObject);
             });
 
@@ -652,23 +786,25 @@
         }
 
         function gameActionHandler(params) {
-            if (!checkNoNullParams(params)) {
+            if (!params || typeof params !== 'object') {
                 return "Error gameActionHandler have null or undefined key value";
             }
 
             const action = params.action;
             const clientId = params.clientId;
             const amount = Number(params.amount ?? 0);
-            // const timedOut = Boolean(params.timed_out);
+            const timedOut = Boolean(params.timed_out);
 
-            currentTurnTotalBet = Number(params.currentBet);
+            currentTurnTotalBet = Number(params.currentBet ?? currentTurnTotalBet);
 
             const player = currentPlayers.find(player => player.clientId == clientId);
+            if (!player) {
+                return `Player ${clientId} was not found`;
+            }
 
-            let tempPotAmount = pot;
             if (action == "BET") {
                 currentTurnTotalBet = amount;
-                player.money -= amount;
+                player.chips -= amount;
                 player.bettedChips = amount
             }
             else if (action == "CHECK"){
@@ -676,13 +812,16 @@
             }
             else if (action == "RAISE") {
                 currentTurnTotalBet = amount;
-                player.money -= currentTurnTotalBet - player.bettedChips;
+                player.chips -= currentTurnTotalBet - player.bettedChips;
                 player.bettedChips = amount;
             }
             else if (action == "CALL") {
                 currentTurnTotalBet = amount;
-                player.money -= currentTurnTotalBet - player.bettedChips;
+                player.chips -= currentTurnTotalBet - player.bettedChips;
                 player.bettedChips = amount;
+            }
+            else if (action == "FOLD") {
+                player.status = "FOLDED";
             }
             else {
                 console.log("Unknown game action : " + action);
@@ -714,25 +853,47 @@
 
         function winnerHandler(params) {
             // show winner and update players money
-            if (!checkNoNullParams(params)) {
+            if (!params || typeof params !== 'object') {
                 return "Error winnerHandler have null or undefined key value";
             }
             const winnerId = params.winnerId;
             const currentMoney = params.current_money;
-            currentMoney.forEach((client) => {
-                const player = currentPlayers.find((player) => player.clientId == client.clientId);
-                player.chips = Number(client.money);
-                player.bettedChips = 0;
-                player.holeCards = [];
-                player.status = "";
-            })
+
+            if (Array.isArray(currentMoney)) {
+                currentMoney.forEach((client) => {
+                    const player = currentPlayers.find((item) =>
+                        String(item.clientId) === String(client.clientId)
+                    );
+                    if (player) {
+                        player.chips = Number(client.money ?? client.chips);
+                        player.bettedChips = 0;
+                        player.holeCards = [];
+                        player.status = "";
+                    }
+                });
+            } else {
+                const winner = currentPlayers.find((player) =>
+                    String(player.clientId) === String(winnerId)
+                );
+                if (winner && Number.isFinite(Number(currentMoney))) {
+                    winner.chips = Number(currentMoney);
+                    winner.bettedChips = 0;
+                }
+            }
+
             updatePlayers();
             generateWinnerNotification(winnerId);
             return;
         }
 
+        function errorHandler(errorMessage) {
+            return `Server sent error: ${errorMessage}`;
+        }
 
         function leftRoomHandler(params) {
+            if (!checkNoNullParams(params)) {
+                return "Error leftRoomHandler have null or undefined key value";
+            }
             const leavingClientId = params.clientId;
             const leavingPlayerNum = params.playerNum ?? currentPlayers.length;
             const remainingPlayers = params.currentPlayers || [];
@@ -776,8 +937,71 @@
             return `[left-room] ${leavingClientId} left the room`;
         }
 
+        function tableStateHandler(params) {
+            if (!params || typeof params !== 'object') {
+                return "Error tableStateHandler have null or undefined key value";
+            }
+            roomId = params.room_code
+            roomName = params.room_name;
+            playerNum = params.player_count;
+            maxPlayer = params.max_players;
+            hostId = params.host_id;
+            currentTurnPlayer = params.current_turn;
+            turnDeadline = params.turn_deadline;
+            pot = params.pot;
+            currentTurnTotalBet = params.current_bet;
+            communityCards = Array.isArray(params.community_cards)
+                ? params.community_cards
+                : [];
+            const playerToBeAdded = [];
+            params.players.forEach((paramplayer) => {
+                const selectedPlayer = currentPlayers.find((player) =>
+                    String(player.clientId) === String(paramplayer.client_id)
+                );
+                if (selectedPlayer === undefined) {
+                    const newPlayer = playerConstructor(
+                        paramplayer.client_id,
+                        paramplayer.seat,
+                        paramplayer.username,
+                        paramplayer.chips,
+                        paramplayer.hole_cards,
+                        paramplayer.status,
+                        paramplayer.avatar_id
+                    );
+                    playerToBeAdded.push(newPlayer);
+                }
+                else {
+                    const attributes = {
+                        clientId: paramplayer.client_id,
+                        avatarUrl: paramplayer.avatar_id, 
+                        seat: paramplayer.seat,
+                        username: paramplayer.username,
+                        chips: paramplayer.chips,
+                        holeCards: paramplayer.hole_cards,
+                        status: paramplayer.status
+                    };
+                    setPlayerObjectAttributes(selectedPlayer, attributes)
+                }
+            });
+            playerToBeAdded.forEach((player) => currentPlayers.push(player));
+
+            updatePlayers();
+            updateActionButtonsState();
+            updateCards();
+            updatePot();
+            updateGameStatusBar();
+        }
+
+        function showdownHandler(params) {
+            if (!params || typeof params !== 'object') {
+                return "Error showdownHandler received invalid parameters";
+            }
+            tableStateHandler(params);
+            showdown();
+        }
+
         function connection(params) {
-            return `[connection] ${params.message}`;
+            return `[connection] ${params}`;
         }
 
         // ✅ แก้ไข 3: อ้างอิงฟังก์ชันตรงๆ โดยไม่ใช้ () =>
@@ -791,11 +1015,11 @@
             "deal-flop": dealCardsHandler, //TODO fix here
             "deal-turn": dealCardsHandler,
             "winner": winnerHandler,
-            "error": () => "Not implemented6",
+            "error": errorHandler,
             "left-room": leftRoomHandler,
-            "table-state": () => "Not implemented8",
+            "table-state": tableStateHandler,
             "game-started": startGameHandler,
-            "showdown": () => "Not implemented10",
+            "showdown": showdownHandler,
             "connection": connection
         };
 
@@ -816,6 +1040,8 @@
             }
         }
 
+
+        // Buttons callback Function
         function joinRoom() {
             const roomCode = document.getElementById("room-code-input").value.trim();
             const clientId = user?.id;
@@ -867,10 +1093,10 @@
             }));
         }
 
+        // Event Listeners
         document.getElementById("join-room-button").addEventListener("click", joinRoom);
         document.getElementById("leave-room-button").addEventListener("click", leaveRoom);
 
-        // Event Listeners
         document.getElementById('btn-fold').addEventListener('click', () => onActionClick('FOLD'));
         document.getElementById('btn-check').addEventListener('click', () => onActionClick('CHECK'));
         document.getElementById('btn-call').addEventListener('click', () => {
@@ -891,7 +1117,7 @@
 
         function onActionClick(actionType, amount = null) {
             console.log(`Action Executed: ${actionType}`, amount ? `Amount: ${amount}` : '');
-            payload = {
+            let payload = {
                     type: "game-action",
                     params: {
                         action: actionType,
@@ -913,66 +1139,6 @@
             document.getElementById('raise-amount').textContent = currentBet;
         }
 
-        function setTableData(data = {}) {
-            const textMappings = {
-                pot: 'pot-display',
-                betValue: 'bet-value',
-                callAmount: 'call-amount',
-                betAmount: 'bet-amount-text',
-                raiseAmount: 'raise-amount',
-                seatNumber: 'seat-number-display',
-                currentTurn: 'current-turn-display',
-                playerStatus: 'player-status-display',
-                p1Name: 'p1-name', p1Chips: 'p1-chips',
-                p2Name: 'p2-name', p2Chips: 'p2-chips',
-                p3Name: 'p3-name', p3Chips: 'p3-chips',
-                p4Name: 'p4-name', p4Chips: 'p4-chips'
-            };
-
-            Object.entries(textMappings).forEach(([key, elementId]) => {
-                const el = document.getElementById(elementId);
-                if (data[key] !== undefined && el) {
-                    el.textContent = data[key];
-                }
-            });
-
-            if (data.betValue !== undefined) {
-                currentBet = Number(data.betValue);
-            }
-
-            const avatars = {
-                p1AvatarUrl: 'p1-avatar-container',
-                p2AvatarUrl: 'p2-avatar-container',
-                p3AvatarUrl: 'p3-avatar-container',
-                p4AvatarUrl: 'p4-avatar-container'
-            };
-
-            Object.entries(avatars).forEach(([key, containerId]) => {
-                if (data[key]) {
-                    const el = document.getElementById(containerId);
-                    if (el) el.innerHTML = `<img src="${data[key]}" alt="Avatar">`;
-                }
-            });
-
-            const cardMappings = {
-                communityCards: 'community-cards',
-                p1HoleCards: 'p1-hole-cards',
-                p2HoleCards: 'p2-hole-cards',
-                p3HoleCards: 'p3-hole-cards',
-                p4HoleCards: 'p4-hole-cards'
-            };
-
-            Object.entries(cardMappings).forEach(([key, containerId]) => {
-                if (data[key] && Array.isArray(data[key])) {
-                    const el = document.getElementById(containerId);
-                    if (el) {
-                        el.innerHTML = data[key]
-                            .map(cardFile => `<img src="images/cards/${cardFile}" alt="Card" style="height: 100%;">`)
-                            .join('');
-                    }
-                }
-            });
-        }
     </script>
 </body>
 
