@@ -162,10 +162,11 @@ export async function adjustWallet(userId, amount, refId, note = '') {
  * Sync ยอดชิปล่าสุดจาก Redis ลง DB หลังจบเกม
  * คำนวณจากกำไร/ขาดทุนสุทธิ (Net Profit/Loss)
  * @param {string} roomCode 
+ * @param {string|number} roundId
  * @param {Object} playerChipsMap { userId: finalChips }
  * @param {Object} playerBuyInsMap { userId: initialBuyIn }
  */
-export async function syncPlayerBalances(roomCode, playerChipsMap, playerBuyInsMap = {}) {
+export async function syncPlayerBalances(roomCode, roundId, playerChipsMap, playerBuyInsMap = {}) {
   for (const [userId, finalChips] of Object.entries(playerChipsMap)) {
     try {
       const initialBuyIn = Number(playerBuyInsMap[userId]) || 0;
@@ -176,8 +177,9 @@ export async function syncPlayerBalances(roomCode, playerChipsMap, playerBuyInsM
       // ถ้ายอดไม่มีการเปลี่ยนแปลง ข้ามไป
       if (diff === 0) continue;
 
-      const refId = `SETTLE_${roomCode}_${Date.now()}_${userId}`;
-      const note = `Showdown settlement for room ${roomCode} (Net: ${diff})`;
+      // [แก้ไข]: ใช้ roundId เพื่อรักษากฎ Idempotency
+      const refId = `SETTLE_${roomCode}_${roundId}_${userId}`;
+      const note = `Showdown settlement for room ${roomCode} round ${roundId} (Net: ${diff})`;
 
       // เรียกปรับยอดใน DB ด้วยส่วนต่างกำไร/ขาดทุน
       await adjustWallet(userId, diff, refId, note);
