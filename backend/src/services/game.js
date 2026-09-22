@@ -150,3 +150,39 @@ export function handName(category) {
   ];
   return names[category] || 'Unknown';
 }
+
+/**
+ * ฟังก์ชันหาผู้ชนะจากรายการผู้เล่นและไพ่กองกลาง
+ * @param {Array<{ clientId: string, holeCards: Array<string> }>} players 
+ * @param {Array<string>} communityCards 
+ */
+export function findWinners(players, communityCards) {
+  if (!players || players.length === 0) return { winners: [], handTitle: '' };
+
+  let winners = [];
+  let bestScore = null;
+
+  for (const player of players) {
+    const playerCards = player.holeCards || [];
+    const all7Cards = [...playerCards, ...communityCards];
+    const score = handScore(all7Cards);
+
+    if (!bestScore) {
+      bestScore = score;
+      winners = [{ ...player, score }];
+    } else {
+      const cmp = compareScores(score, bestScore);
+      if (cmp > 0) {
+        bestScore = score;
+        winners = [{ ...player, score }];
+      } else if (cmp === 0) {
+        winners.push({ ...player, score });
+      }
+    }
+  }
+
+  return {
+    winners,
+    handTitle: handName(bestScore ? bestScore.category : 0)
+  };
+}

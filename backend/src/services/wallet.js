@@ -112,9 +112,6 @@ export async function adjustWallet(userId, amount, refId, note = '') {
     }
 
     // 2. Check idempotency AFTER acquiring wallet lock
-    //    This ensures that two parallel requests with the same ref_id
-    //    serialize through the wallet lock — the second one sees the
-    //    transaction already committed by the first.
     const [existing] = await conn.query(
       `SELECT balance_after, amount FROM transactions WHERE ref_id = :refId LIMIT 1`,
       { refId }
@@ -159,4 +156,35 @@ export async function adjustWallet(userId, amount, refId, note = '') {
 
     return { balance: balanceAfter, amount, type: txType, idempotent: false };
   });
+}
+
+/**
+ * Sync ยอดชิปล่าสุดจาก Redis ลง DB หลังจบเกม
+ * คำนวณจากกำไร/ขาดทุนสุทธิ (Net Profit/Loss)
+ * @param {string} roomCode 
+ * @param {Object} playerChipsMap { userId: finalChips }
+ * @param {Object} playerBuyInsMap { userId: initialBuyIn }
+ */
+export async function syncPlayerBalances(roomCode, playerChipsMap, playerBuyInsMap = {}) {
+  for (const [userId, finalChips] of Object.entries(playerChipsMap)) {
+    try {
+      const initialBuyIn = Number(playerBuyInsMap[userId]) || 0;
+      
+      // คำนวณส่วนต่างกำไร (+)/ขาดทุน (-)
+      const diff = finalChips - initialBuyIn;
+
+      // ถ้ายอดไม่มีการเปลี่ยนแปลง ข้ามไป
+      if (diff === 0) continue;
+
+      const refId = `SETTLE_${roomCode}_${Date.now()}_${userId}`;
+      const note = `Showdown settlement for room ${roomCode} (Net: ${diff})`;
+
+      // เรียกปรับยอดใน DB ด้วยส่วนต่างกำไร/ขาดทุน
+      await adjustWallet(userId, diff, refId, note);
+
+      console.log(`[DB Sync Success] User ${userId} net change: ${diff} (Final: ${finalChips})`);
+    } catch (err) {
+      console.error(`[DB Sync Error] Failed for user ${userId}:`, err.message);
+    }
+  }
 }
