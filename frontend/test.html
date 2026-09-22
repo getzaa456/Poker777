@@ -422,7 +422,7 @@
             if (!params) return false;
             let isValid = true;
             Object.keys(params).forEach((key) => {
-                if (params[key] == null) {
+                if (params[key] === null || params[key] === undefined) {
                     isValid = false;
                 }
             });
@@ -656,8 +656,17 @@
             };
         }
 
-        function dealCardsHandler() {
+        function dealCardsHandler(params) {
+            if (!checkNoNullParams(params)) {
+                return "Error gameActionHandler have null or undefined key value";
+            }
+            // Deal the community card that is send from the server and display on ther table
+            params.card.forEach((card) => communityCards.push(card));
+            return `${params.card} community card delt`;
+        }
 
+        function winnerHandler(params) {
+            
         }
 
         function leftRoomHandler(params) {
@@ -716,8 +725,8 @@
             "start-game": startGameHandler,
             "turn-start": turnStartHandler,
             "game-action": gameActionHandler,
-            "deal-flop": () => dealCardsHandler(3), //TODO fix here
-            "deal-turn": () => "Not implemented4",
+            "deal-flop": dealCardsHandler, //TODO fix here
+            "deal-turn": dealCardsHandler,
             "winner": () => "Not implemented5",
             "error": () => "Not implemented6",
             "left-room": leftRoomHandler,
