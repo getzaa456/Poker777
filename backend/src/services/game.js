@@ -15,7 +15,15 @@ export function createShuffledDeck() {
 }
 
 export function parseCard(cardStr) {
-    if (!cardStr || cardStr.length < 2) return null;
+    if (cardStr && typeof cardStr === 'object'
+        && cardStr.rank != null && cardStr.suit != null) {
+        return {
+            rank: String(cardStr.rank).toUpperCase(),
+            suit: String(cardStr.suit).toUpperCase(),
+        };
+    }
+
+    if (typeof cardStr !== 'string' || cardStr.length < 2) return null;
     return {
         rank: cardStr.slice(0, -1).toUpperCase(),
         suit: cardStr.slice(-1).toUpperCase(),

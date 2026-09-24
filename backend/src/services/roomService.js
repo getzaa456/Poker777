@@ -1,5 +1,6 @@
-import { redisState } from '../config/redisClient.js';
+import { redisState , redisPub} from '../config/redisClient.js';
 
+const CHANNEL = 'poker:events';
 // 1. บันทึก/แก้ไขข้อมูลห้องแบบ Hash (HSET)
 export async function updateRoom(roomId, fields) {
   await redisState.hset(`room:${roomId}`, fields);

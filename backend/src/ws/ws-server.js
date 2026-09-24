@@ -25,6 +25,7 @@ import {
   findWinners
 } from '../services/game.js';
 import { syncPlayerBalances } from '../services/wallet.js';
+import { pool } from '../config/db.js';
 
 
 export const wss = new WebSocketServer({ noServer: true });
@@ -240,6 +241,16 @@ redisSub.on('message', (channel, message) => {
           // กรณีเปิดไพ่จบมือ (Showdown) - ส่งไพ่ของทุกคนให้เห็นครบ ไม่ต้องซ่อน
           case 'showdown': {
             const payload = formatTablePayload('showdown', room, holeCardsMap || {});
+            payload.params.winnerId = winnerId || null;
+            payload.params.winnerIds = Array.isArray(data.winnerIds) ? data.winnerIds : [];
+            payload.params.winningHand = data.winningHand || room?.winningHand || null;
+            payload.params.splitPot = Boolean(data.splitPot);
+            client.send(JSON.stringify(payload));
+            break;
+          }
+
+          case 'tournament_finished': {
+            const payload = formatTablePayload('tournament_finished', room, holeCardsMap || {});
             client.send(JSON.stringify(payload));
             break;
           }
@@ -356,15 +367,15 @@ async function handleLeaveRoom(ws) {
       const updatedSeats = (await getRoomSeats(roomCode)) || {};
       const remainingPlayerIds = Object.values(updatedSeats);
       const roomUpdates = {};
+      let roomDeleted = false;
 
       const isGameRunning = room.status === 'PLAYING' || room.status === 'RUNNING' || room.status === 'IN_PROGRESS';
 
       if (remainingPlayerIds.length === 0) {
         // 1. กรณีไม่มีคนเหลือในห้องเลย
         clearTurnTimer(roomCode);
-        await resetRoundState(roomCode);
-        roomUpdates.status = 'OPEN';
-        roomUpdates.hostId = '';
+        await deleteRoom(roomCode);
+        roomDeleted = true;
       } else if (remainingPlayerIds.length < 2) {
         // 2. กรณีเหลือผู้เล่นคนเดียวในห้อง
         clearTurnTimer(roomCode);
@@ -440,7 +451,7 @@ async function handleLeaveRoom(ws) {
         }
       }
 
-      if (Object.keys(roomUpdates).length > 0) {
+      if (!roomDeleted && Object.keys(roomUpdates).length > 0) {
         await updateRoom(roomCode, roomUpdates);
       }
 
@@ -457,15 +468,17 @@ async function handleLeaveRoom(ws) {
         }
       }
 
-      await redisPub.publish(
-        CHANNEL,
-        JSON.stringify({
-          eventType: 'player_left',
-          roomCode,
-          clientId,
-          currentPlayers,
-        })
-      );
+      if (!roomDeleted) {
+        await redisPub.publish(
+          CHANNEL,
+          JSON.stringify({
+            eventType: 'player_left',
+            roomCode,
+            clientId,
+            currentPlayers,
+          })
+        );
+      }
     });
   } catch (err) {
     console.error('Leave room error:', err);
@@ -673,7 +686,20 @@ wss.on('connection', (ws) => {
           }
 
           const seats = await getRoomSeats(roomCode);
-          const playerIds = seats ? Object.values(seats).filter(Boolean) : [];
+          const seatedPlayerIds = seats ? Object.values(seats).filter(Boolean) : [];
+          const playerIds = [];
+
+          for (const pid of seatedPlayerIds) {
+            const player = await getPlayer(roomCode, pid);
+            if (player && Number(player.chips) > 0) {
+              playerIds.push(pid);
+            }
+          }
+
+          if (playerIds.length === 1) {
+            await handleTournamentFinish(roomCode, playerIds[0]);
+            return;
+          }
 
           if (playerIds.length < 2) {
             return ws.send(
@@ -700,14 +726,13 @@ wss.on('connection', (ws) => {
           }
           await redisState.del(`room:${roomCode}:acted_players`);
 
-          const minBet = Number(room.minBet) || 0;
           const turnDeadline = Date.now() + TURN_TIMEOUT_MS;
 
           const roomUpdates = {
             status: 'IN_PROGRESS',
             phase: 'PREFLOP',
             pot: 0,
-            currentBet: minBet,
+            currentBet: 0,
             currentTurn: playerIds[0],
             turnDeadline: turnDeadline,
             communityCards: JSON.stringify([]),
@@ -759,15 +784,19 @@ wss.on('connection', (ws) => {
               return ws.send(JSON.stringify({ type: 'error', error: 'Not your turn' }));
             }
 
-            // เคลียร์ Timer เดิมออกทันที
-            clearTurnTimer(roomCode);
-
             const playerBet = await getPlayerBet(roomCode, clientId);
+            const roomCurrentBet = Number(room.currentBet) || 0;
             let chipsToPut = 0;
 
             switch (upperAction) {
               case 'BET':
                 chipsToPut = Number(amount) || 0;
+                if (chipsToPut <= 0 || playerBet > 0) {
+                  return ws.send(JSON.stringify({ type: 'error', error: 'Bet must be positive and made before betting' }));
+                }
+                if (Number(player.chips) < chipsToPut) {
+                  return ws.send(JSON.stringify({ type: 'error', error: 'Insufficient balance' }));
+                }
                 await updateRoom(roomCode, { currentBet: chipsToPut });
                 break;
               case 'RAISE': {
@@ -776,15 +805,24 @@ wss.on('connection', (ws) => {
                   return ws.send(JSON.stringify({ type: 'error', error: 'Raise must be higher than current bet' }));
                 }
                 chipsToPut = newBetAmount - playerBet;
+                if (Number(player.chips) < chipsToPut) {
+                  return ws.send(JSON.stringify({ type: 'error', error: 'Insufficient balance' }));
+                }
                 await updateRoom(roomCode, { currentBet: newBetAmount });
                 break;
               }
               case 'CALL': {
-                const maxToCall = (Number(room.currentBet) || 0) - playerBet;
+                const maxToCall = roomCurrentBet - playerBet;
+                if (maxToCall <= 0) {
+                  return ws.send(JSON.stringify({ type: 'error', error: 'Nothing to call; use CHECK' }));
+                }
                 chipsToPut = Math.min(Number(player.chips) || 0, Math.max(0, maxToCall));
                 break;
               }
               case 'CHECK':
+                if (playerBet !== roomCurrentBet) {
+                  return ws.send(JSON.stringify({ type: 'error', error: 'You must CALL or FOLD' }));
+                }
                 chipsToPut = 0;
                 break;
               case 'FOLD':
@@ -794,6 +832,8 @@ wss.on('connection', (ws) => {
               default:
                 return ws.send(JSON.stringify({ type: 'error', error: 'Invalid game action' }));
             }
+
+              clearTurnTimer(roomCode);
 
             if (chipsToPut > 0) {
               if (player.chips < chipsToPut) {
@@ -995,6 +1035,25 @@ function clearTurnTimer(roomCode) {
   }
 }
 
+async function deleteRoom(roomCode) {
+  const keys = [];
+  let cursor = '0';
+  const pattern = `room:${roomCode}:*`;
+
+  do {
+    const result = await redisState.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+    cursor = result[0];
+    keys.push(...result[1]);
+  } while (cursor !== '0');
+
+  keys.push(`room:${roomCode}`);
+  if (keys.length > 0) {
+    await redisState.del(...keys);
+  }
+
+  await pool.query('DELETE FROM tables WHERE room_code = :roomCode', { roomCode });
+}
+
 // [เพิ่มแก้ไข]: ฟังก์ชันจัดการคนชนะเมื่อหมอบหมดจนเหลือคนเดียว พร้อม Sync DB
 async function handleEarlyFinishGame(roomCode, winnerId) {
   clearTurnTimer(roomCode);
@@ -1022,6 +1081,45 @@ async function handleEarlyFinishGame(roomCode, winnerId) {
   );
 }
 
+async function handleTournamentFinish(roomCode, winnerId) {
+  clearTurnTimer(roomCode);
+
+  const winner = await getPlayer(roomCode, winnerId);
+  const seats = await getRoomSeats(roomCode);
+  const playerIds = seats ? Object.values(seats).filter(Boolean) : [];
+  const players = {};
+
+  for (const pid of playerIds) {
+    const player = await getPlayer(roomCode, pid);
+    if (player) players[pid] = player;
+  }
+
+  await updateRoom(roomCode, {
+    status: 'TOURNAMENT_FINISHED',
+    phase: 'FINISHED',
+    currentTurn: null,
+    turnDeadline: null,
+    winner: winnerId,
+    winnerName: winner?.username || '',
+    pot: 0,
+    currentBet: 0,
+  });
+
+  await redisPub.publish(
+    CHANNEL,
+    JSON.stringify({
+      eventType: 'tournament_finished',
+      roomCode,
+      room: {
+        ...(await getRoom(roomCode)),
+        players,
+      },
+      winnerId,
+      currentMoney: Number(winner?.chips) || 0,
+    })
+  );
+}
+
 // ฟังก์ชันตรวจสอบและเปลี่ยน Phase การเล่น (Preflop -> Flop -> Turn -> River -> Showdown)
 async function advancePhaseIfNeeded(roomCode) {
   const room = await getRoom(roomCode);
@@ -1037,14 +1135,41 @@ async function advancePhaseIfNeeded(roomCode) {
     return { isAdvanced: true, isFinished: true };
   }
 
+  const bettingPlayerIds = [];
+  for (const pid of activePlayerIds) {
+    const player = await getPlayer(roomCode, pid);
+    if (player && Number(player.chips) > 0) {
+      bettingPlayerIds.push(pid);
+    }
+  }
+
+  if (bettingPlayerIds.length === 0) {
+    clearTurnTimer(roomCode);
+    const deck = typeof room.deck === 'string' ? JSON.parse(room.deck) : (room.deck || []);
+    const communityCards = typeof room.communityCards === 'string'
+      ? JSON.parse(room.communityCards)
+      : (room.communityCards || []);
+
+    while (communityCards.length < 5 && deck.length > 0) {
+      communityCards.push(deck.pop());
+    }
+
+    await updateRoom(roomCode, {
+      communityCards: JSON.stringify(communityCards),
+      deck: JSON.stringify(deck),
+    });
+    await handleShowdown(roomCode, room, communityCards, activePlayerIds);
+    return { isAdvanced: true, isFinished: true };
+  }
+
   // ตรวจสอบว่าผู้เล่นทุกคนในรอบนี้ได้กระทำ Action แล้วหรือยัง
   const actedPlayers = (await redisState.smembers(`room:${roomCode}:acted_players`)) || [];
-  const allActed = activePlayerIds.every((pid) => actedPlayers.includes(pid));
+  const allActed = bettingPlayerIds.every((pid) => actedPlayers.includes(pid));
   if (!allActed) return { isAdvanced: false, isFinished: false };
 
   // ตรวจสอบว่าทุกคนที่ยังเล่นอยู่ ลงเงินเดิมพันเท่ากับ currentBet หรือยัง (ยกเว้นผู้เล่นที่ All-in)
   let isRoundComplete = true;
-  for (const pid of activePlayerIds) {
+  for (const pid of bettingPlayerIds) {
     const player = await getPlayer(roomCode, pid);
     const bet = await getPlayerBet(roomCode, pid);
     if (player && Number(player.chips) > 0 && Number(bet) !== Number(room.currentBet)) {
@@ -1057,7 +1182,7 @@ async function advancePhaseIfNeeded(roomCode) {
 
   // รีเซ็ตการบันทึก Acted Players และยอด Bet ของผู้เล่นทุกคนเพื่อเตรียมเข้าสู่รอบใหม่
   await redisState.del(`room:${roomCode}:acted_players`);
-  for (const pid of activePlayerIds) {
+  for (const pid of bettingPlayerIds) {
     await setPlayerBet(roomCode, pid, 0);
   }
 
@@ -1099,12 +1224,12 @@ async function advancePhaseIfNeeded(roomCode) {
     currentBet: 0,
     communityCards: JSON.stringify(communityCards),
     deck: JSON.stringify(deck),
-    currentTurn: activePlayerIds[0],
+    currentTurn: bettingPlayerIds[0],
     turnDeadline: turnDeadline
   });
 
   // เริ่ม Timer สำหรับผู้เล่นคนแรกของ Phase ใหม่
-  startTurnTimer(roomCode, activePlayerIds[0]);
+  startTurnTimer(roomCode, bettingPlayerIds[0]);
 
   // คืนค่าไพ่และ nextTurn สำหรับนำไปส่งต่อใน game_action_performed
   return {
@@ -1113,7 +1238,7 @@ async function advancePhaseIfNeeded(roomCode) {
     dealFlop,
     dealTurn,
     dealRiver,
-    nextTurn: activePlayerIds[0],
+    nextTurn: bettingPlayerIds[0],
     turnDeadline,
   };
 }
@@ -1142,12 +1267,15 @@ async function handleShowdown(roomCode, room, communityCards, activePlayerIds) {
   if (winners.length > 0) {
     // คำนวณการแบ่งเงิน Pot (รองรับกรณีไพ่เท่ากัน / Split Pot)
     const splitShare = Math.floor(potAmount / winners.length);
+    let remainder = potAmount % winners.length;
 
     for (const winner of winners) {
       const winnerPlayer = await getPlayer(roomCode, winner.clientId);
       if (winnerPlayer) {
+        const prize = splitShare + (remainder > 0 ? 1 : 0);
+        remainder -= 1;
         await updatePlayer(roomCode, winner.clientId, {
-          chips: Number(winnerPlayer.chips) + splitShare
+          chips: Number(winnerPlayer.chips) + prize
         });
       }
     }
@@ -1155,19 +1283,30 @@ async function handleShowdown(roomCode, room, communityCards, activePlayerIds) {
 
   const primaryWinner = winners[0] ? winners[0].clientId : null;
   const winnerPlayerObj = primaryWinner ? await getPlayer(roomCode, primaryWinner) : null;
+  const seats = await getRoomSeats(roomCode);
+  const allPlayerIds = seats ? Object.values(seats).filter(Boolean) : [];
+  const playersWithChips = [];
 
-  // อัปเดตสถานะห้องจบเกม
+  for (const pid of allPlayerIds) {
+    const player = await getPlayer(roomCode, pid);
+    if (player && Number(player.chips) > 0) {
+      playersWithChips.push(pid);
+    }
+  }
+
+  // จบมือและรอให้ Host เริ่มรอบถัดไป ถ้ายังมีผู้เล่นเหลืออย่างน้อยสองคน
   await updateRoom(roomCode, {
-    status: 'FINISHED',
+    status: playersWithChips.length >= 2 ? 'WAITING' : 'TOURNAMENT_FINISHED',
+    phase: playersWithChips.length >= 2 ? 'WAITING' : 'FINISHED',
     winner: primaryWinner,
     winnerName: winnerPlayerObj ? winnerPlayerObj.username : '',
     winningHand: handTitle,
+    pot: 0,
+    currentBet: 0,
     currentTurn: null,
     turnDeadline: null
   });
 
-  const seats = await getRoomSeats(roomCode);
-  const allPlayerIds = seats ? Object.values(seats).filter(Boolean) : [];
   const playerChipsMap = {};
   // [เพิ่มแก้ไข]: เพิ่ม Object playerBuyInsMap สำหรับเก็บยอด buyIn ตั้งต้น
   const playerBuyInsMap = {};
@@ -1191,6 +1330,14 @@ async function handleShowdown(roomCode, room, communityCards, activePlayerIds) {
 
   // 3. ดึงข้อมูลห้องล่าสุดหลังจากอัปเดตสถานะผู้เล่นทุกคนเรียบร้อยแล้ว
   const updatedRoom = await getRoom(roomCode);
+  const players = {};
+
+  for (const pid of allPlayerIds) {
+    const player = await getPlayer(roomCode, pid);
+    if (player) {
+      players[pid] = player;
+    }
+  }
 
   // 4. เรียกฟังก์ชัน Sync ชิปลง DB
   // [เพิ่มแก้ไข]: ส่ง playerBuyInsMap ในพารามิเตอร์ที่ 3
@@ -1199,14 +1346,22 @@ async function handleShowdown(roomCode, room, communityCards, activePlayerIds) {
     console.error('Error syncing DB balances:', err)
   );
 
-  // ส่ง Event 'showdown' บรอดแคสต์เปิดไพ่ผู้เล่นทุกคน
+  // ส่งผลจบมือหรือจบการแข่งขันให้ client
   await redisPub.publish(
     CHANNEL,
     JSON.stringify({
-      eventType: 'showdown',
+      eventType: playersWithChips.length >= 2 ? 'showdown' : 'tournament_finished',
       roomCode,
-      room: updatedRoom,
-      holeCardsMap
+      room: {
+        ...updatedRoom,
+        players,
+      },
+      holeCardsMap,
+      winnerId: primaryWinner,
+      winnerIds: winners.map((winner) => winner.clientId),
+      winningHand: handTitle,
+      splitPot: winners.length > 1,
+      currentMoney: winnerPlayerObj ? Number(winnerPlayerObj.chips) || 0 : 0,
     })
   );
 

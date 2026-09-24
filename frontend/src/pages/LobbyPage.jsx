@@ -193,12 +193,17 @@ export default function LobbyPage() {
     setJoining(true);
     try {
       const table = await Tables.join(code);
-      navigate(`/poker-table?code=${encodeURIComponent(table.room_code)}`);
+      window.location.assign(`/test.html?code=${encodeURIComponent(table.room_code)}`);
     } catch (error) {
       setJoinError(error.message || 'Failed to join room');
     } finally {
       setJoining(false);
     }
+  }
+
+  function openTestTable(roomCode) {
+    const code = roomCode ? encodeURIComponent(roomCode) : '';
+    window.location.assign(`/test.html${code ? `?code=${code}` : ''}`);
   }
 
   const displayName = user?.display_name || user?.username || 'Loading…';
@@ -310,7 +315,7 @@ export default function LobbyPage() {
           <button className="close-btn" onClick={() => setRoomModalOpen(false)}>✕</button><div className="section-label">◆ Room Created ◆</div>
           <p className="waiting-hint">Share this code with friends so they can join</p><div className="room-code-display">{createdTable.room_code}</div><button className="copy-code-btn" onClick={copyRoomCode}>{copyLabel}</button>
           <div className="waiting-summary"><strong>{createdTable.name}</strong><br />Blinds {fmtChips(createdTable.min_bet)} / {fmtChips(createdTable.max_bet)} &nbsp;•&nbsp; {createdTable.max_seats} seats</div>
-          <div className="waiting-status">Waiting for players…</div><GlassButton className="glass-cta-full glass-cta-cyan" style={{ marginTop: 14 }} onClick={() => navigate(`/poker-table?code=${encodeURIComponent(createdTable.room_code)}`)} label="Enter Table" />
+          <div className="waiting-status">Waiting for players…</div><GlassButton className="glass-cta-full glass-cta-cyan" style={{ marginTop: 14 }} onClick={() => openTestTable(createdTable.room_code)} label="Enter Table" />
         </section>}
       </div>}
 

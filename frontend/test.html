@@ -393,6 +393,38 @@
         let communityCards = [];
         let turnDeadline = null;
 
+        async function refreshAccountBalance() {
+            if (!token) {
+                return Number(user?.balance ?? user?.money ?? user?.chips ?? 0);
+            }
+
+            const apiBase = `${window.location.protocol}//${window.location.hostname}:4000`;
+            const response = await fetch(`${apiBase}/users/me`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+
+            if (!response.ok) {
+                throw new Error('Unable to load the latest account balance.');
+            }
+
+            const data = await response.json();
+            user = data.user || user;
+            localStorage.setItem('poker777_user', JSON.stringify(user));
+            return Number(user?.balance ?? 0);
+        }
+
+        const roomCodeFromUrl = new URLSearchParams(window.location.search).get('code');
+        const roomCodeInput = document.getElementById('room-code-input');
+
+        if (roomCodeFromUrl && roomCodeInput) {
+            roomCodeInput.value = roomCodeFromUrl;
+            window.setTimeout(() => {
+                if (user?.id && token) {
+                    joinRoom();
+                }
+            }, 150);
+        }
+
         // DOM generation
 
         function generatePlayerDiv(playerNumber) {
@@ -544,6 +576,8 @@
                     chipsEl.innerText = player.chips ?? 0;
                 }
             });
+
+            showdown();
         }
 
         function updateGameStatusBar() {
@@ -590,6 +624,17 @@
             ].filter(Boolean);
 
             const isMyTurn = Boolean(gameStarted && currentTurnPlayer && String(currentTurnPlayer) === String(user?.id));
+            const currentPlayer = currentPlayers.find((player) =>
+                String(player.clientId) === String(user?.id)
+            );
+            const playerBet = Number(currentPlayer?.bettedChips) || 0;
+            const callAmount = Math.max(0, Number(currentTurnTotalBet) - playerBet);
+
+            const betAmount = currentTurnTotalBet > 0 ? currentTurnTotalBet : currentBet;
+            const raiseAmount = Math.max(betAmount + stepAmount, currentBet + stepAmount);
+            document.getElementById('call-amount').textContent = callAmount;
+            document.getElementById('bet-amount-text').textContent = betAmount;
+            document.getElementById('raise-amount').textContent = raiseAmount;
 
             actionButtons.forEach((button) => {
                 button.disabled = !isMyTurn;
@@ -610,16 +655,19 @@
         }
 
         function updateCards() {
-            // WARNING: Deferred finding 4. Deal events currently use raw card codes,
-            // while this renderer expects { rank, suit } card objects.
             const communityCardsContainer = document.getElementById('community-cards');
             if (!communityCardsContainer) {
                 return;
             }
 
             communityCards.forEach((card, index) => {
-                const rankCode = String(card.rank).toUpperCase();
-                const suitCode = String(card.suit).toUpperCase();
+                const normalizedCard = normalizeCard(card);
+                if (!normalizedCard) {
+                    return;
+                }
+
+                const rankCode = normalizedCard.rank;
+                const suitCode = normalizedCard.suit;
                 const rank = rankCode === 'T' ? '10' : rankCode;
                 const suit = {
                     H: '♥',
@@ -658,6 +706,24 @@
             }
         }
 
+        function normalizeCard(card) {
+            if (typeof card === 'string' && card.length >= 2) {
+                return {
+                    rank: card.slice(0, -1).toUpperCase(),
+                    suit: card.slice(-1).toUpperCase()
+                };
+            }
+
+            if (card && card.rank != null && card.suit != null) {
+                return {
+                    rank: String(card.rank).toUpperCase(),
+                    suit: String(card.suit).toUpperCase()
+                };
+            }
+
+            return null;
+        }
+
         function showdown() {
             currentPlayers.forEach((player, index) => {
                 const cardsContainer = document.getElementById(`p${index + 1}-showdown-cards`);
@@ -681,14 +747,15 @@
                 );
 
                 holeCards.forEach((card) => {
-                    if (!card || card.rank == null || card.suit == null) {
+                    const normalizedCard = normalizeCard(card);
+                    if (!normalizedCard) {
                         return;
                     }
 
-                    const rank = String(card.rank).toUpperCase() === 'T'
+                    const rank = normalizedCard.rank === 'T'
                         ? '10'
-                        : String(card.rank).toUpperCase();
-                    const suitCode = String(card.suit).toUpperCase();
+                        : normalizedCard.rank;
+                    const suitCode = normalizedCard.suit;
                     const suit = {
                         H: '♥',
                         D: '♦',
@@ -782,9 +849,13 @@
         }
 
         function startGameHandler(params) {
-            gameStarted = true;
+            tableStateHandler(params);
+            gameStarted = params?.phase
+                ? params.phase !== 'WAITING'
+                : true;
             updateGameStatusBar();
             updateActionButtonsState();
+            return gameStarted ? "Game started" : "Game not started";
         }
 
         function turnStartHandler(params) {
@@ -795,6 +866,7 @@
             currentTurnPlayer = params.clientId;
             updateGameStatusBar();
             updateActionButtonsState();
+            return `Turn started for player ${currentTurnPlayer}`;
         }
 
         function gameActionHandler(params) {
@@ -815,22 +887,19 @@
             }
 
             if (action == "BET") {
-                currentTurnTotalBet = amount;
                 player.chips -= amount;
-                player.bettedChips = amount
+                player.bettedChips += amount;
             }
             else if (action == "CHECK") {
                 // may Add animation
             }
             else if (action == "RAISE") {
-                currentTurnTotalBet = amount;
-                player.chips -= currentTurnTotalBet - player.bettedChips;
-                player.bettedChips = amount;
+                player.chips -= amount;
+                player.bettedChips += amount;
             }
             else if (action == "CALL") {
-                currentTurnTotalBet = amount;
-                player.chips -= currentTurnTotalBet - player.bettedChips;
-                player.bettedChips = amount;
+                player.chips -= amount;
+                player.bettedChips += amount;
             }
             else if (action == "FOLD") {
                 player.status = "FOLDED";
@@ -838,6 +907,8 @@
             else {
                 console.log("Unknown game action : " + action);
             }
+
+            currentTurnTotalBet = Number(params.currentBet ?? currentTurnTotalBet);
 
             updatePot(params.pot);
             updatePlayers();
@@ -859,9 +930,14 @@
                 return "Error dealCardsHandler have null or undefined key value";
             }
             // Deal the community card that is send from the server and display on ther table
-            params.card.forEach((card) => communityCards.push(card));
+            const cards = Array.isArray(params.card) ? params.card : [params.card];
+            cards.forEach((card) => {
+                if (normalizeCard(card)) {
+                    communityCards.push(card);
+                }
+            });
             updateCards();
-            return `${params.card} community card delt`;
+            return `${cards.length} community card(s) dealt`;
         }
 
         function winnerHandler(params) {
@@ -869,8 +945,8 @@
             if (!params || typeof params !== 'object') {
                 return "Error winnerHandler have null or undefined key value";
             }
-            const winnerId = params.winnerId;
-            const currentMoney = params.current_money;
+            const winnerId = params.winnerId ?? params.winner;
+            const currentMoney = params.current_money ?? params.currentMoney;
 
             if (Array.isArray(currentMoney)) {
                 currentMoney.forEach((client) => {
@@ -895,13 +971,56 @@
             }
 
             updatePlayers();
+            updatePot(0);
+            gameStarted = false;
+            currentTurnPlayer = null;
+            updateGameStatusBar();
+            updateActionButtonsState();
             generateWinnerNotification(winnerId);
             return;
         }
 
+        function tournamentFinishedHandler(params) {
+            tableStateHandler(params);
+            gameStarted = false;
+            currentTurnPlayer = null;
+            updateGameStatusBar();
+            updateActionButtonsState();
+            generateWinnerNotification(`${params?.winner_name || params?.winner || 'Unknown'} is the last player standing`);
+            return `Tournament finished: ${params?.winner_name || params?.winner || 'Unknown'} is the last player standing`;
+        }
+
         function errorHandler(errorMessage) {
-            // WARNING: Deferred finding 5. Server error payloads are not normalized here.
-            return `Server sent error: ${errorMessage || ":3 default error"}`;
+            const message = typeof errorMessage === 'string'
+                ? errorMessage
+                : errorMessage?.error || errorMessage?.message || 'Unknown server error';
+            showGameNotice(message, true);
+            return `Server sent error: ${message}`;
+        }
+
+        function showGameNotice(message, isError = false) {
+            const noticeId = 'game-notice';
+            document.getElementById(noticeId)?.remove();
+
+            const notice = document.createElement('div');
+            notice.id = noticeId;
+            notice.textContent = message;
+            Object.assign(notice.style, {
+                position: 'fixed',
+                top: '24px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: '1001',
+                maxWidth: 'min(90vw, 520px)',
+                padding: '12px 18px',
+                borderRadius: '8px',
+                backgroundColor: isError ? '#8f263a' : '#236d53',
+                color: '#ffffff',
+                fontWeight: 'bold',
+                textAlign: 'center'
+            });
+            document.body.appendChild(notice);
+            window.setTimeout(() => notice.remove(), 3500);
         }
 
         function leftRoomHandler(params) {
@@ -1014,6 +1133,7 @@
             updateCards();
             updatePot();
             updateGameStatusBar();
+            return `Table state updated for room ${roomId || 'unknown'}`;
         }
 
         function showdownHandler(params) {
@@ -1022,6 +1142,22 @@
             }
             tableStateHandler(params);
             showdown();
+            gameStarted = false;
+            currentTurnPlayer = null;
+            updateGameStatusBar();
+            updateActionButtonsState();
+
+            const winnerIds = Array.isArray(params.winnerIds)
+                ? params.winnerIds
+                : [];
+            if (winnerIds.length > 1) {
+                const names = currentPlayers
+                    .filter((player) => winnerIds.some((id) => String(id) === String(player.clientId)))
+                    .map((player) => player.username || player.clientId)
+                    .join(' & ');
+                generateWinnerNotification(`Split pot: ${names || winnerIds.join(' & ')}`);
+            }
+            return `Showdown complete: ${params.winningHand || 'hand resolved'}`;
         }
 
         function connection(params) {
@@ -1049,6 +1185,7 @@
             "game-started": startGameHandler,
             "game_started": startGameHandler,
             "showdown": showdownHandler,
+            "tournament_finished": tournamentFinishedHandler,
             "connection": connection
         };
 
@@ -1057,13 +1194,15 @@
                 const message = JSON.parse(event.data);
                 const messageType = message.type;
                 const handler = TYPE_LOOKUP[messageType];
+                console.log("-------------------------------");
                 console.log(message);
 
                 if (!handler) {
                     throw new Error(`Unsupported message type: ${messageType}`);
                 }
-
-                console.log(handler(message.params));
+                
+                console.log(handler(message.params ?? message));
+                console.log("-------------------------------");
             } catch (error) {
                 console.error("Failed to handle WebSocket message:", error.message);
             }
@@ -1071,11 +1210,10 @@
 
 
         // Buttons callback Function
-        function joinRoom() {
+        async function joinRoom() {
             const roomCode = document.getElementById("room-code-input").value.trim();
             const clientId = user?.id;
             const joinButton = document.getElementById("join-room-button");
-            const userBuyIn = Number(user?.money ?? user?.chips ?? 1000);
 
             if (!roomCode || !clientId) {
                 console.error("A room code and a logged-in user are required to join a room.");
@@ -1084,7 +1222,24 @@
 
             updateActionButtonsState();
             joinButton.disabled = true;
-            socket = new WebSocket(`ws://localhost:4000/ws?token=${encodeURIComponent(token)}`);
+            let userBuyIn;
+
+            try {
+                userBuyIn = await refreshAccountBalance();
+                if (!Number.isFinite(userBuyIn) || userBuyIn <= 0) {
+                    throw new Error('Your account has no chips available.');
+                }
+            } catch (error) {
+                console.error(error);
+                showGameNotice(error.message, true);
+                joinButton.disabled = false;
+                return;
+            }
+
+            const wsBase = window.location.protocol === 'https:'
+                ? 'wss'
+                : 'ws';
+            socket = new WebSocket(`${wsBase}://${window.location.hostname}:4000/ws?token=${encodeURIComponent(token)}`);
 
             socket.addEventListener("open", () => {
                 console.log("Connected to the server!");

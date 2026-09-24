@@ -47,7 +47,7 @@ export default function RoomsPage() {
     setError('');
     try {
       const table = await Tables.join(code);
-      navigate(`/poker-table?code=${encodeURIComponent(table.room_code)}`);
+      window.location.assign(`/test.html?code=${encodeURIComponent(table.room_code)}`);
     } catch (err) {
       setError(fmtTableError(err));
       setJoiningCode('');
