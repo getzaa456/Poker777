@@ -24,12 +24,14 @@ function randomRoomCode() {
 //  * ever read it here. Returns null (unknown) if Redis is disabled/unreachable
 //  * so callers can degrade gracefully instead of hard-failing.
 //  */
-async function getLiveSeatCount(tableId) {
+// [แก้บัค]: เดิมอ่าน `table:{id}:seats` (SCARD) ซึ่งไม่มีใครเขียน -> ได้ 0 เสมอ
+// ws-server เก็บเก้าอี้ไว้ที่ Hash `room:{room_code}:seats` จึงนับจาก key นั้นแทน
+async function getLiveSeatCount(roomCode) {
   if (process.env.REDIS_DISABLED === '1') return null;
   try {
     const redis = redisState;
     if (!redis) return null;
-    const count = await redis.scard(`table:${tableId}:seats`);
+    const count = await redis.hlen(`room:${roomCode}:seats`);
     return Number.isFinite(count) ? count : null;
   } catch (err) {
     console.error('[tables] redis seat lookup failed:', err.message);
@@ -59,9 +61,9 @@ async function findTableRow(roomCode) {
   return rows[0] || null;
 }
 
-// function roomNotFoundError() {
-//   return new ApiError('ROOM_NOT_FOUND', 'Room not found — double-check the room code and try again.', 404);
-// }
+function roomNotFoundError() {
+  return new ApiError('ROOM_NOT_FOUND', 'Room not found — double-check the room code and try again.', 404);
+}
 
 // /**
 //  * Create a room. Retries on room_code collisions (the column has a UNIQUE
@@ -111,7 +113,7 @@ export async function listOpenTables() {
   // Best-effort: attach live seat count for each table
   const results = await Promise.all(
     rows.map(async (row) => {
-      const seatsTaken = await getLiveSeatCount(row.id);
+      const seatsTaken = await getLiveSeatCount(row.room_code);
       return serializeTable(row, seatsTaken);
     })
   );
@@ -125,7 +127,7 @@ export async function listOpenTables() {
 export async function getTableSummary(roomCode) {
   const row = await findTableRow(roomCode);
   if (!row) throw roomNotFoundError();
-  const seatsTaken = await getLiveSeatCount(row.id);
+  const seatsTaken = await getLiveSeatCount(row.room_code);
   return serializeTable(row, seatsTaken);
 }
 
@@ -154,7 +156,7 @@ export async function joinTable(userId, roomCode, input) {
     throw new ApiError('ROOM_IN_PROGRESS', 'This room already has a hand in progress. Try again shortly.', 409);
   }
 
-  const seatsTaken = await getLiveSeatCount(row.id);
+  const seatsTaken = await getLiveSeatCount(row.room_code);
   if (seatsTaken !== null && seatsTaken >= row.max_seats) {
     throw new ApiError('ROOM_FULL', 'This room is full.', 409, {
       max_seats: row.max_seats,

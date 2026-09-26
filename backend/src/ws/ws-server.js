@@ -538,7 +538,7 @@ async function handleLeaveRoom(ws, onlyIfDisconnectExpired = false) {
 
               if (isCurrentTurn) {
                 clearTurnTimer(roomCode);
-                const turnResult = await advanceTurn(roomCode);
+                const turnResult = await advanceTurn(roomCode, leavingSeatKey);
                 const turnDeadline = Date.now() + TURN_TIMEOUT_MS;
                 await updateRoom(roomCode, { currentTurn: turnResult.nextPlayerId, turnDeadline });
 
@@ -587,6 +587,9 @@ async function handleLeaveRoom(ws, onlyIfDisconnectExpired = false) {
             currentPlayers,
           })
         );
+        // [แก้บัค]: การลุกอาจทำให้เปลี่ยน Phase (แจกไพ่กลาง) หรือเปลี่ยน Host แต่เดิมส่งแค่ next_turn
+        // Client จึงไม่เห็นไพ่กลาง/Host ใหม่ -> ส่ง Snapshot โต๊ะเต็มให้ทุกคน
+        await publishRoomState(roomCode);
       }
     });
   } catch (err) {
@@ -597,7 +600,25 @@ async function handleLeaveRoom(ws, onlyIfDisconnectExpired = false) {
   }
 }
 
+// [แก้บัค]: ไม่มี Heartbeat -> ถ้าเน็ตผู้เล่นค้างแบบ Half-open (มือถือเปลี่ยนเสา/Wi-Fi ค้าง) Server ไม่รู้ว่าหลุด
+// ผู้เล่นไม่ถูก Mark DISCONNECTED และไม่ถูกลุกจากโต๊ะเลย (ที่นั่งผีโดน Auto-fold ทุกมือ)
+// และบน AWS ALB จะตัด Connection ที่ idle เกิน 60 วินาที -> Ping ทุก 15 วินาที ถ้าไม่ตอบ Pong ภายในรอบถัดไปให้ตัดทิ้ง
+const HEARTBEAT_MS = 15000;
+const heartbeat = setInterval(() => {
+  for (const client of wss.clients) {
+    if (client.isAlive === false) {
+      client.terminate(); // ยิง 'close' -> handleDisconnect -> เริ่มนับ Grace period
+      continue;
+    }
+    client.isAlive = false;
+    client.ping();
+  }
+}, HEARTBEAT_MS);
+heartbeat.unref();
+
 wss.on('connection', (ws) => {
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
   ws.send(
     JSON.stringify({
       type: 'connection',
@@ -1289,7 +1310,9 @@ async function processDueTurnTimers() {
           nextTurn = candidates.length ? findNextPlayer(seats, clientId, candidates) : null;
           if (nextTurn) {
             turnDeadline = Date.now() + TURN_TIMEOUT_MS;
-            await updateRoom(roomCode, { currentTurn: nextTurn, turnDeadline });
+            // [แก้บัค]: ต้องอัปเดต currentTurnSeat ด้วย ไม่งั้น handleLeaveRoom จะเข้าใจผิดว่าคนที่หมดเวลายังถือ Turn อยู่
+            const nextSeat = seats.find(([, playerId]) => String(playerId) === String(nextTurn))?.[0] || '';
+            await updateRoom(roomCode, { currentTurn: nextTurn, currentTurnSeat: nextSeat, turnDeadline });
             startTurnTimer(roomCode, nextTurn, turnDeadline);
           }
         }
@@ -1383,6 +1406,15 @@ async function handleEarlyFinishGame(roomCode, winnerId) {
   syncPlayerBalances(roomCode, roundId, playerChipsMap, playerBuyInsMap).catch(err =>
     console.error('Error syncing DB balances on early finish:', err)
   );
+  await resetSettlementBaseline(roomCode, playerChipsMap);
+}
+
+// [แก้บัค]: syncPlayerBalances คิดส่วนต่างจาก buyIn ตั้งต้น ถ้าไม่ขยับ buyIn ตามชิปที่ Settle แล้ว
+// มือถัดๆ ไปจะนับกำไร/ขาดทุนก้อนเดิมซ้ำทุกมือ (refId เปลี่ยนตาม roundId จึงไม่ติด Idempotency)
+async function resetSettlementBaseline(roomCode, playerChipsMap) {
+  for (const [pid, chips] of Object.entries(playerChipsMap)) {
+    await updatePlayer(roomCode, pid, { buyIn: chips });
+  }
 }
 
 async function handleTournamentFinish(roomCode, winnerId) {
@@ -1667,6 +1699,7 @@ async function handleShowdown(roomCode, room, communityCards, activePlayerIds) {
   syncPlayerBalances(roomCode, roundId, playerChipsMap, playerBuyInsMap).catch(err =>
     console.error('Error syncing DB balances:', err)
   );
+  await resetSettlementBaseline(roomCode, playerChipsMap);
 
   // ส่งผลจบมือหรือจบการแข่งขันให้ client
   await redisPub.publish(

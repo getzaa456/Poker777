@@ -193,7 +193,7 @@ export default function LobbyPage() {
     setJoining(true);
     try {
       const table = await Tables.join(code);
-      window.location.assign(`/test.html?code=${encodeURIComponent(table.room_code)}`);
+      navigate(`/poker-table?code=${encodeURIComponent(table.room_code)}`);
     } catch (error) {
       setJoinError(error.message || 'Failed to join room');
     } finally {
@@ -201,9 +201,8 @@ export default function LobbyPage() {
     }
   }
 
-  function openTestTable(roomCode) {
-    const code = roomCode ? encodeURIComponent(roomCode) : '';
-    window.location.assign(`/test.html${code ? `?code=${code}` : ''}`);
+  function openTable(roomCode) {
+    navigate(`/poker-table?code=${encodeURIComponent(roomCode)}`);
   }
 
   const displayName = user?.display_name || user?.username || 'Loading…';
@@ -305,17 +304,17 @@ export default function LobbyPage() {
           <button className="close-btn" onClick={() => setRoomModalOpen(false)}>✕</button>
           <div className="section-label">◆ Create Room ◆</div>
           <label className="field-label">Table name</label><input className="room-field" maxLength={60} value={roomName} onChange={(e) => setRoomName(e.target.value)} />
-          <label className="field-label">Blinds (min / max bet)</label>
+          <label className="field-label">Buy-in (min / max)</label>
           <div className="preset-row">{blindOptions.map(([min, max]) => <button key={min} type="button" className={`preset-chip ${chosenBlind === `${min}:${max}` ? 'is-active' : ''}`} onClick={() => { setMinBet(min); setMaxBet(max); }}>{fmtChips(min)} / {fmtChips(max)}</button>)}</div>
-          <div className="field-row"><div className="field-col"><label className="field-label">Min bet</label><input type="number" className="room-field" min="1" value={minBet} onChange={(e) => setMinBet(e.target.value)} /></div><div className="field-col"><label className="field-label">Max bet</label><input type="number" className="room-field" min="1" value={maxBet} onChange={(e) => setMaxBet(e.target.value)} /></div></div>
+          <div className="field-row"><div className="field-col"><label className="field-label">Min buy-in</label><input type="number" className="room-field" min="1" value={minBet} onChange={(e) => setMinBet(e.target.value)} /></div><div className="field-col"><label className="field-label">Max buy-in</label><input type="number" className="room-field" min="1" value={maxBet} onChange={(e) => setMaxBet(e.target.value)} /></div></div>
           <label className="field-label">Max seats</label><div className="preset-row">{seatOptions.map((seats) => <button key={seats} type="button" className={`preset-chip ${Number(maxSeats) === seats ? 'is-active' : ''}`} onClick={() => setMaxSeats(seats)}>{seats}</button>)}</div>
           {createError && <div className="inline-error">{createError}</div>}
           <GlassButton className="glass-cta-full glass-cta-pink" style={{ marginTop: 14 }} disabled={creating} onClick={createRoom} label={creating ? 'Creating…' : 'Create Room'} />
         </section> : <section className="room-modal">
           <button className="close-btn" onClick={() => setRoomModalOpen(false)}>✕</button><div className="section-label">◆ Room Created ◆</div>
           <p className="waiting-hint">Share this code with friends so they can join</p><div className="room-code-display">{createdTable.room_code}</div><button className="copy-code-btn" onClick={copyRoomCode}>{copyLabel}</button>
-          <div className="waiting-summary"><strong>{createdTable.name}</strong><br />Blinds {fmtChips(createdTable.min_bet)} / {fmtChips(createdTable.max_bet)} &nbsp;•&nbsp; {createdTable.max_seats} seats</div>
-          <div className="waiting-status">Waiting for players…</div><GlassButton className="glass-cta-full glass-cta-cyan" style={{ marginTop: 14 }} onClick={() => openTestTable(createdTable.room_code)} label="Enter Table" />
+          <div className="waiting-summary"><strong>{createdTable.name}</strong><br />Buy-in {fmtChips(createdTable.min_bet)} – {fmtChips(createdTable.max_bet)} &nbsp;•&nbsp; {createdTable.max_seats} seats</div>
+          <div className="waiting-status">Waiting for players…</div><GlassButton className="glass-cta-full glass-cta-cyan" style={{ marginTop: 14 }} onClick={() => openTable(createdTable.room_code)} label="Enter Table" />
         </section>}
       </div>}
 

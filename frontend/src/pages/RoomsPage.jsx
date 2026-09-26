@@ -47,7 +47,7 @@ export default function RoomsPage() {
     setError('');
     try {
       const table = await Tables.join(code);
-      window.location.assign(`/test.html?code=${encodeURIComponent(table.room_code)}`);
+      navigate(`/poker-table?code=${encodeURIComponent(table.room_code)}`);
     } catch (err) {
       setError(fmtTableError(err));
       setJoiningCode('');
@@ -82,7 +82,7 @@ export default function RoomsPage() {
                 <div className="room-info">
                   <h3>{room.name}</h3>
                   <div className="room-meta">
-                    <span>🪙 Blinds: {fmtChips(room.min_bet)} / {fmtChips(room.max_bet)}</span>
+                    <span>🪙 Buy-in: {fmtChips(room.min_bet)} – {fmtChips(room.max_bet)}</span>
                     <span className="seats-indicator"><span>👥 Seats:</span><span className="seats-dots">{Array.from({ length: room.max_seats }, (_, index) => <span key={index} className={`seat-dot ${index < taken ? 'taken' : 'empty'}`} />)}</span><span>{taken}/{room.max_seats}</span></span>
                     <span>🔑 <span className="room-code-badge">{room.room_code}</span></span>
                   </div>

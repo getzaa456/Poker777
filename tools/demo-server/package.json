@@ -1,0 +1,13 @@
+{
+  "name": "poker777-demo-server",
+  "private": true,
+  "description": "Local test harness: runs the real backend with in-memory Redis/MySQL (no Docker needed). Not for production.",
+  "type": "module",
+  "scripts": {
+    "start": "node start.mjs",
+    "flaky": "node flaky-proxy.mjs"
+  },
+  "dependencies": {
+    "ioredis-mock": "^8.9.0"
+  }
+}

@@ -17,9 +17,15 @@ export async function withLock(roomId, actionLogic) {
   // สั่ง Redis สร้าง Key ล็อก
   // 'PX', 3000 = ให้ Lock มีอายุขัย 3000 มิลลิวินาที (3 วินาที) แล้วลบตัวเองอัตโนมัติกัน ค้าง
   // 'NX' = บันทึกสำเร็จก็ต่อเมื่อ Key นี้ "ยังไม่มีอยู่" เท่านั้น (ถ้ามีคนล็อกอยู่แล้วจะคืนค่า null)
-  const isAcquired = await redisState.set(lockKey, token, 'PX', 3000, 'NX');
-  
-  // ถ้าขอกุญแจไม่ได้ แสดงว่ามีคำสั่งอื่นของห้องนี้กำลังประมวลผลอยู่บน EC2 เครื่องอื่น
+  // [แก้บัค]: เดิมขอครั้งเดียวไม่ได้ก็ throw ทันที -> Action/การหลุดเน็ตที่ชนกับงานอื่นหายไปเลย
+  // (เช่น handleDisconnect ชนกับ Timer ทำให้เกิดที่นั่งผีที่ไม่มีวันถูกลบ) จึงรอแล้วลองใหม่ประมาณ 2 วินาที
+  let isAcquired = null;
+  for (let attempt = 0; attempt < 40 && !isAcquired; attempt++) {
+    if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 30 + Math.floor(Math.random() * 40)));
+    isAcquired = await redisState.set(lockKey, token, 'PX', 3000, 'NX');
+  }
+
+  // ถ้ายังขอกุญแจไม่ได้ แสดงว่ามีคำสั่งอื่นของห้องนี้กำลังประมวลผลอยู่บน EC2 เครื่องอื่นนานผิดปกติ
   if (!isAcquired) throw new Error('Room is busy');
 
   try {

@@ -146,7 +146,8 @@ export async function getActivePlayers(roomId) {
 }
 
 // หมุนหา Turn ถัดไปของผู้เล่นตามลำดับเก้าอี้
-export async function advanceTurn(roomId) {
+// fromSeatKey: เก้าอี้ของคนที่เพิ่งลุก (ถูกลบออกจาก seats แล้ว) ใช้หาคนถัดไปให้ถูกลำดับ
+export async function advanceTurn(roomId, fromSeatKey = null) {
   const room = await getRoom(roomId);
   const seats = await getRoomSeats(roomId);
 
@@ -162,6 +163,13 @@ export async function advanceTurn(roomId) {
 
   const currentTurn = room?.currentTurn;
   let currentIndex = sortedSeats.findIndex(([_, pid]) => String(pid) === String(currentTurn));
+  if (currentIndex === -1 && fromSeatKey) {
+    // [แก้บัค]: เดิมเริ่มจาก index 0 ทำให้ข้ามคนที่นั่งเก้าอี้แรก -> เริ่มนับจากเก้าอี้ก่อนหน้าของคนที่ลุก
+    const fromSeat = parseInt(String(fromSeatKey).replace('seat_', ''), 10);
+    const firstAfter = sortedSeats.findIndex(([key]) => (parseInt(key.replace('seat_', ''), 10) || 0) > fromSeat);
+    currentIndex = (firstAfter === -1 ? 0 : firstAfter) - 1;
+    if (currentIndex < 0) currentIndex = sortedSeats.length - 1;
+  }
   if (currentIndex === -1) currentIndex = 0;
 
   const totalSeats = sortedSeats.length;
