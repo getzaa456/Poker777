@@ -301,6 +301,8 @@
         <input type="text" id="room-code-input" class="room-code-input" placeholder="Enter room code"
             aria-label="Room code">
         <button type="button" id="join-room-button" class="join-room-button">JOIN ROOM</button>
+        <button type="button" id="drop-connection-button" class="join-room-button">DROP CONNECTION</button>
+        <button type="button" id="rejoin-room-button" class="join-room-button">REJOIN</button>
         <button type="button" id="leave-room-button" class="join-room-button leave-room-button">LEAVE ROOM</button>
         <button type="button" id="start-game-button" class="join-room-button">START GAME</button>
     </div>
@@ -313,6 +315,8 @@
             <div>Game Started: <span id="game-start">-</span></div>
             <div>Seat: <span id="seat-number-display">-</span></div>
             <div>Turn: <span id="current-turn-display">-</span></div>
+            <div>Timer: <span id="turn-countdown-display">-</span></div>
+            <div>Blinds: <span id="blind-display">-</span></div>
             <div>Status: <span id="player-status-display">-</span></div>
         </div>
 
@@ -321,6 +325,7 @@
             <span>POT:</span>
             <span class="pot-amount" id="pot-display"></span>
         </div>
+        <div class="game-status-bar" id="side-pot-display">No side pots settled</div>
 
         <!-- ช่องว่างสำหรับไพ่กลางโต๊ะ (Community Cards) -->
         <div class="community-cards-container">
@@ -335,7 +340,8 @@
         <div class="controls-wrapper">
             <div class="bet-adjuster">
                 <input type="button" id="btn-minus" class="btn-step" value="-">
-                <span class="bet-amount" id="bet-value"></span>
+                <span>RAISE TO</span>
+                <span class="bet-amount" id="raise-to-value"></span>
                 <input type="button" id="btn-plus" class="btn-step" value="+">
             </div>
 
@@ -371,7 +377,8 @@
 
     <script>
         let currentBet = 100;
-        let stepAmount = 50;
+        let raiseToAmount = 0;
+        let minimumRaise = 20;
         let pot = 0;
         let currentTurnTotalBet = 0;
         let gameStarted = false;
@@ -392,6 +399,8 @@
         let token = localStorage.getItem("poker777_token");
         let communityCards = [];
         let turnDeadline = null;
+        let smallBlind = null;
+        let bigBlind = null;
 
         async function refreshAccountBalance() {
             if (!token) {
@@ -597,6 +606,7 @@
                 "game-start": gameStartText,
                 "seat-number-display": playerNum,
                 "current-turn-display": currentTurnPlayer,
+                "blind-display": smallBlind == null ? null : `${smallBlind} / ${bigBlind}`,
                 "player-status-display": playerStatusText
             };
 
@@ -612,7 +622,18 @@
                     element.textContent = displayValue;
                 }
             });
+            updateTurnCountdown();
         }
+
+        function updateTurnCountdown() {
+            const display = document.getElementById('turn-countdown-display');
+            if (!display) return;
+            display.textContent = turnDeadline
+                ? `${Math.max(0, Math.ceil((Number(turnDeadline) - Date.now()) / 1000))}s`
+                : '-';
+        }
+
+        window.setInterval(updateTurnCountdown, 250);
 
         function updateActionButtonsState() {
             const actionButtons = [
@@ -629,12 +650,17 @@
             );
             const playerBet = Number(currentPlayer?.bettedChips) || 0;
             const callAmount = Math.max(0, Number(currentTurnTotalBet) - playerBet);
-
-            const betAmount = currentTurnTotalBet > 0 ? currentTurnTotalBet : currentBet;
-            const raiseAmount = Math.max(betAmount + stepAmount, currentBet + stepAmount);
+            const minRaiseTo = Number(currentTurnTotalBet) > 0
+                ? Number(currentTurnTotalBet) + Number(minimumRaise)
+                : Math.max(Number(bigBlind) || 20, Number(minimumRaise));
+            if (!raiseToAmount || raiseToAmount < minRaiseTo) raiseToAmount = minRaiseTo;
+            const betAmount = Number(currentTurnTotalBet) > 0
+                ? Number(currentTurnTotalBet)
+                : Math.max(Number(bigBlind) || 20, Number(currentBet) || 0);
             document.getElementById('call-amount').textContent = callAmount;
             document.getElementById('bet-amount-text').textContent = betAmount;
-            document.getElementById('raise-amount').textContent = raiseAmount;
+            document.getElementById('raise-to-value').textContent = raiseToAmount;
+            document.getElementById('raise-amount').textContent = raiseToAmount;
 
             actionButtons.forEach((button) => {
                 button.disabled = !isMyTurn;
@@ -785,13 +811,13 @@
             const success = params.success;
             roomId = params.roomId;
             roomName = params.roomName;
-            playerNum = params.playerNum;
             maxPlayer = params.maxPlayer;
             currentPlayers = [];
             params.currentPlayers.forEach((player, index) => {
                 let playerObject = playerConstructor(player.clientId, player.seat || (index + 1), player.username, player.money ?? player.chips ?? 0);
                 currentPlayers.push(playerObject);
             });
+            playerNum = currentPlayers.find((player) => String(player.clientId) === String(user?.id))?.seat ?? null;
             currentTurnPlayer = null;
             gameStarted = false;
 
@@ -832,7 +858,7 @@
                 currentPlayers.push(playerObject);
             });
 
-            if (params.playerNum) playerNum = params.playerNum;
+            playerNum = currentPlayers.find((player) => String(player.clientId) === String(user?.id))?.seat ?? null;
 
             // ✅ แก้ไข 2: หาชื่อผู้เล่นอย่างถูกต้อง
             const joinedPlayer = currentPlayers.find((player) => player.clientId == params.clientId);
@@ -850,6 +876,7 @@
 
         function startGameHandler(params) {
             tableStateHandler(params);
+            document.getElementById('side-pot-display').textContent = 'No side pots settled';
             gameStarted = params?.phase
                 ? params.phase !== 'WAITING'
                 : true;
@@ -859,11 +886,12 @@
         }
 
         function turnStartHandler(params) {
-            //TODO Add timeout Function
             if (!checkNoNullParams(params)) {
                 return "Error turnStartHandler have null or undefined key value";
             }
             currentTurnPlayer = params.clientId;
+            turnDeadline = params.turn_deadline || null;
+            gameStarted = true;
             updateGameStatusBar();
             updateActionButtonsState();
             return `Turn started for player ${currentTurnPlayer}`;
@@ -912,6 +940,10 @@
 
             updatePot(params.pot);
             updatePlayers();
+
+            if (timedOut) {
+                showGameNotice(`${clientId} timed out and auto-${action.toLowerCase()}ed`);
+            }
 
             console.log(`[game-action] ${clientId} ${action} amount=${amount}`);
             return {
@@ -974,6 +1006,7 @@
             updatePot(0);
             gameStarted = false;
             currentTurnPlayer = null;
+            turnDeadline = null;
             updateGameStatusBar();
             updateActionButtonsState();
             generateWinnerNotification(winnerId);
@@ -1028,7 +1061,6 @@
                 return "Error leftRoomHandler have null or undefined key value";
             }
             const leavingClientId = params.clientId;
-            const leavingPlayerNum = params.playerNum ?? currentPlayers.length;
             const remainingPlayers = params.currentPlayers || [];
 
             if (String(leavingClientId) === String(user?.id)) {
@@ -1066,7 +1098,7 @@
                     player.money
                 )
             );
-            playerNum = leavingPlayerNum;
+            playerNum = currentPlayers.find((player) => String(player.clientId) === String(user?.id))?.seat ?? null;
             currentTurnPlayer = null;
             updatePot(0);
             generatePlayerDivs(maxPlayer || currentPlayers.length || 4);
@@ -1083,11 +1115,14 @@
             }
             roomId = params.room_code
             roomName = params.room_name;
-            playerNum = params.player_count;
             maxPlayer = params.max_players;
             hostId = params.host_id;
             currentTurnPlayer = params.current_turn;
             turnDeadline = params.turn_deadline;
+            smallBlind = params.small_blind;
+            bigBlind = params.big_blind;
+            minimumRaise = Number(params.min_raise) || Number(params.big_blind) || 20;
+            gameStarted = Boolean(params.phase && !['WAITING', 'FINISHED'].includes(params.phase));
             pot = params.pot;
             currentTurnTotalBet = params.current_bet;
             communityCards = Array.isArray(params.community_cards)
@@ -1127,6 +1162,9 @@
                 }
             });
             playerToBeAdded.forEach((player) => currentPlayers.push(player));
+            const seatedPlayerIds = new Set(players.map((player) => String(player.client_id)));
+            currentPlayers = currentPlayers.filter((player) => seatedPlayerIds.has(String(player.clientId)));
+            playerNum = currentPlayers.find((player) => String(player.clientId) === String(user?.id))?.seat ?? null;
 
             updatePlayers();
             updateActionButtonsState();
@@ -1150,7 +1188,18 @@
             const winnerIds = Array.isArray(params.winnerIds)
                 ? params.winnerIds
                 : [];
-            if (winnerIds.length > 1) {
+            const payoutLines = Object.entries(params.payouts || {})
+                .filter(([, amount]) => Number(amount) > 0)
+                .map(([clientId, amount]) => {
+                    const player = currentPlayers.find((entry) => String(entry.clientId) === String(clientId));
+                    return `${player?.username || clientId}: ${amount}`;
+                });
+            const sidePotText = (params.side_pots || []).map((sidePot, index) =>
+                `Pot ${index + 1}: ${sidePot.amount} (${(sidePot.winnerIds || []).join(', ')})`
+            ).join(' | ');
+            document.getElementById('side-pot-display').textContent = sidePotText || 'No side pots';
+            showGameNotice(`${params.winningHand || 'Showdown'}${payoutLines.length ? ` | ${payoutLines.join(' | ')}` : ''}`);
+            if (params.splitPot) {
                 const names = currentPlayers
                     .filter((player) => winnerIds.some((id) => String(id) === String(player.clientId)))
                     .map((player) => player.username || player.clientId)
@@ -1291,6 +1340,13 @@
 
         // Event Listeners
         document.getElementById("join-room-button").addEventListener("click", joinRoom);
+        document.getElementById("drop-connection-button").addEventListener("click", () => {
+            if (socket?.readyState === WebSocket.OPEN) {
+                socket.close();
+                showGameNotice('Connection dropped. Rejoin within 30 seconds to keep the seat.');
+            }
+        });
+        document.getElementById("rejoin-room-button").addEventListener("click", joinRoom);
         document.getElementById("leave-room-button").addEventListener("click", leaveRoom);
         document.getElementById("start-game-button").addEventListener("click", startGame);
 
@@ -1330,15 +1386,16 @@
         }
 
         function onBetAdjustClick(type) {
+            const minimumTarget = Number(currentTurnTotalBet) > 0
+                ? Number(currentTurnTotalBet) + Number(minimumRaise)
+                : Math.max(Number(bigBlind) || 20, Number(minimumRaise));
+            const raiseStep = Math.max(1, Number(minimumRaise) || Number(bigBlind) || 20);
             if (type === 'PLUS') {
-                currentBet += stepAmount;
+                raiseToAmount = Math.max(raiseToAmount, minimumTarget) + raiseStep;
             } else if (type === 'MINUS') {
-                currentBet = Math.max(0, currentBet - stepAmount);
+                raiseToAmount = Math.max(minimumTarget, (raiseToAmount || minimumTarget) - raiseStep);
             }
-
-            document.getElementById('bet-value').textContent = currentBet;
-            document.getElementById('bet-amount-text').textContent = currentBet;
-            document.getElementById('raise-amount').textContent = currentBet;
+            updateActionButtonsState();
         }
 
     </script>

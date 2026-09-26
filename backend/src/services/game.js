@@ -1,3 +1,5 @@
+import { randomInt } from 'node:crypto';
+
 const suits = ['H', 'D', 'C', 'S'];
 const values = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'];
 
@@ -8,7 +10,7 @@ export function createShuffledDeck() {
     }
 
     for (let i = deck.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
+        const j = randomInt(i + 1);
         [deck[i], deck[j]] = [deck[j], deck[i]];
     }
     return deck;
@@ -193,4 +195,90 @@ export function findWinners(players, communityCards) {
     winners,
     handTitle: handName(bestScore ? bestScore.category : 0)
   };
+}
+
+export function buildSidePots(contributions, activePlayerIds) {
+    const entries = Object.entries(contributions || {})
+        .map(([clientId, amount]) => [clientId, Math.max(0, Math.floor(Number(amount) || 0))])
+        .filter(([, amount]) => amount > 0);
+    const levels = [...new Set(entries.map(([, amount]) => amount))].sort((a, b) => a - b);
+    const activeIds = new Set(activePlayerIds.map(String));
+    const pots = [];
+    let previousLevel = 0;
+
+    for (const level of levels) {
+        const contributors = entries.filter(([, amount]) => amount >= level);
+        const amount = (level - previousLevel) * contributors.length;
+        const eligiblePlayerIds = contributors
+            .map(([clientId]) => clientId)
+            .filter((clientId) => activeIds.has(String(clientId)));
+
+        pots.push({
+            amount,
+            eligiblePlayerIds: eligiblePlayerIds.length > 0
+                ? eligiblePlayerIds
+                : [...activeIds],
+        });
+        previousLevel = level;
+    }
+
+    return pots;
+}
+
+export function selectBlindPositions(seatEntries, previousDealerSeat = null) {
+    const seats = seatEntries.filter(([, playerId]) => Boolean(playerId));
+    if (seats.length < 2) throw new Error('At least two seated players are required');
+
+    const nextDealerPosition = previousDealerSeat === null || previousDealerSeat === undefined
+        ? 0
+        : seats.findIndex(([seatKey]) => Number(seatKey.replace('seat_', '')) > Number(previousDealerSeat));
+    const dealerPosition = nextDealerPosition < 0 ? 0 : nextDealerPosition;
+    const smallBlindPosition = seats.length === 2
+        ? dealerPosition
+        : (dealerPosition + 1) % seats.length;
+    const bigBlindPosition = (smallBlindPosition + 1) % seats.length;
+
+    return {
+        dealerSeat: Number(seats[dealerPosition][0].replace('seat_', '')),
+        dealerId: seats[dealerPosition][1],
+        smallBlindSeat: Number(seats[smallBlindPosition][0].replace('seat_', '')),
+        smallBlindId: seats[smallBlindPosition][1],
+        bigBlindSeat: Number(seats[bigBlindPosition][0].replace('seat_', '')),
+        bigBlindId: seats[bigBlindPosition][1],
+    };
+}
+
+export function isBettingRoundComplete(players, actedPlayerIds, currentBet, bets) {
+    const acted = new Set(actedPlayerIds.map(String));
+    return players
+        .filter((player) => !player.isFolded && Number(player.chips) > 0)
+        .every((player) => acted.has(String(player.clientId))
+            && Number(bets[player.clientId] || 0) === Number(currentBet));
+}
+
+export function distributeSidePots(players, contributions, communityCards) {
+    const activePlayers = players.filter((player) => !player.isFolded);
+    const pots = buildSidePots(
+        contributions,
+        activePlayers.map((player) => player.clientId),
+    );
+    const payouts = Object.fromEntries(players.map((player) => [player.clientId, 0]));
+
+    for (const pot of pots) {
+        const eligiblePlayers = activePlayers.filter((player) =>
+            pot.eligiblePlayerIds.some((clientId) => String(clientId) === String(player.clientId))
+        );
+        const { winners } = findWinners(eligiblePlayers, communityCards);
+        if (winners.length === 0) continue;
+
+        const share = Math.floor(pot.amount / winners.length);
+        let remainder = pot.amount % winners.length;
+        for (const winner of winners) {
+            payouts[winner.clientId] += share + (remainder > 0 ? 1 : 0);
+            remainder -= 1;
+        }
+        pot.winnerIds = winners.map((winner) => winner.clientId);
+    }
+
+    return { pots, payouts };
 }

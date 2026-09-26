@@ -4,6 +4,7 @@ import Redis from 'ioredis';
 const config = {
   host: process.env.REDIS_HOST, // อ่านค่า AWS ElastiCache Primary Endpoint จาก env
   port: 6379,                   // พอร์ตมาตรฐาน Redis
+  lazyConnect: process.env.REDIS_DISABLED === '1',
   //tls: {},                      // เปิด SSL/TLS เพื่อความปลอดภัยบน AWS (จำเป็นสำหรับ ElastiCache)
 };
 

@@ -103,12 +103,23 @@ export async function resetRoundState(roomId) {
   await redisState.del(`room:${roomId}:bets`);      // ล้างยอดเดิมพันสะสมประจำรอบ
   await redisState.del(`room:${roomId}:folded`);    // ล้างสถานะการหมอบ
   await redisState.del(`room:${roomId}:community`); // ล้างไพ่กลาง
+  await redisState.del(`room:${roomId}:cards`);
+  await redisState.del(`room:${roomId}:contributions`);
+  await redisState.del(`room:${roomId}:acted_players`);
+  await redisState.del(`room:${roomId}:raise_locked`);
 
   // อัปเดต State ห้องเตรียมพร้อมรอบใหม่
   await redisState.hset(`room:${roomId}`, {
     pot: 0,
     currentBet: 0,
-    stage: 'PREFLOP', // reset สเตจกลับไปเริ่มแรก
+    currentTurn: '',
+    currentTurnSeat: '',
+    turnDeadline: '',
+    phase: 'WAITING',
+    status: 'WAITING',
+    minRaise: 0,
+    deck: '',
+    stage: 'WAITING',
   });
 }
 
@@ -158,15 +169,17 @@ export async function advanceTurn(roomId) {
   let nextSeatKey = null;
 
   const foldedMap = (await redisState.hgetall(`room:${roomId}:folded`)) || {};
+  const actedPlayers = new Set((await redisState.smembers(`room:${roomId}:acted_players`)).map(String));
 
   for (let i = 1; i <= totalSeats; i++) {
     const checkIdx = (currentIndex + i) % totalSeats;
     const [seatKey, pid] = sortedSeats[checkIdx];
 
-    if (foldedMap[pid] === 'true') continue;
+    if (foldedMap[pid] === 'true' || actedPlayers.has(String(pid))) continue;
 
     const pData = await getPlayer(roomId, pid);
-    if (pData && pData.isFolded !== 'true' && pData.status !== 'FOLDED') {
+    if (pData && pData.isFolded !== 'true' && pData.status !== 'FOLDED'
+      && Number(pData.chips) > 0) {
       nextPlayerId = pid;
       nextSeatKey = seatKey;
       break;
@@ -207,6 +220,26 @@ export async function finishGameWithWinner(roomId, winnerId) {
       });
     }
   }
+
+  const seats = await getRoomSeats(roomId);
+  for (const playerId of Object.values(seats || {})) {
+    await updatePlayer(roomId, playerId, {
+      isFolded: false,
+      isAllIn: false,
+      status: 'WAITING',
+    });
+  }
+
+  await updateRoom(roomId, {
+    status: 'WAITING',
+    phase: 'WAITING',
+    currentTurn: '',
+    currentTurnSeat: '',
+    turnDeadline: '',
+    currentBet: 0,
+    pot: 0,
+    winner: winnerId || '',
+  });
 
   await redisPub.publish(
     CHANNEL,

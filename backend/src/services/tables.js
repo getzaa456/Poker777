@@ -25,6 +25,7 @@ function randomRoomCode() {
 //  * so callers can degrade gracefully instead of hard-failing.
 //  */
 async function getLiveSeatCount(tableId) {
+  if (process.env.REDIS_DISABLED === '1') return null;
   try {
     const redis = redisState;
     if (!redis) return null;

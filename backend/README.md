@@ -59,3 +59,14 @@ backend/
 | `GET` | `/health` | no | liveness |
 
 Upcoming (later phases): `/tables`, `/wallet/*`.
+
+## WebSocket game rules
+
+- Small and big blinds default to 10/20 chips. Override them with `POKER_SMALL_BLIND` and `POKER_BIG_BLIND` in the backend environment.
+- The dealer button rotates by occupied seat; heads-up play posts the small blind from the button.
+- Decks use Node's cryptographic random number generator for Fisher-Yates shuffling.
+- All-in contributions are tracked per hand and settled into main/side pots. A short all-in raise does not reopen raising for players who already acted.
+- Turn deadlines are stored in Redis and recovered when the Node process restarts. Disconnected seats remain reserved for 30 seconds so the same authenticated user can rejoin without buying in again.
+- Deadline recovery depends on the room/player state remaining in Redis; configure Redis persistence if deadlines must survive a Redis restart as well.
+
+Use `frontend/test.html` to manually exercise a hand with two or more sessions. `DROP CONNECTION` followed by `REJOIN` tests the grace window; leave a turn idle for 15 seconds to see the automatic check/fold.
