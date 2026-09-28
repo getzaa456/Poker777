@@ -99,6 +99,9 @@ export const Wallet = {
   async transactions(page = 1, limit = 20) {
     return api(`/wallet/transactions?page=${page}&limit=${limit}`);
   },
+  async handHistory() {
+    return api('/wallet/history');
+  },
 };
 
 export const Tables = {

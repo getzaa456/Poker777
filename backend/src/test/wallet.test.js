@@ -152,6 +152,23 @@ test('GET /wallet/transactions without token -> 401', async () => {
   assert.equal(r.status, 401);
 });
 
+test('GET /wallet/history returns signed hand results from wallet transactions', async () => {
+  const { token, user } = await registerUser(uniq('handhistory'));
+  await request.post('/wallet/topup').set('Authorization', `Bearer ${token}`).send({ amount: 100 });
+  await request.post('/internal/wallet/adjust')
+    .set('X-Internal-Key', 'dev-internal-key')
+    .send({ user_id: user.id, amount: 300, ref_id: `history-win-${Date.now()}` });
+  await request.post('/internal/wallet/adjust')
+    .set('X-Internal-Key', 'dev-internal-key')
+    .send({ user_id: user.id, amount: -100, ref_id: `history-loss-${Date.now()}` });
+
+  const r = await request.get('/wallet/history').set('Authorization', `Bearer ${token}`);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.hands.length, 2);
+  assert.deepEqual(r.body.hands.map((hand) => Number(hand.amount)).sort((a, b) => a - b), [-100, 300]);
+  assert.ok(r.body.hands.every((hand) => ['WIN', 'LOSS', 'SETTLE'].includes(hand.type)));
+});
+
 // ========== POST /internal/wallet/adjust ==========
 
 test('POST /internal/wallet/adjust with valid key -> 200', async () => {

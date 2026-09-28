@@ -89,6 +89,19 @@ export async function getTransactions(userId, page = 1, limit = 20) {
   };
 }
 
+export async function getHandHistory(userId, limit = 5) {
+  const [rows] = await pool.query(
+    `SELECT id, amount, type, ref_id, balance_after, note, created_at
+     FROM transactions
+     WHERE user_id = :userId AND type IN ('WIN', 'LOSS', 'SETTLE') AND amount <> 0
+     ORDER BY created_at DESC, id DESC
+     LIMIT :limit`,
+    { userId, limit }
+  );
+
+  return { hands: rows };
+}
+
 /**
  * POST /internal/wallet/adjust — สำหรับ WS team
  * Idempotent: ถ้า ref_id ซ้ำ → return 200 เดิม ไม่ปรับยอดซ้ำ

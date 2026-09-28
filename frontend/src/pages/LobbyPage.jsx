@@ -11,14 +11,6 @@ const blindOptions = [
 const seatOptions = [2, 4, 6, 9];
 const topupOptions = [100, 500, 1000, 5000, 10000, 50000];
 
-const recentHands = [
-  ['WIN', ['A♥', 'K♥', 'Q♥', 'J♥', '10♥'], '+15,200', '10 min ago'],
-  ['LOSS', ['K♠', 'Q♠', 'J♠', '10♠', '9♠'], '-8,300', '25 min ago'],
-  ['WIN', ['A♠', 'A♥', 'K♠', 'Q♠', 'J♠'], '+22,100', '45 min ago'],
-  ['WIN', ['Q♠', 'J♠', '10♠', '9♠', '8♠'], '+9,500', '1 hr ago'],
-  ['LOSS', ['J♠', '10♠', '9♠', '8♠', '7♠'], '-7,800', '2 hr ago'],
-];
-
 function transactionLabel(type) {
   return ({ TOPUP: '💰 Top Up', BONUS: '🎁 Bonus', WIN: '🏆 Win', LOSS: '❌ Loss', BUYIN: '🎫 Buy-in', SETTLE: '⚖️ Settle' })[type] || type;
 }
@@ -32,6 +24,7 @@ export default function LobbyPage() {
   const [selectedAvatar, setSelectedAvatar] = useState(1);
   const [avatarSaving, setAvatarSaving] = useState(false);
   const [transactions, setTransactions] = useState([]);
+  const [handHistory, setHandHistory] = useState([]);
   const [txPage, setTxPage] = useState(1);
   const [txHasMore, setTxHasMore] = useState(false);
   const [txLoading, setTxLoading] = useState(false);
@@ -91,9 +84,19 @@ export default function LobbyPage() {
     }
   }
 
+  async function loadHandHistory() {
+    try {
+      const data = await Wallet.handHistory();
+      setHandHistory(data.hands || []);
+    } catch {
+      setHandHistory([]);
+    }
+  }
+
   function openProfile() {
     setProfileOpen(true);
     loadTransactions(1);
+    loadHandHistory();
   }
 
   async function saveAvatar(event) {
@@ -262,14 +265,21 @@ export default function LobbyPage() {
         </div>
 
         <div className="section-label">◆ Recent 5 Hands ◆</div>
-        {recentHands.map(([result, cards, chips, time], index) => (
-          <div className="hand-row" key={index}>
-            <div className="hand-index">{index + 1}</div>
-            <div className={`hand-result ${result === 'WIN' ? 'win-text' : 'loss-text'}`}>{result}</div>
-            <div className="mini-cards">{cards.map((card) => <div key={card} className={`mini-card ${/[♥♦]/.test(card) ? 'red' : ''}`}>{card}</div>)}</div>
-            <div className={`hand-chips ${chips.startsWith('+') ? 'pos' : 'neg'}`}>{chips}</div><div className="hand-time">{time}</div>
-          </div>
-        ))}
+        {handHistory.length === 0 && <div className="tx-empty">No hand history yet</div>}
+        {handHistory.map((hand, index) => {
+          const amount = Number(hand.amount);
+          const positive = amount > 0;
+          const time = new Date(hand.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          return (
+            <div className="hand-row" key={hand.id}>
+              <div className="hand-index">{index + 1}</div>
+              <div className={`hand-result ${positive ? 'win-text' : 'loss-text'}`}>{positive ? 'WIN' : 'LOSS'}</div>
+              <div className="hand-note" title={hand.note || hand.ref_id}>{hand.note || hand.ref_id}</div>
+              <div className={`hand-chips ${positive ? 'pos' : 'neg'}`}>{positive ? '+' : '-'}{fmtChips(Math.abs(amount))}</div>
+              <div className="hand-time">{time}</div>
+            </div>
+          );
+        })}
 
         <div className="section-label">◆ Transaction History ◆</div>
         <div className="tx-list">
