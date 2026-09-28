@@ -91,15 +91,36 @@ export async function getTransactions(userId, page = 1, limit = 20) {
 
 export async function getHandHistory(userId, limit = 5) {
   const [rows] = await pool.query(
-    `SELECT id, amount, type, ref_id, balance_after, note, created_at
-     FROM transactions
-     WHERE user_id = :userId AND type IN ('WIN', 'LOSS', 'SETTLE') AND amount <> 0
+    `SELECT id, room_code, round_id, amount, hole_cards, community_cards, created_at
+     FROM hand_results
+     WHERE user_id = :userId
      ORDER BY created_at DESC, id DESC
      LIMIT :limit`,
     { userId, limit }
   );
 
-  return { hands: rows };
+  const [statsRows] = await pool.query(
+    `SELECT
+       COALESCE(SUM(amount > 0), 0) AS wins,
+       COALESCE(SUM(amount < 0), 0) AS losses,
+       COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) AS totalChipsWon
+     FROM hand_results
+     WHERE user_id = :userId`,
+    { userId }
+  );
+  const wins = Number(statsRows[0].wins) || 0;
+  const losses = Number(statsRows[0].losses) || 0;
+  const decidedHands = wins + losses;
+
+  return {
+    hands: rows,
+    stats: {
+      wins,
+      losses,
+      winRate: decidedHands ? (wins / decidedHands) * 100 : 0,
+      totalChipsWon: Number(statsRows[0].totalChipsWon) || 0,
+    },
+  };
 }
 
 /**
@@ -179,25 +200,37 @@ export async function adjustWallet(userId, amount, refId, note = '') {
  * @param {Object} playerChipsMap { userId: finalChips }
  * @param {Object} playerBuyInsMap { userId: initialBuyIn }
  */
-export async function syncPlayerBalances(roomCode, roundId, playerChipsMap, playerBuyInsMap = {}) {
+export async function syncPlayerBalances(roomCode, roundId, playerChipsMap, playerBuyInsMap = {}, handData = {}) {
   for (const [userId, finalChips] of Object.entries(playerChipsMap)) {
     try {
       const initialBuyIn = Number(playerBuyInsMap[userId]) || 0;
-      
+
       // คำนวณส่วนต่างกำไร (+)/ขาดทุน (-)
       const diff = finalChips - initialBuyIn;
 
-      // ถ้ายอดไม่มีการเปลี่ยนแปลง ข้ามไป
-      if (diff === 0) continue;
+      if (diff !== 0) {
+        const refId = `SETTLE_${roomCode}_${roundId}_${userId}`;
+        const note = `Showdown settlement for room ${roomCode} round ${roundId} (Net: ${diff})`;
+        await adjustWallet(userId, diff, refId, note);
+        console.log(`[DB Sync Success] User ${userId} net change: ${diff} (Final: ${finalChips})`);
+      }
 
-      // [แก้ไข]: ใช้ roundId เพื่อรักษากฎ Idempotency
-      const refId = `SETTLE_${roomCode}_${roundId}_${userId}`;
-      const note = `Showdown settlement for room ${roomCode} round ${roundId} (Net: ${diff})`;
-
-      // เรียกปรับยอดใน DB ด้วยส่วนต่างกำไร/ขาดทุน
-      await adjustWallet(userId, diff, refId, note);
-
-      console.log(`[DB Sync Success] User ${userId} net change: ${diff} (Final: ${finalChips})`);
+      const holeCards = handData.holeCardsMap?.[userId];
+      if (Array.isArray(holeCards)) {
+        await pool.query(
+          `INSERT IGNORE INTO hand_results
+             (user_id, room_code, round_id, amount, hole_cards, community_cards)
+           VALUES (:userId, :roomCode, :roundId, :amount, :holeCards, :communityCards)`,
+          {
+            userId,
+            roomCode,
+            roundId: String(roundId),
+            amount: diff,
+            holeCards: JSON.stringify(holeCards),
+            communityCards: JSON.stringify(handData.communityCards || []),
+          }
+        );
+      }
     } catch (err) {
       console.error(`[DB Sync Error] Failed for user ${userId}:`, err.message);
     }

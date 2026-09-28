@@ -25,6 +25,7 @@ export default function LobbyPage() {
   const [avatarSaving, setAvatarSaving] = useState(false);
   const [transactions, setTransactions] = useState([]);
   const [handHistory, setHandHistory] = useState([]);
+  const [handStats, setHandStats] = useState({ wins: 0, losses: 0, winRate: 0, totalChipsWon: 0 });
   const [txPage, setTxPage] = useState(1);
   const [txHasMore, setTxHasMore] = useState(false);
   const [txLoading, setTxLoading] = useState(false);
@@ -88,8 +89,10 @@ export default function LobbyPage() {
     try {
       const data = await Wallet.handHistory();
       setHandHistory(data.hands || []);
+      setHandStats(data.stats || { wins: 0, losses: 0, winRate: 0, totalChipsWon: 0 });
     } catch {
       setHandHistory([]);
+      setHandStats({ wins: 0, losses: 0, winRate: 0, totalChipsWon: 0 });
     }
   }
 
@@ -259,9 +262,9 @@ export default function LobbyPage() {
 
         <div className="section-label">◆ Stats ◆</div>
         <div className="stats-grid">
-          <div className="stat"><div className="stat-label">Win / Loss</div><div className="stat-value"><span className="win">123</span> / <span className="loss">87</span></div></div>
-          <div className="stat"><div className="stat-label">Win Rate</div><div className="stat-value">58.6%</div></div>
-          <div className="stat"><div className="stat-label">Total Chips Won</div><div className="stat-value">🪙 2.45M</div></div>
+          <div className="stat"><div className="stat-label">Win / Loss</div><div className="stat-value"><span className="win">{handStats.wins}</span> / <span className="loss">{handStats.losses}</span></div></div>
+          <div className="stat"><div className="stat-label">Win Rate</div><div className="stat-value">{Number(handStats.winRate).toFixed(1)}%</div></div>
+          <div className="stat"><div className="stat-label">Total Chips Won</div><div className="stat-value">🪙 {fmtChips(handStats.totalChipsWon)}</div></div>
         </div>
 
         <div className="section-label">◆ Recent 5 Hands ◆</div>
@@ -269,13 +272,21 @@ export default function LobbyPage() {
         {handHistory.map((hand, index) => {
           const amount = Number(hand.amount);
           const positive = amount > 0;
+          const result = positive ? 'WIN' : amount < 0 ? 'LOSS' : 'PUSH';
+          const cards = [...(hand.hole_cards || []), ...(hand.community_cards || [])];
           const time = new Date(hand.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           return (
             <div className="hand-row" key={hand.id}>
               <div className="hand-index">{index + 1}</div>
-              <div className={`hand-result ${positive ? 'win-text' : 'loss-text'}`}>{positive ? 'WIN' : 'LOSS'}</div>
-              <div className="hand-note" title={hand.note || hand.ref_id}>{hand.note || hand.ref_id}</div>
-              <div className={`hand-chips ${positive ? 'pos' : 'neg'}`}>{positive ? '+' : '-'}{fmtChips(Math.abs(amount))}</div>
+              <div className={`hand-result ${positive ? 'win-text' : amount < 0 ? 'loss-text' : ''}`}>{result}</div>
+              <div className="mini-cards" title={`Room ${hand.room_code}`}>
+                {cards.map((card, cardIndex) => {
+                  const suit = card.slice(-1).toUpperCase();
+                  const suitSymbols = { H: '♥', D: '♦', C: '♣', S: '♠' };
+                  return <span className={`mini-card ${suit === 'H' || suit === 'D' ? 'red' : ''}`} key={`${card}-${cardIndex}`}>{card.slice(0, -1)}{suitSymbols[suit] || suit}</span>;
+                })}
+              </div>
+              <div className={`hand-chips ${positive ? 'pos' : amount < 0 ? 'neg' : ''}`}>{amount > 0 ? '+' : amount < 0 ? '-' : ''}{fmtChips(Math.abs(amount))}</div>
               <div className="hand-time">{time}</div>
             </div>
           );

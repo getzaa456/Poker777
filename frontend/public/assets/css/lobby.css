@@ -469,9 +469,10 @@ html,body{
 .hand-result.loss-text{ color:var(--loss-red); }
 .hand-note{ flex:1; min-width:0; overflow:hidden; color:var(--text-muted); font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
 
-.mini-cards{ display:flex; gap:3px; flex:1; }
+.mini-cards{ display:flex; gap:3px; flex:1; min-width:0; overflow-x:auto; }
 .mini-card{
   width:24px; height:32px;
+  flex:0 0 24px;
   background:#fff;
   border-radius:4px;
   display:flex; flex-direction:column; align-items:center; justify-content:center;
