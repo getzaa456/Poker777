@@ -3,3 +3,9 @@ key          = "poker777/prod/terraform.tfstate"
 region       = "us-east-1"
 encrypt      = true
 use_lockfile = true
+
+# Optional static credentials. Keep these only in the ignored local backend.hcl.
+# Terraform may persist backend configuration in .terraform metadata and saved plans.
+# access_key = "AKIA..."
+# secret_key = "..."
+# token      = "..." # Temporary session token, when required.
