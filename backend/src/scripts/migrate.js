@@ -17,6 +17,15 @@ const SCHEMA_PATH = path.join(__dirname, '..', 'db', 'schema.sql');
 async function main() {
   const args = new Set(process.argv.slice(2));
   const fresh = args.has('--fresh');
+  const sslCaPath = process.env.DB_SSL_CA;
+
+  if (process.env.NODE_ENV === 'production' && !sslCaPath) {
+    throw new Error('[migrate] DB_SSL_CA is required in production.');
+  }
+
+  const ssl = sslCaPath
+    ? { ca: await fs.readFile(sslCaPath), rejectUnauthorized: true }
+    : undefined;
 
   const conn = await mysql.createConnection({
     host: process.env.DB_HOST || '127.0.0.1',
@@ -25,6 +34,7 @@ async function main() {
     password: process.env.DB_PASSWORD || 'pokerpass',
     database: process.env.DB_NAME || 'poker777',
     multipleStatements: true,
+    ssl,
   });
 
   try {

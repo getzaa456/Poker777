@@ -16,6 +16,10 @@ export const env = {
   isProd: process.env.NODE_ENV === 'production',
   isTest: process.env.NODE_ENV === 'test',
   port: parseInt(required('PORT', '4000'), 10),
+  trustProxyHops: parseInt(
+    required('TRUST_PROXY_HOPS', process.env.NODE_ENV === 'production' ? '3' : '0'),
+    10
+  ),
 
   corsOrigins: (process.env.CORS_ALLOWED_ORIGINS || '')
     .split(',')
@@ -29,11 +33,13 @@ export const env = {
     password: required('DB_PASSWORD', 'pokerpass'),
     database: required('DB_NAME', 'poker777'),
     connectionLimit: parseInt(required('DB_CONNECTION_LIMIT', '10'), 10),
+    sslCa: process.env.DB_SSL_CA || '',
   },
 
   redis: {
     host: required('REDIS_HOST', '127.0.0.1'),
     port: parseInt(required('REDIS_PORT', '6379'), 10),
+    password: process.env.REDIS_PASSWORD || '',
     keyPrefix: required('REDIS_KEY_PREFIX', 'poker:'),
   },
 
@@ -51,6 +57,18 @@ export const env = {
 
   internalApiKey: required('INTERNAL_API_KEY', 'dev-internal-key'),
 };
+
+if (!Number.isInteger(env.trustProxyHops) || env.trustProxyHops < 0) {
+  throw new Error('[config] TRUST_PROXY_HOPS must be a non-negative integer.');
+}
+
+if (env.isProd && !env.db.sslCa) {
+  throw new Error('[config] DB_SSL_CA is required in production.');
+}
+
+if (env.db.sslCa && !fs.existsSync(env.db.sslCa)) {
+  throw new Error(`[config] DB_SSL_CA file not found: ${env.db.sslCa}`);
+}
 
 // Fail-fast in non-test environments if JWT secret is obviously weak.
 if (!env.isTest && env.jwt.secret.length < 32) {

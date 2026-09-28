@@ -1,6 +1,5 @@
 const configuredBase = (import.meta.env.VITE_API_BASE || '').trim();
-const fallbackBase = `${window.location.protocol}//${window.location.hostname}:4000`;
-export const API_BASE = (configuredBase || fallbackBase).replace(/\/$/, '');
+export const API_BASE = (configuredBase || window.location.origin).replace(/\/$/, '');
 
 const TOKEN_KEY = 'poker777_token';
 const USER_KEY = 'poker777_user';
