@@ -588,3 +588,36 @@ button {
 
 .p1 { left: 15%; top: 25%; } .p2 { left: 80%; top: 15%; animation-delay: .5s; }
 .p3 { left: 30%; top: 80%; animation-delay: 1s; } .p4 { left: 70%; top: 70%; animation-delay: 1.5s; }
+/* ---- seats 6-8 (tables can have up to 9 seats) ---- */
+.player-seat-6 { top: -60px; left: 12%; }
+.player-seat-7 { top: -60px; right: 12%; }
+.player-seat-8 { bottom: -55px; left: 12%; }
+
+/* ---- turn / winner highlights ---- */
+.player.is-turn .player-info { border-color: #ffdb66; box-shadow: 0 0 22px rgba(255,219,102,.45); }
+.player.is-winner .player-info { border-color: #7dffb0; box-shadow: 0 0 22px rgba(125,255,176,.45); }
+.seat-cards { display: flex; gap: 4px; margin-top: 6px; }
+.mini-playing-card { width: 30px; height: 42px; border-radius: 5px; background: #fff; color: #1d1433; display: flex; flex-direction: column; align-items: center; justify-content: center; font-size: 11px; line-height: 1; box-shadow: 0 3px 8px rgba(0,0,0,.4); }
+.mini-playing-card.red { color: #ff477e; }
+.mini-playing-card b { font-size: 12px; }
+.start-game-button:disabled { opacity: .55; cursor: not-allowed; transform: none; }
+
+/* ---- buy-in dialog ---- */
+.seat-overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(10, 6, 25, .7); backdrop-filter: blur(4px); }
+.seat-dialog { width: min(100%, 380px); padding: 24px; border-radius: 18px; background: rgba(30, 22, 55, .96); border: 1px solid rgba(255,255,255,.12); box-shadow: 0 20px 50px rgba(0,0,0,.5); display: flex; flex-direction: column; gap: 12px; text-align: center; color: #fff; }
+.seat-dialog h2 { margin: 0; }
+.seat-dialog p { margin: 0; color: #c9c0ea; font-size: 14px; }
+.seat-dialog input[type="range"] { width: 100%; accent-color: #ffdb66; }
+.seat-amount { font-size: 26px; color: #ffdb66; }
+.seat-warning { color: #ffb3c4 !important; }
+
+/* ---- connection lost banner ---- */
+.connection-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 60; padding: 10px 16px; text-align: center; font-weight: 700; font-size: 14px; color: #2a1a00; background: linear-gradient(90deg, #ffdb66, #ffb347); box-shadow: 0 4px 18px rgba(0,0,0,.35); }
+
+/* ---- live turn countdown ---- */
+.timer-ring { background: conic-gradient(#ff7ab8 var(--left, 0%), rgba(255,255,255,.1) 0); }
+.timer-ring.is-low { background: conic-gradient(#ff4d6d var(--left, 0%), rgba(255,255,255,.1) 0); box-shadow: 0 0 15px rgba(255,77,109,.6); }
+.timer-ring span { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: #1d1433; color: #fff; }
+.progress-value { transition: width .1s linear; }
+.progress-value.is-low { background: linear-gradient(90deg, #ff4d6d, #ff7a59); }
+.user-tags { margin-top: 4px; font-size: 11px; color: #c9c0ea; letter-spacing: .3px; }

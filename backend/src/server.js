@@ -11,7 +11,8 @@ import { router as healthRouter } from './routes/health.js';
 import { router as authRouter } from './routes/auth.js';
 import { router as usersRouter } from './routes/users.js';
 import { router as walletRouter } from './routes/wallet.js';
-import { router as tablesRouter, handleTableUpgrade } from './routes/tables.js';
+import { router as tablesRouter } from './routes/tables.js';
+import { handleTableUpgrade } from './ws/wsUpgrade.js';
 
 export async function createApp() {
   const app = express();
@@ -54,7 +55,7 @@ export async function createApp() {
 const app = await createApp();
 let server = null;
 
-if (!env.isTest) {
+if (!env.isTest) { // ทำทำไม
   server = http.createServer(app);
   server.on('upgrade', (request, socket, head) => {
     if (request.url?.split('?')[0] !== '/ws') {

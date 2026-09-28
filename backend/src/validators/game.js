@@ -6,6 +6,6 @@ export const joinTableSchema = z.object({
   buyIn: z.number().min(1, 'Buy-in must be at least 1')
 });
 
-export const webScoketConnectionSchema = z.object({
+export const webSocketConnectionSchema = z.object({
   clientId: z.string().min(1, 'Client ID is required')
 });
