@@ -676,6 +676,7 @@ wss.on('connection', (ws) => {
             }
 
             const profile = isRejoin ? null : await getUserProfile(clientId);
+            let hostReclaimed = false;
 
             for (const currentClient of wss.clients) {
               if (currentClient !== ws && currentClient.readyState === 1
@@ -703,6 +704,9 @@ wss.on('connection', (ws) => {
                 status: 'OPEN',
                 currentBet: 0,
                 pot: 0,
+                // [แก้บัค]: เดิม Host = คนที่เชื่อม WebSocket เข้าห้องคนแรกเสมอ แม้ไม่ใช่คนสร้างห้อง
+                // เก็บ creatorId (tables.host_id) ไว้ ถ้าคนสร้างยังไม่เข้า ให้คนแรกเป็น Host ชั่วคราว
+                creatorId: tableInfo.host_id ?? '',
                 hostId: clientId,
                 smallBlind: SMALL_BLIND,
                 bigBlind: BIG_BLIND,
@@ -752,6 +756,13 @@ wss.on('connection', (ws) => {
 
               if (availableSeatIndex >= 0) {
                 await setPlayerSeat(roomCode, availableSeatIndex, clientId);
+              }
+
+              // [แก้บัค]: คนสร้างห้องได้สิทธิ์ Host คืนเมื่อเข้ามานั่ง (เข้าได้เฉพาะระหว่างมือ จึงไม่กระทบมือที่เล่นอยู่)
+              if (room.creatorId && String(room.creatorId) === String(clientId)
+                && String(room.hostId) !== String(clientId)) {
+                await updateRoom(roomCode, { hostId: clientId });
+                hostReclaimed = true;
               }
             }
 
@@ -807,6 +818,8 @@ wss.on('connection', (ws) => {
                 CHANNEL,
                 JSON.stringify({ eventType: 'player_join', roomCode, clientId, room: roomSnapshot })
               );
+              // Host เปลี่ยน -> ส่ง Snapshot ให้ทุกคน ปุ่ม START จะได้ย้ายไปที่คนสร้างห้อง
+              if (hostReclaimed) await publishRoomState(roomCode);
             }
           });
         } catch (err) {

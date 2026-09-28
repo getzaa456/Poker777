@@ -1019,3 +1019,14 @@ html,body{
   .room-code-display{ font-size:34px; letter-spacing:6px; }
   .field-row{ flex-direction:column; }
 }
+/* phones: keep the profile bar inside the screen — buttons collapse to their icons */
+@media (max-width:520px){
+  .profile-widget{ top:12px; left:12px; right:12px; gap:8px; padding:6px 8px 6px 6px; }
+  .profile-widget .profile-info{ min-width:0; flex:1 1 auto; }
+  .profile-widget .profile-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .xp-bar{ width:auto; max-width:110px; }
+  .topup-quick-btn > span:not(.topup-quick-icon),
+  .logout-btn > span:not(.logout-icon){ display:none; }
+  .topup-quick-btn, .logout-btn{ padding:0 9px; flex:0 0 auto; }
+  .room-code-bar{ margin-left:16px; margin-right:16px; }
+}

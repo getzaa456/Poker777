@@ -109,6 +109,17 @@ function snapshotPlayer(player) {
   };
 }
 
+// Seats sit on an ellipse around the table in turn (seat-index) order, rotated so the
+// viewer's own seat is at the bottom — where their panel is — and the rest go clockwise.
+function seatPosition(seat, anchorSeat, seatCount) {
+  const offset = (seat - anchorSeat + seatCount) % seatCount;
+  const angle = Math.PI / 2 + (offset * 2 * Math.PI) / seatCount;
+  const x = 50 + 55 * Math.cos(angle);
+  const y = 50 + 60 * Math.sin(angle);
+  const side = Math.abs(Math.cos(angle)) > 0.55 ? (Math.cos(angle) < 0 ? 'left' : 'right') : (Math.sin(angle) < 0 ? 'top' : 'bottom');
+  return { style: { left: `${x.toFixed(2)}%`, top: `${y.toFixed(2)}%` }, side };
+}
+
 function blindBets(players, params) {
   const inHand = players.filter((player) => ['ACTIVE', 'ALL_IN'].includes(player.status)).sort((a, b) => a.seat - b.seat);
   if (inHand.length < 2) return {};
@@ -684,29 +695,35 @@ export default function PokerTablePage() {
         <section className="community-area"><div className="community-title">COMMUNITY CARDS</div><div className="community-cards">{(state?.community_cards || []).map((card, index) => <PlayingCard key={index} card={card} className="user-card community-card" />)}</div></section>
         <div className="live-player-list">{Array.from({ length: maxPlayers }, (_, seat) => {
           const player = players.find((item) => item.seat === seat);
-          if (!player) return <div key={seat} className={`waiting-seat player-seat-${seat}`}>Empty seat</div>;
+          const { style: seatStyle, side } = seatPosition(seat, me ? me.seat : 0, maxPlayers);
+          if (!player) return <div key={seat} className={`waiting-seat seat-${side}`} style={seatStyle}>Empty seat</div>;
           const isMe = player.client_id === myId;
           if (isMe) return null; // shown in the panel at the bottom instead
           const isTurn = inHand && state?.current_turn === player.client_id;
           const isDealer = state?.dealer_seat === seat && (inHand || result);
           const won = result?.winnerIds.includes(player.client_id);
-          const tags = [isDealer ? 'D' : null, player.status, player.bet && (state.betsKnown || (isMe && state.ownBetKnown)) ? `Bet ${fmtChips(player.bet)}` : null].filter(Boolean).join(' • ');
-          return <div key={seat} className={`player live-player player-seat-${seat} ${isTurn ? 'is-turn' : ''} ${won ? 'is-winner' : ''}`}><div className="avatar"><div className="avatar-inner">{player.avatar_id ? <AvatarFace id={player.avatar_id} prefix={`player-${player.client_id}`} /> : String(player.username || '?').slice(0, 1).toUpperCase()}</div></div><div className="player-info"><div className="player-name">{isMe ? `${player.username} (you)` : player.username}</div><div className="player-chips">🪙 {fmtChips(player.chips)}</div><div className="player-status">{tags}</div>{!isMe && player.hole_cards.length > 0 && <div className="seat-cards">{player.hole_cards.map((card, index) => <PlayingCard key={index} card={card} className="mini-playing-card" />)}</div>}</div></div>;
+          const tags = [player.status, player.bet && (state.betsKnown || (isMe && state.ownBetKnown)) ? `Bet ${fmtChips(player.bet)}` : null].filter(Boolean).join(' • ');
+          return <div key={seat} className={`player live-player seat-${side} ${isTurn ? 'is-turn' : ''} ${won ? 'is-winner' : ''}`} style={seatStyle}>{isDealer && <span className="dealer-chip" title="Dealer">D</span>}<div className="avatar"><div className="avatar-inner">{player.avatar_id ? <AvatarFace id={player.avatar_id} prefix={`player-${player.client_id}`} /> : String(player.username || '?').slice(0, 1).toUpperCase()}</div></div><div className="player-info"><div className="player-name">{isMe ? `${player.username} (you)` : player.username}</div><div className="player-chips">🪙 {fmtChips(player.chips)}</div><div className="player-status">{tags}</div>{!isMe && player.hole_cards.length > 0 && <div className="seat-cards">{player.hole_cards.map((card, index) => <PlayingCard key={index} card={card} className="mini-playing-card" />)}</div>}</div></div>;
         })}</div>
         <div className="live-room-status">{resultText || (state ? `${players.length}/${maxPlayers} players • ${state.phase || 'WAITING'}` : roomStatus)}</div><div className="current-hand"><strong>{hand.name}</strong><span>{hand.detail}</span></div>
       </div></div></div></main>
 
-      <section className={`user-section ${myTurn ? 'is-your-turn' : ''}`}><div className="user-avatar"><div className="avatar-art"><AvatarFace id={normalizeAvatarId(user?.avatar_id)} prefix="user" /></div></div><div className="user-info"><div className="user-name">{me?.username || user?.display_name || user?.username || 'Me'}</div><div className="user-chips">{me ? `🪙 ${fmtChips(me.chips)} at table` : `Wallet ${fmtChips(user?.balance)}`}</div>{me && <div className="user-tags">{[state?.dealer_seat === me.seat && (inHand || result) ? 'Dealer' : null, me.status, me.bet && state?.ownBetKnown ? `Bet ${fmtChips(me.bet)}` : null].filter(Boolean).join(' • ')}</div>}<div className="progress"><div className={`progress-value ${myTurn && timeLeftPct <= 34 ? 'is-low' : ''}`} style={{ width: `${myTurn ? timeLeftPct : 0}%` }} /></div></div><div className="user-cards">{(me?.hole_cards || []).map((card, index) => <PlayingCard key={index} card={card} className="user-card" />)}</div></section>
+      <div className="table-dock">
+      <section className={`user-section ${myTurn ? 'is-your-turn' : ''} ${me?.status === 'FOLDED' ? 'is-folded' : ''}`}><div className="user-avatar"><div className="avatar-art"><AvatarFace id={normalizeAvatarId(user?.avatar_id)} prefix="user" /></div></div><div className="user-info"><div className="user-name">{me?.username || user?.display_name || user?.username || 'Me'}</div><div className="user-chips">{me ? `🪙 ${fmtChips(me.chips)} at table` : `Wallet ${fmtChips(user?.balance)}`}</div>{me && <div className="user-tags">{[state?.dealer_seat === me.seat && (inHand || result) ? 'Dealer' : null, me.status, me.bet && state?.ownBetKnown ? `Bet ${fmtChips(me.bet)}` : null].filter(Boolean).join(' • ')}</div>}<div className="progress"><div className={`progress-value ${myTurn && timeLeftPct <= 34 ? 'is-low' : ''}`} style={{ width: `${myTurn ? timeLeftPct : 0}%` }} /></div></div><div className="user-cards">{(me?.hole_cards || []).map((card, index) => <PlayingCard key={index} card={card} className="user-card" />)}</div></section>
 
-      <section className="action-bar">
+      <section className={`action-bar ${inHand ? 'in-hand' : 'between-hands'}`}>
         {isHost && !inHand && me && <button className="start-game-button" disabled={readyPlayers < 2} title={readyPlayers < 2 ? 'Need at least 2 players with chips' : ''} onClick={() => send('start-game')}>{readyPlayers < 2 ? 'WAITING FOR PLAYERS' : 'START GAME'}</button>}
+        {!isHost && !inHand && me && <div className="waiting-hint">Waiting for the host to start the next hand…</div>}
+        {inHand && <>
         <button className="action-button fold" disabled={!myTurn} onClick={() => act('FOLD')}><span className="action-icon">✕</span><strong>FOLD</strong></button>
         <button className="action-button check" disabled={!myTurn || !canCheck} onClick={() => act('CHECK')}><span className="action-icon">✓</span><strong>CHECK</strong></button>
         <button className="action-button call" disabled={!myTurn || !canCall} onClick={() => act('CALL')}><span className="action-icon">↔</span><strong>CALL{state?.ownBetKnown && toCall ? ` ${fmtChips(Math.min(toCall, myChips))}` : ''}</strong></button>
         <div className="bet-control"><button className="small-control" disabled={!myTurn} onClick={() => setRaiseTo(Math.max(minTarget, target - step))}>−</button><div className="bet-value"><span>{isBet ? 'BET' : 'RAISE TO'}</span><strong>{fmtChips(target)}</strong></div><button className="small-control" disabled={!myTurn} onClick={() => setRaiseTo(Math.min(maxTarget, target + step))}>+</button></div>
         <button className="action-button raise" disabled={!myTurn || !canRaise} onClick={() => act(isBet ? 'BET' : 'RAISE', target)}><span>{isBet ? 'BET' : 'RAISE TO'}</span><strong>{fmtChips(target)}</strong></button>
         <button className="action-button bet" disabled={!myTurn || myChips <= 0} onClick={allIn}><span>ALL IN</span><strong>{fmtChips(maxTarget)}</strong></button>
+        </>}
       </section>
+      </div>
     </div>
   );
 }
