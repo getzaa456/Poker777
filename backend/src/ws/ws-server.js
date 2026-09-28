@@ -703,7 +703,7 @@ wss.on('connection', (ws) => {
                 status: 'OPEN',
                 currentBet: 0,
                 pot: 0,
-                hostId: clientId,
+                hostId: tableInfo.host_id || clientId,
                 smallBlind: SMALL_BLIND,
                 bigBlind: BIG_BLIND,
               };
