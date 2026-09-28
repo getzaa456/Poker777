@@ -38,6 +38,9 @@ services:
       context: ./frontend
       args:
         VITE_API_BASE: ${VITE_API_BASE:-}
+    environment:
+      BACKEND_INTERNAL_DNS: backend:4000
+      NGINX_RESOLVER: 127.0.0.11
     ports:
       - "3000:3000"
 

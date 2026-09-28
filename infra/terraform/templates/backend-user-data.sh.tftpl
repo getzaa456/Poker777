@@ -1,0 +1,49 @@
+#!/bin/bash
+set -euo pipefail
+
+dnf install -y docker jq
+systemctl enable --now docker
+
+aws ecr get-login-password --region '${aws_region}' \
+  | docker login --username AWS --password-stdin '${ecr_registry}'
+aws secretsmanager get-secret-value \
+  --region '${aws_region}' \
+  --secret-id '${backend_secret_arn}' \
+  --query SecretString \
+  --output text \
+  | jq -r 'to_entries[] | select(.value != null) | "\(.key)=\(.value|tostring)"' \
+  > /run/poker777-backend-secrets.env
+chmod 600 /run/poker777-backend-secrets.env
+
+cat >> /run/poker777-backend-secrets.env <<'POKER777_ENV'
+NODE_ENV=production
+PORT=4000
+TRUST_PROXY_HOPS=3
+CORS_ALLOWED_ORIGINS=${site_origin}
+DB_HOST=${db_writer_endpoint}
+DB_PORT=3306
+DB_NAME=poker777
+DB_CONNECTION_LIMIT=10
+DB_SSL_CA=/etc/ssl/certs/aws-rds-global-bundle.pem
+REDIS_HOST=${redis_endpoint}
+REDIS_PORT=6379
+REDIS_TLS=true
+REDIS_KEY_PREFIX=poker:
+JWT_EXPIRES_IN=24h
+JWT_ISSUER=poker777
+WELCOME_BONUS=1000
+TOPUP_MIN=1
+TOPUP_MAX=100000
+POKER777_ENV
+
+docker pull '${image_uri}'
+docker run --detach \
+  --name poker777-backend \
+  --restart unless-stopped \
+  --publish 4000:4000 \
+  --env-file /run/poker777-backend-secrets.env \
+  --log-driver=awslogs \
+  --log-opt awslogs-region='${aws_region}' \
+  --log-opt awslogs-group='${log_group}' \
+  --log-opt awslogs-stream="backend-$(hostname)" \
+  '${image_uri}'

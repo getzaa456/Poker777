@@ -41,7 +41,7 @@ The WebSocket code already derives `ws://` or `wss://` from `API_BASE`. Build pr
 
 ### Frontend Nginx proxy
 
-Update `frontend/nginx.conf` so Nginx serves static content and forwards application requests to the internal ALB. Add `/health`, `/auth/`, `/users/`, `/wallet/`, `/tables/`, `/internal/`, and `/ws` proxy routes before the existing static catch-all. Preserve the request path, set `Host`, `X-Forwarded-For`, and `X-Forwarded-Proto` headers, and for `/ws` set the `Upgrade` and `Connection: upgrade` headers plus a long `proxy_read_timeout` (for example 3600 seconds). Replace the current `COPY nginx.conf /etc/nginx/conf.d/default.conf` in `frontend/Dockerfile` with a copy to `/etc/nginx/templates/default.conf.template`; the official Nginx image entrypoint then renders it at container startup. Set `NGINX_ENVSUBST_FILTER=^(BACKEND_INTERNAL_DNS|NGINX_RESOLVER)$` so only the two deployment variables are substituted and Nginx variables such as `$host` are left intact. Set both values at runtime: AWS uses the internal ALB DNS name and VPC resolver `169.254.169.253`; local Compose uses `backend:4000` and `127.0.0.11`:
+Update `frontend/nginx.conf` so Nginx serves static content and forwards application requests to the internal ALB. Add `/health`, `/auth/`, `/users/`, `/wallet/`, `/tables/`, `/internal/`, and `/ws` proxy routes before the existing static catch-all. Preserve the request path, set `Host`, `X-Forwarded-For`, and `X-Forwarded-Proto` headers, and for `/ws` set the `Upgrade` and `Connection: upgrade` headers plus a long `proxy_read_timeout` (for example 3600 seconds). Replace the current `COPY nginx.conf /etc/nginx/conf.d/default.conf` in `frontend/Dockerfile` with a copy to `/etc/nginx/templates/default.conf.template`; the official Nginx image entrypoint then renders it at container startup. Set `NGINX_ENVSUBST_FILTER=BACKEND_INTERNAL_DNS` on the frontend container so Nginx variables such as `$host` are not accidentally substituted:
 
 ```nginx
 resolver 169.254.169.253 valid=30s;
@@ -54,7 +54,7 @@ location /ws {
 	proxy_set_header Connection "upgrade";
 	proxy_set_header Host $host;
 	proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-	proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+	proxy_set_header X-Forwarded-Proto $scheme;
 	proxy_read_timeout 3600s;
 }
 
@@ -62,7 +62,7 @@ location ~ ^/(health|auth|users|wallet|tables|internal)(/|$) {
 	proxy_pass $backend_origin;
 	proxy_set_header Host $host;
 	proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-	proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+	proxy_set_header X-Forwarded-Proto $scheme;
 }
 ```
 
@@ -80,7 +80,6 @@ import { env } from './env.js';
 const config = {
 	host: env.redis.host,
 	port: env.redis.port,
-	password: env.redis.password || undefined,
 	lazyConnect: process.env.REDIS_DISABLED === '1',
 	...(process.env.REDIS_TLS === 'true' ? { tls: {} } : {}),
 };
@@ -102,7 +101,7 @@ Use `/health` for ALB target checks on the backend. It currently confirms that t
 
 ## 3. Create the Terraform project
 
-The repository now includes a parameterized Terraform root in `infra/terraform/`. It creates the VPC/subnets/NAT gateways, security groups, two ALBs, ECR repositories, EC2 roles/log groups/ASGs and scaling policies, one RDS MySQL writer plus three read replicas, an ElastiCache Redis replication group, and the Route 53 alias. The root is split by resource area for review. Create the encrypted/versioned state bucket and DNS/ACM prerequisites before applying it.
+Add a separate `infra/terraform/` directory (or a dedicated infrastructure repository). Use remote state configured in step 1 and pin Terraform/provider versions. Keep modules small enough to review: `network`, `security`, `database`, `cache`, `load_balancers`, `compute`, and `dns`.
 
 Create these resources (names are illustrative):
 
@@ -114,21 +113,19 @@ Create these resources (names are illustrative):
 - ElastiCache subnet group and Redis OSS/Valkey replication group in private cache subnets with Multi-AZ automatic failover, encryption, auth token where supported, backups, and a parameter group compatible with the app.
 - Route 53 alias from the public hostname to the public ALB. Do not publish the internal ALB, RDS, or cache endpoints in public DNS.
 - Secrets Manager secrets for `DB_PASSWORD`, `JWT_SECRET`, and `INTERNAL_API_KEY`, with a least-privilege instance role allowing only the required secret reads. Keep secret values out of Terraform variables, `.tfvars`, user data, AMIs, and Git. Terraform-managed secret values can still end up in state.
-- CloudWatch alarms for ALB 5xx responses, RDS writer CPU/connections, each replica's lag, and ElastiCache CPU/memory/connections. An SNS topic is created for notifications; set `alert_email` to an operations address and confirm the subscription email after apply.
 
 Use Terraform outputs for non-secret values needed by deployment, such as VPC ID, target-group/ASG names, public ALB DNS name, RDS writer endpoint, read replica endpoints, and ElastiCache primary endpoint. Mark secrets sensitive and avoid outputting them.
 
 ## 4. Configure and apply Terraform
 
-1. Copy `infra/terraform/backend.hcl.example` to `infra/terraform/backend.hcl` and fill in the already-created encrypted/versioned S3 bucket, key, and region. The backend uses native S3 state locking (`use_lockfile`). The local `backend.hcl` and state files are git-ignored.
-2. Copy `infra/terraform/prod.tfvars.example` to `infra/terraform/prod.tfvars`. Replace every example value, including account-specific ARNs, domain, AZs, CIDRs, image tags, and a MySQL engine version supported in the selected region. Choose a compatible `db_parameter_group_family`; replace `alert_email` or set it to `null` if email alerts are not wanted. Keep secrets out of the file. Set both ASG desired capacities and minimums to `0` for the initial infrastructure apply; the example does this. The example uses two AZs so the writer plus three reader placement pattern gives two RDS instances in each AZ.
-3. Create a Secrets Manager JSON secret and set its ARN as `backend_secret_arn`. Its JSON keys must be `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, and `INTERNAL_API_KEY`; include `REDIS_PASSWORD` only when using an ElastiCache AUTH token. The Terraform instance role grants this secret only to backend instances. Keep the Redis AUTH token out of tfvars; if passing `redis_auth_token` to Terraform, remember it is retained in Terraform state.
-4. Review the plan and confirm the writer plus three read replicas, AZ placement, subnet CIDRs, ingress rules, encryption, deletion protection, zero initial ASG capacity, and expected monthly costs. The default `db_writer_multi_az = false` keeps the database at four RDS instances; enabling it adds a managed standby.
+1. Create `infra/terraform/backend.tf` for the encrypted/versioned remote state and lock configuration, `versions.tf` with pinned provider requirements, `variables.tf`, and environment-specific `dev.tfvars`/`prod.tfvars` containing only non-secret values.
+2. Define `terraform.tfvars` values such as region, project/environment name, domain, AZs, subnet CIDRs, instance types, ASG min/desired/max, RDS engine/class/storage, Redis node type, and backup retention. Do not put passwords or tokens in these files.
+3. Review the plan and confirm that the RDS writer/replica count, AZ placement, subnets, ingress rules, encryption, deletion protection, and expected monthly costs are correct.
 
 ```powershell
 cd infra/terraform
 terraform fmt -recursive
-terraform init -backend-config="backend.hcl"
+terraform init
 terraform validate
 terraform plan -var-file="prod.tfvars" -out="prod.tfplan"
 terraform apply "prod.tfplan"
@@ -138,24 +135,10 @@ Protect the plan file and delete it after the deployment; plans may contain sens
 
 ## 5. Build and publish application images
 
-1. Read the two ECR repository URLs from Terraform and log in. Choose immutable tags matching the `release-` lifecycle policy prefix:
-
-```powershell
-$BackendRepo = terraform output -raw backend_ecr_repository_url
-$FrontendRepo = terraform output -raw frontend_ecr_repository_url
-$ImageTag = "release-2026-09-28"
-$Registry = $BackendRepo.Split('/')[0]
-aws ecr get-login-password --region "us-east-1" | docker login --username AWS --password-stdin $Registry
-docker build -t "$($BackendRepo):$ImageTag" ../../backend
-docker push "$($BackendRepo):$ImageTag"
-docker build --build-arg VITE_API_BASE="" -t "$($FrontendRepo):$ImageTag" ../../frontend
-docker push "$($FrontendRepo):$ImageTag"
-```
-
-Run those commands from `infra/terraform`; use your actual AWS region and set the same image tags in `prod.tfvars`.
-2. The initial Terraform apply creates the ASGs with zero instances so they cannot try to pull images before ECR is populated. After pushing both images, set `backend_min_size=2` and `backend_desired_capacity=2`, then apply. This keeps one backend in each AZ and lets CPU target tracking scale from a live baseline. The frontend can remain at zero until the backend and schema are ready.
-3. Instance user data installs Docker, authenticates to ECR using the instance role, pulls the pinned image, and starts it with restart-on-failure. Backend instances fetch their JSON runtime secret from Secrets Manager. No secret is embedded in Terraform user data or AMIs.
-4. Frontend instances receive the internal ALB DNS name for Nginx proxying. Backend instances receive the RDS writer and ElastiCache primary endpoints. Docker logs are sent to CloudWatch Logs; frontend and backend roles are separate and scoped to their own ECR repository/log group, with only backend allowed to read the app secret.
+1. Build the backend image and frontend image from the repository using the production Dockerfiles. For the frontend, build with empty `VITE_API_BASE` after applying the same-origin change. Publish immutable, versioned tags to private ECR repositories.
+2. Store image tags in Terraform variables or deployment configuration. Do not use the mutable `latest` tag for an ASG rollout.
+3. Configure instance bootstrap/user data to install Docker, authenticate to ECR using the instance role, pull the pinned image, retrieve runtime secrets from Secrets Manager, and start the container with restart-on-failure. Do not embed secret values in user data; user data is inspectable from the instance.
+4. Configure frontend instances with the internal ALB DNS name for Nginx proxying. Configure backend instances with the RDS writer endpoint and ElastiCache primary/configuration endpoint. Ensure logs go to CloudWatch Logs and the instance role is scoped to those log groups, ECR images, and required secrets.
 
 ## 6. Production environment values
 
@@ -177,10 +160,8 @@ DB_SSL_CA=/etc/ssl/certs/aws-rds-global-bundle.pem
 REDIS_HOST=<ElastiCache-primary-endpoint-without-port>
 REDIS_PORT=6379
 REDIS_TLS=true
-REDIS_PASSWORD=<Secrets-Manager-if-auth-token-enabled>
 REDIS_KEY_PREFIX=poker:
 
-TRUST_PROXY_HOPS=3
 JWT_SECRET=<random-secret-at-least-32-characters-from-Secrets-Manager>
 JWT_EXPIRES_IN=24h
 JWT_ISSUER=poker777
@@ -190,17 +171,17 @@ TOPUP_MAX=100000
 INTERNAL_API_KEY=<Secrets-Manager>
 ```
 
-Use the actual ElastiCache port if it differs from `6379`; omit `REDIS_PASSWORD` when no auth token is configured. `TRUST_PROXY_HOPS=3` matches the public ALB, frontend Nginx, and internal ALB chain. The API/auth rate limits use Redis so they are shared by every backend ASG instance. All backend instances must use the same JWT secret, issuer, Redis endpoint, prefix, database writer, and application database credentials. Give each backend a unique `INSTANCE_ID` for log correlation if the app is updated to consume it. `VITE_API_BASE` is a frontend build-time value: leave it empty with the same-origin code change; it is not a runtime backend secret. Do not include MySQL container variables (`MYSQL_ROOT_PASSWORD`, `MYSQL_DATABASE`, etc.) in production app settings; RDS is managed separately.
+Use the actual ElastiCache port if it differs from `6379`. All backend instances must use the same JWT secret, issuer, Redis endpoint, prefix, database writer, and application database credentials. Give each backend a unique `INSTANCE_ID` for log correlation if the app is updated to consume it. `VITE_API_BASE` is a frontend build-time value: leave it empty with the same-origin code change; it is not a runtime backend secret. Do not include MySQL container variables (`MYSQL_ROOT_PASSWORD`, `MYSQL_DATABASE`, etc.) in production app settings; RDS is managed separately.
 
 Create a dedicated least-privilege MySQL user for the application and a separate migration identity if possible. The migration identity needs DDL permissions on the application database; the runtime user should not. Rotate secrets through Secrets Manager and roll instances when credentials change.
 
 ## 7. Deploy in order
 
-1. Create the backend Secrets Manager JSON secret and fill `prod.tfvars`, then apply Terraform with both ASGs at zero. Wait until RDS and Redis report available. Retrieve the RDS master-secret ARN from `terraform output -raw rds_master_secret_arn`; use a controlled administrative client with VPC access and that RDS-managed secret to create the application database account using the credentials stored in the backend secret.
-2. Build and push the immutable backend/frontend images as described above. Set `backend_min_size=2` and `backend_desired_capacity=2`, then apply. Keep the frontend ASG at zero while applying the schema.
-3. Run `npm run migrate` exactly once from a controlled deployment runner that can reach the RDS writer, using the migration-capable database identity and the backend image. Verify the tables exist. Never run `migrate:fresh` in production or run migrations on every ASG boot.
-4. Set `frontend_min_size=2` and `frontend_desired_capacity=2`, then apply. This keeps one frontend in each AZ and lets CPU target tracking scale from a live baseline. Wait for both target groups to report healthy; test backend `/health` through the internal ALB from within the VPC and inspect CloudWatch logs for database/Redis connectivity.
-5. Verify the Route 53 alias and HTTPS certificate. Confirm the browser loads over HTTPS, API calls use the same origin, and the WebSocket URL is `wss://<public-host>/ws`.
+1. Apply network, security groups, ALBs, RDS writer, and ElastiCache. Wait until RDS and Redis report available and confirm private DNS/network access from a test EC2 instance in the backend subnets.
+2. Create the application database/user and store credentials in Secrets Manager. Run `npm run migrate` once from a controlled deployment runner that can reach the writer. Verify tables exist. Never run `--fresh` against production.
+3. Deploy backend ASG instances and wait for the internal target group to become healthy. Test `/health` through the internal ALB from a frontend subnet and verify database/Redis connections from logs/metrics.
+4. Deploy frontend ASG instances with Nginx configured for the internal ALB. Add frontend targets to the public ALB and wait for healthy targets.
+5. Attach/verify the Route 53 alias and HTTPS certificate. Confirm the browser loads the site over HTTPS, API calls use the same origin, and the WebSocket URL is `wss://<public-host>/ws`.
 6. Exercise registration/login, wallet reads/writes, table creation/join, multi-instance WebSocket play, reconnects, and rolling instance refresh. Confirm a client connected to one backend receives room events published by another backend.
 7. Configure alarms for ALB 5xx/target health/latency, ASG capacity, EC2 CPU/memory, RDS CPU/storage/connections/replica lag/failover, ElastiCache failover/memory/connections, and application errors. Test backups and document writer promotion, endpoint/secret rotation, and rollback procedures.
 

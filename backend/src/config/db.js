@@ -1,4 +1,5 @@
 import mysql from 'mysql2/promise';
+import fs from 'node:fs';
 import { env } from './env.js';
 
 /**
@@ -15,6 +16,9 @@ export const pool = mysql.createPool({
   waitForConnections: true,
   namedPlaceholders: true,
   timezone: 'Z',
+  ssl: env.db.sslCa
+    ? { ca: fs.readFileSync(env.db.sslCa), rejectUnauthorized: true }
+    : undefined,
 });
 
 /** Run a function inside a transaction. Rolls back on any throw. */

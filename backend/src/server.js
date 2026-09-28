@@ -16,6 +16,7 @@ import { handleTableUpgrade } from './ws/wsUpgrade.js';
 
 export async function createApp() {
   const app = express();
+  app.set('trust proxy', env.trustProxyHops);
   app.use(helmet());
   app.use(compression());
   app.use(express.json({ limit: '256kb' }));
