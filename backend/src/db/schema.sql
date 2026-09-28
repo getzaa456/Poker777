@@ -52,6 +52,24 @@ CREATE TABLE IF NOT EXISTS `transactions` (
     REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ---------- completed poker hands ----------
+-- One immutable result per player and round; cards are visible only to that player in the API.
+CREATE TABLE IF NOT EXISTS `hand_results` (
+  `id`              BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id`         BIGINT UNSIGNED NOT NULL,
+  `room_code`       CHAR(6) NOT NULL,
+  `round_id`        VARCHAR(60) NOT NULL,
+  `amount`          INT NOT NULL,
+  `hole_cards`      JSON NOT NULL,
+  `community_cards` JSON NOT NULL,
+  `created_at`      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_hand_results_round_user` (`room_code`, `round_id`, `user_id`),
+  KEY `idx_hand_results_user_time` (`user_id`, `created_at`),
+  CONSTRAINT `fk_hand_results_user` FOREIGN KEY (`user_id`)
+    REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 -- ---------- tables (lobby) ----------
 CREATE TABLE IF NOT EXISTS `tables` (
   `id`         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,

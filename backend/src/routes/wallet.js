@@ -3,7 +3,7 @@
  */
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
-import { topUp, getTransactions, adjustWallet } from '../services/wallet.js';
+import { topUp, getTransactions, getHandHistory, adjustWallet } from '../services/wallet.js';
 import { env } from '../config/env.js';
 import { ApiError } from '../middleware/errors.js';
 
@@ -33,6 +33,15 @@ router.get('/wallet/transactions', requireAuth, async (req, res, next) => {
   try {
     const { page, limit } = req.query;
     const result = await getTransactions(req.user.id, page, limit);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/wallet/history', requireAuth, async (req, res, next) => {
+  try {
+    const result = await getHandHistory(req.user.id);
     res.json(result);
   } catch (err) {
     next(err);

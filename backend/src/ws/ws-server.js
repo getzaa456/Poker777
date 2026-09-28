@@ -704,10 +704,6 @@ wss.on('connection', (ws) => {
                 status: 'OPEN',
                 currentBet: 0,
                 pot: 0,
-                // [แก้บัค]: เดิม Host = คนที่เชื่อม WebSocket เข้าห้องคนแรกเสมอ แม้ไม่ใช่คนสร้างห้อง
-                // เก็บ creatorId (tables.host_id) ไว้ ถ้าคนสร้างยังไม่เข้า ให้คนแรกเป็น Host ชั่วคราว
-                creatorId: tableInfo.host_id ?? '',
-                hostId: clientId,
                 smallBlind: SMALL_BLIND,
                 bigBlind: BIG_BLIND,
               };
@@ -1415,8 +1411,16 @@ async function handleEarlyFinishGame(roomCode, winnerId) {
 
   const room = await getRoom(roomCode);
   const roundId = room?.roundId || Date.now();
+  const rawCardsMap = await redisState.hgetall(`room:${roomCode}:cards`);
+  const holeCardsMap = Object.fromEntries(Object.entries(rawCardsMap || {}).map(([pid, cards]) => [
+    pid,
+    typeof cards === 'string' ? JSON.parse(cards) : cards,
+  ]));
+  const communityCards = typeof room?.communityCards === 'string'
+    ? JSON.parse(room.communityCards)
+    : (room?.communityCards || []);
 
-  syncPlayerBalances(roomCode, roundId, playerChipsMap, playerBuyInsMap).catch(err =>
+  syncPlayerBalances(roomCode, roundId, playerChipsMap, playerBuyInsMap, { holeCardsMap, communityCards }).catch(err =>
     console.error('Error syncing DB balances on early finish:', err)
   );
   await resetSettlementBaseline(roomCode, playerChipsMap);
@@ -1606,6 +1610,7 @@ async function handleShowdown(roomCode, room, communityCards, activePlayerIds) {
   const rawCardsMap = await redisState.hgetall(`room:${roomCode}:cards`);
   const playersWithCards = [];
   const holeCardsMap = {};
+  const allHoleCardsMap = {};
   const seats = await getRoomSeats(roomCode);
   const seatEntries = sortedSeatEntries(seats);
   const dealerPosition = seatEntries.findIndex(([seatKey]) =>
@@ -1621,6 +1626,7 @@ async function handleShowdown(roomCode, room, communityCards, activePlayerIds) {
   for (const pid of allPlayerIds) {
     const rawCards = rawCardsMap ? rawCardsMap[pid] : null;
     const holeCards = rawCards ? JSON.parse(rawCards) : [];
+    if (holeCards.length) allHoleCardsMap[pid] = holeCards;
     const isFolded = !activePlayerIds.some((activeId) => String(activeId) === String(pid));
     if (!isFolded) holeCardsMap[pid] = holeCards;
     const player = await getPlayer(roomCode, pid);
@@ -1709,7 +1715,10 @@ async function handleShowdown(roomCode, room, communityCards, activePlayerIds) {
   // 4. เรียกฟังก์ชัน Sync ชิปลง DB
   // [เพิ่มแก้ไข]: ส่ง playerBuyInsMap ในพารามิเตอร์ที่ 3
   const roundId = room.roundId || Date.now();
-  syncPlayerBalances(roomCode, roundId, playerChipsMap, playerBuyInsMap).catch(err =>
+  syncPlayerBalances(roomCode, roundId, playerChipsMap, playerBuyInsMap, {
+    holeCardsMap: allHoleCardsMap,
+    communityCards,
+  }).catch(err =>
     console.error('Error syncing DB balances:', err)
   );
   await resetSettlementBaseline(roomCode, playerChipsMap);
