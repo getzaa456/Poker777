@@ -27,7 +27,7 @@ resource "aws_db_instance" "writer" {
 
   allocated_storage     = var.db_allocated_storage
   max_allocated_storage = var.db_max_allocated_storage
-  storage_type          = "gp3"
+  storage_type          = "gp2"
   storage_encrypted     = true
 
   db_subnet_group_name   = aws_db_subnet_group.main.name
@@ -46,9 +46,8 @@ resource "aws_db_instance" "writer" {
   final_snapshot_identifier  = "${local.name}-writer-final"
   copy_tags_to_snapshot      = true
 
-  enabled_cloudwatch_logs_exports       = ["error", "general", "slowquery"]
-  performance_insights_enabled          = true
-  performance_insights_retention_period = 7
+  enabled_cloudwatch_logs_exports = ["error", "general", "slowquery"]
+  performance_insights_enabled    = false
 
   tags = { Name = "${local.name}-writer", Role = "writer" }
 }
@@ -57,7 +56,7 @@ resource "aws_db_instance" "reader" {
   count = 3
 
   identifier                      = "${local.name}-reader-${count.index + 1}"
-  replicate_source_db             = aws_db_instance.writer.identifier
+  replicate_source_db             = aws_db_instance.writer.arn
   instance_class                  = var.db_instance_class
   availability_zone               = local.read_replica_azs[count.index]
   publicly_accessible             = false

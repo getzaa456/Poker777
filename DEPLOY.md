@@ -19,10 +19,76 @@ The current application has one MySQL pool (`DB_HOST`) and sends all queries, in
 
 ## 1. Prepare the AWS account
 
-1. Choose an AWS region and create a dedicated deployment account or role. Install AWS CLI, Terraform, and Docker; configure AWS CLI credentials with least privilege.
-2. Register a domain and create/validate an ACM certificate in the ALB region for the public site hostname (for example `poker.example.com`). If the frontend and API use separate public hostnames, validate both; this topology uses one hostname.
+1. Use the Learner Lab account and configure its temporary AWS credentials. This lab permits only `us-east-1` and `us-west-2`; Terraform input validation enforces that restriction. Install AWS CLI, Terraform, and Docker.
+2. Use a domain registered outside Learner Lab; the lab does not allow domain registration. Create/validate an ACM certificate in the ALB region for the public site hostname (for example `poker.example.com`). If the frontend and API use separate public hostnames, validate both; this topology uses one hostname.
 3. Create an S3 bucket for Terraform state with versioning and server-side encryption. Configure state locking using an S3 lockfile supported by your Terraform version or a DynamoDB lock table. Restrict access to the state: Terraform state can contain sensitive values.
 4. Set AWS Budgets and CloudWatch alarms. RDS, NAT Gateways, ALBs, and replicas have ongoing costs; four RDS instances plus a Multi-AZ writer standby are a substantial database footprint.
+
+### Create the required AWS prerequisites
+
+Create these resources in the same AWS account. Use the region you intend to deploy into for ACM, Secrets Manager, and the Terraform state bucket. Never paste access keys or secret values into this guide or commit them to Git.
+
+#### 1. Create the Terraform state bucket
+
+Terraform needs its S3 state bucket before `terraform init` can succeed.
+
+1. In the AWS Console, open **S3** and choose **Create bucket**.
+2. Choose a globally unique bucket name, select your deployment region, keep **Block all public access** enabled, and create the bucket.
+3. Open the bucket's **Properties**, enable **Bucket Versioning**, and enable default server-side encryption. Keep the bucket private.
+4. Copy the bucket name into `bucket` in your local `infra/terraform/backend.hcl`. This project uses S3 native lockfiles (`use_lockfile = true`), so a separate DynamoDB lock table is not required.
+
+#### 2. Create or connect a domain to Route 53
+
+Route 53 DNS hosting does not automatically give you a domain name. Use a domain you already own, register one through Route 53 Domains if available for your account/TLD, or buy one from another registrar.
+
+1. In the AWS Console, open **Route 53 > Hosted zones > Create hosted zone**.
+2. Enter the root domain you own, such as `example.com`, choose **Public hosted zone**, and create it.
+3. Open the hosted zone and copy its **Hosted zone ID**. Its NS record lists four Route 53 nameservers.
+4. If the domain was registered outside Route 53, open your registrar's nameserver/DNS settings and replace the current authoritative nameservers with those four Route 53 nameservers. Do not change the nameserver record inside Route 53. Delegation can take time to propagate; wait until Route 53 is authoritative before relying on DNS validation.
+5. Choose the exact website hostname, for example `poker.example.com`. Set `site_domain` to that hostname and `route53_zone_id` to the hosted zone ID in your local `infra/terraform/prod.tfvars`. Terraform will create the hostname's ALIAS record to the public ALB after deployment.
+
+#### 3. Request and validate an ACM certificate
+
+The certificate must be in the same AWS region as the internet-facing ALB, not in `us-east-1` unless that is also your deployment region.
+
+1. Switch the AWS Console to your deployment region and open **Certificate Manager (ACM)**.
+2. Choose **Request a certificate > Request a public certificate**.
+3. Enter the exact hostname from `site_domain` (for example `poker.example.com`), choose **DNS validation**, and request it.
+4. Open the new certificate and choose **Create records in Route 53** if offered. Select the public hosted zone created above. If ACM cannot create the record automatically, copy the CNAME name and value into that hosted zone manually.
+5. Wait for the certificate status to become **Issued**. Copy its ARN into `acm_certificate_arn` in `prod.tfvars`.
+
+#### 4. Create the backend runtime secret
+
+1. In the deployment region, open **Secrets Manager > Store a new secret**. Choose **Other type of secret** and enter a JSON key/value secret. Use this shape, replacing every example value with a strong unique value:
+
+```json
+{
+	"DB_USER": "poker_app",
+	"DB_PASSWORD": "GENERATE_A_LONG_RANDOM_PASSWORD",
+	"JWT_SECRET": "GENERATE_AT_LEAST_32_RANDOM_CHARACTERS",
+	"INTERNAL_API_KEY": "GENERATE_A_LONG_RANDOM_KEY"
+}
+```
+
+Do not use the literal example strings. You may add `REDIS_PASSWORD` only if you configure an ElastiCache AUTH token. The `DB_USER` and `DB_PASSWORD` values must match the application database user you create in the RDS database after Terraform provisions it; do not put the RDS master password in this application secret.
+
+2. Name the secret clearly, such as `poker777/prod/backend`, and create it. Copy its full ARN into `backend_secret_arn` in `prod.tfvars`.
+3. Terraform grants the backend EC2 role access to this secret. Keep secret contents out of `prod.tfvars`, `backend.hcl`, user data, and source control.
+
+After the first Terraform apply, use the RDS-managed master secret ARN from `terraform output -raw rds_master_secret_arn` with a controlled database client that has private VPC access to create `poker_app` and grant only the required database permissions. Keep RDS private; do not temporarily make it publicly accessible. Then run the migration as described in the deployment steps.
+
+#### 5. Check the Terraform values before planning
+
+In your local, git-ignored `infra/terraform/prod.tfvars`, verify these values point to the resources you just created:
+
+```hcl
+site_domain         = "poker.example.com"
+route53_zone_id     = "Z0123456789EXAMPLE"
+acm_certificate_arn = "arn:aws:acm:REGION:ACCOUNT_ID:certificate/CERTIFICATE_ID"
+backend_secret_arn  = "arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:SECRET_NAME"
+```
+
+These are examples only. Replace them with the real hostname, hosted zone ID, certificate ARN, and secret ARN from your AWS account. Review the remaining values in your local `prod.tfvars` and replace any placeholders there as well.
 
 ## 2. Make the application production-ready
 
@@ -102,27 +168,44 @@ Use `/health` for ALB target checks on the backend. It currently confirms that t
 
 ## 3. Create the Terraform project
 
-The repository now includes a parameterized Terraform root in `infra/terraform/`. It creates the VPC/subnets/NAT gateways, security groups, two ALBs, ECR repositories, EC2 roles/log groups/ASGs and scaling policies, one RDS MySQL writer plus three read replicas, an ElastiCache Redis replication group, and the Route 53 alias. The root is split by resource area for review. Create the encrypted/versioned state bucket and DNS/ACM prerequisites before applying it.
+The repository includes a parameterized Terraform root in `infra/terraform/`. It creates the VPC/subnets/NAT gateways, security groups, two ALBs, ECR repositories, EC2 launch templates/ASGs and scaling policies, one RDS MySQL writer plus three read replicas, an ElastiCache Redis replication group, and the Route 53 alias. It uses existing EC2 instance profiles supplied as variables; it does not create or edit IAM roles, policies, or instance profiles. Create the encrypted/versioned state bucket and DNS/ACM prerequisites before applying it.
 
 Create these resources (names are illustrative):
 
-- VPC with DNS hostnames/support, two or three AZs, public subnets for internet-facing ALB and requested frontend ASG, and private subnets for internal ALB, backend ASG, RDS, and ElastiCache. Public routes go to an Internet Gateway; private egress uses one NAT Gateway per AZ for production resilience, or VPC endpoints where supported.
+- VPC with DNS hostnames/support, two or three AZs, public subnets for internet-facing ALB and requested frontend ASG, and private subnets for internal ALB, backend ASG, RDS, and ElastiCache. Production should use one NAT Gateway per AZ for resilience; the Learner Lab-oriented default uses one shared NAT Gateway to reduce cost, which is a single-AZ egress dependency.
 - Security groups with narrow source references: public ALB accepts `443` from the Internet (and optionally `80` only to redirect to HTTPS); frontend instances accept `3000` only from the public ALB SG; internal ALB accepts its listener only from the frontend SG; backend instances accept `4000` only from the internal ALB SG; RDS accepts `3306` only from backend SG; Redis accepts its configured TLS port only from backend SG. Do not expose database/cache ports or instance SSH to `0.0.0.0/0`.
 - Internet-facing ALB with HTTPS listener and ACM certificate, HTTP-to-HTTPS redirect, frontend target group on `3000`, and health check `/` (or a dedicated frontend health path). Internal ALB with private subnets, backend target group on `4000`, health check `/health`, and WebSocket idle timeout long enough for game sessions. ALB HTTP listeners support WebSocket upgrades; no sticky sessions are required because shared game state/pub-sub uses Redis.
-- Launch templates and ASGs for frontend and backend across their designated subnets, with min/desired/max capacity, health checks, instance refresh, and CloudWatch scaling policies. Use instance profiles instead of static AWS credentials. Prefer immutable image releases and deploy by updating launch-template version, then perform a rolling instance refresh.
+- Launch templates and ASGs for frontend and backend across their designated subnets, with min/desired/max capacity, health checks, instance refresh, and CloudWatch scaling policies. The launch templates require existing instance profile names; production should use separate least-privilege profiles. Prefer immutable image releases and deploy by updating launch-template version, then perform a rolling instance refresh.
 - RDS subnet group and MySQL writer in private DB subnets. For the requested four DBs, declare one writer and three `aws_db_instance` read replicas with distinct AZ placement where supported. Enable backups, encryption, deletion protection, performance/slow-query insights as appropriate, and parameter groups. Consider Multi-AZ on the writer separately and budget for its additional standby. Terraform provider limitations or AWS engine/AZ constraints may prevent placing replicas exactly where specified; confirm instance class/engine availability in both AZs.
 - ElastiCache subnet group and Redis OSS/Valkey replication group in private cache subnets with Multi-AZ automatic failover, encryption, auth token where supported, backups, and a parameter group compatible with the app.
 - Route 53 alias from the public hostname to the public ALB. Do not publish the internal ALB, RDS, or cache endpoints in public DNS.
-- Secrets Manager secrets for `DB_PASSWORD`, `JWT_SECRET`, and `INTERNAL_API_KEY`, with a least-privilege instance role allowing only the required secret reads. Keep secret values out of Terraform variables, `.tfvars`, user data, AMIs, and Git. Terraform-managed secret values can still end up in state.
+- Secrets Manager secrets for `DB_PASSWORD`, `JWT_SECRET`, and `INTERNAL_API_KEY`. The existing backend instance profile must allow `secretsmanager:GetSecretValue` for this secret, as well as ECR image pulls and CloudWatch log writes. Keep secret values out of Terraform variables, `.tfvars`, user data, AMIs, and Git. Terraform-managed secret values can still end up in state.
 - CloudWatch alarms for ALB 5xx responses, RDS writer CPU/connections, each replica's lag, and ElastiCache CPU/memory/connections. An SNS topic is created for notifications; set `alert_email` to an operations address and confirm the subscription email after apply.
+
+### Learner Lab IAM setup
+
+1. This Learner Lab provides the EC2 instance profile `LabInstanceProfile`, attached to role `LabRole`. A role name and its instance profile name are not interchangeable. Both profile inputs in the local lab `prod.tfvars` are set to `LabInstanceProfile`.
+2. The lab supplies one shared profile, so frontend instances receive the same role permissions as backend instances, potentially including access to the backend secret. This is less isolated than production; use separate least-privilege profiles in an unrestricted account.
+3. The selected profile must already allow the relevant runtime actions: ECR image download, `secretsmanager:GetSecretValue` for the backend secret, and CloudWatch log stream/event writes. SSM access is needed only if you plan to manage instances through Systems Manager. You cannot add these permissions yourself in a restricted lab; use only the profile the lab provides.
+4. The lab's Terraform identity must also be allowed to pass the selected role to EC2 (`iam:PassRole`) and create the required EC2 launch templates/Auto Scaling groups. If AWS returns `AccessDenied` for `iam:PassRole`, or refuses the provided profile, there is no Terraform-only workaround. Ask the lab administrator which instance profile/services are permitted, or use an AWS account where you can create and pass dedicated least-privilege profiles.
+
+Using a pre-existing profile avoids Terraform IAM role/policy/profile creation calls; it does not bypass the lab's restrictions on EC2, networking, RDS, ElastiCache, ECR, Route 53, ACM, Secrets Manager, or other services.
+
+### Learner Lab service and budget limits
+
+- Use only `us-east-1` or `us-west-2`. The configuration defaults to `t3.small` EC2 instances and validates the combined ASG maximum against the lab's nine-concurrently-running-EC2 limit; include any other EC2 instances in the account when choosing the limits.
+- Learner Lab RDS supports burstable classes through medium, gp2 storage up to 100 GB, and does not support Enhanced Monitoring. Terraform uses `db.t4g.medium`, gp2, caps autoscaling storage at 100 GB, and disables Performance Insights. Confirm the MySQL engine version and instance class are available in your selected region.
+- The requested topology still creates four RDS instances (one writer and three replicas), plus ElastiCache, two ALBs, and a NAT Gateway. This can use the lab budget quickly. Stop or remove resources when finished and monitor the lab budget. The single NAT default costs less than one per AZ but is not highly available.
+- The lab gives the user ECR push access and `LabRole` read access for EC2 image pulls. Build and push images using the lab's AWS credentials; EC2 instances pull them using `LabInstanceProfile`.
+- The lab cannot register domains. You must own the domain elsewhere. Verify that the lab permits Route 53 hosted-zone and ACM certificate actions before applying.
 
 Use Terraform outputs for non-secret values needed by deployment, such as VPC ID, target-group/ASG names, public ALB DNS name, RDS writer endpoint, read replica endpoints, and ElastiCache primary endpoint. Mark secrets sensitive and avoid outputting them.
 
 ## 4. Configure and apply Terraform
 
 1. Copy `infra/terraform/backend.hcl.example` to `infra/terraform/backend.hcl` and fill in the already-created encrypted/versioned S3 bucket, key, and region. Optional `access_key`, `secret_key`, and `token` fields are shown commented out; these authenticate the S3 backend only. The AWS provider that creates resources separately uses the standard AWS credential chain, so provide provider credentials through environment variables or the local AWS credentials file. Prefer SSO or temporary credentials. If you put static credentials in `backend.hcl`, keep that git-ignored file local and never commit it. Terraform may persist backend config in `.terraform` metadata or saved plans, so protect/delete those files. The backend uses native S3 state locking (`use_lockfile`).
-2. Copy `infra/terraform/prod.tfvars.example` to `infra/terraform/prod.tfvars`. Replace every example value, including account-specific ARNs, domain, AZs, CIDRs, image tags, and a MySQL engine version supported in the selected region. Choose a compatible `db_parameter_group_family`; replace `alert_email` or set it to `null` if email alerts are not wanted. Keep secrets out of the file. Set both ASG desired capacities and minimums to `0` for the initial infrastructure apply; the example does this. The example uses two AZs so the writer plus three reader placement pattern gives two RDS instances in each AZ.
-3. Create a Secrets Manager JSON secret and set its ARN as `backend_secret_arn`. Its JSON keys must be `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, and `INTERNAL_API_KEY`; include `REDIS_PASSWORD` only when using an ElastiCache AUTH token. The Terraform instance role grants this secret only to backend instances. Keep the Redis AUTH token out of tfvars; if passing `redis_auth_token` to Terraform, remember it is retained in Terraform state.
+2. Edit your local, git-ignored `infra/terraform/prod.tfvars`. Replace every placeholder, including account-specific ARNs, domain, AZs, CIDRs, image tags, and a MySQL engine version supported in the selected region. Choose a compatible `db_parameter_group_family`; replace `alert_email` or set it to `null` if email alerts are not wanted. Keep secrets out of the file. Set both ASG desired capacities and minimums to `0` for the initial infrastructure apply. Use two AZs so the writer plus three reader placement pattern gives two RDS instances in each AZ.
+3. Create a Secrets Manager JSON secret and set its ARN as `backend_secret_arn`. Its JSON keys must be `DB_USER`, `DB_PASSWORD`, `JWT_SECRET`, and `INTERNAL_API_KEY`; include `REDIS_PASSWORD` only when using an ElastiCache AUTH token. The existing backend instance profile must permit reading this secret. Keep the Redis AUTH token out of tfvars; if passing `redis_auth_token` to Terraform, remember it is retained in Terraform state.
 4. Review the plan and confirm the writer plus three read replicas, AZ placement, subnet CIDRs, ingress rules, encryption, deletion protection, zero initial ASG capacity, and expected monthly costs. The default `db_writer_multi_az = false` keeps the database at four RDS instances; enabling it adds a managed standby.
 
 ```powershell
@@ -155,7 +238,7 @@ docker push "$($FrontendRepo):$ImageTag"
 Run those commands from `infra/terraform`; use your actual AWS region and set the same image tags in `prod.tfvars`.
 2. The initial Terraform apply creates the ASGs with zero instances so they cannot try to pull images before ECR is populated. After pushing both images, set `backend_min_size=2` and `backend_desired_capacity=2`, then apply. This keeps one backend in each AZ and lets CPU target tracking scale from a live baseline. The frontend can remain at zero until the backend and schema are ready.
 3. Instance user data installs Docker, authenticates to ECR using the instance role, pulls the pinned image, and starts it with restart-on-failure. Backend instances fetch their JSON runtime secret from Secrets Manager. No secret is embedded in Terraform user data or AMIs.
-4. Frontend instances receive the internal ALB DNS name for Nginx proxying. Backend instances receive the RDS writer and ElastiCache primary endpoints. Docker logs are sent to CloudWatch Logs; frontend and backend roles are separate and scoped to their own ECR repository/log group, with only backend allowed to read the app secret.
+4. Frontend instances receive the internal ALB DNS name for Nginx proxying. Backend instances receive the RDS writer and ElastiCache primary endpoints. Docker logs are sent to CloudWatch Logs. In a Learner Lab, the supplied profile may be shared by frontend and backend; in a normal production account, use separate roles so only the backend can read the app secret.
 
 ## 6. Production environment values
 
