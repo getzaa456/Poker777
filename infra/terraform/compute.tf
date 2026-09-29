@@ -1,124 +1,3 @@
-data "aws_caller_identity" "current" {}
-data "aws_partition" "current" {}
-
-data "aws_iam_policy_document" "ec2_assume_role" {
-  statement {
-    actions = ["sts:AssumeRole"]
-
-    principals {
-      type        = "Service"
-      identifiers = ["ec2.amazonaws.com"]
-    }
-  }
-}
-
-resource "aws_iam_role" "frontend" {
-  name               = "${local.name}-frontend"
-  assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
-}
-
-resource "aws_iam_role" "backend" {
-  name               = "${local.name}-backend"
-  assume_role_policy = data.aws_iam_policy_document.ec2_assume_role.json
-}
-
-resource "aws_iam_role_policy_attachment" "frontend_ssm" {
-  role       = aws_iam_role.frontend.name
-  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/AmazonSSMManagedInstanceCore"
-}
-
-resource "aws_iam_role_policy_attachment" "backend_ssm" {
-  role       = aws_iam_role.backend.name
-  policy_arn = "arn:${data.aws_partition.current.partition}:iam::aws:policy/AmazonSSMManagedInstanceCore"
-}
-
-resource "aws_iam_role_policy" "frontend" {
-  name = "${local.name}-frontend-runtime-access"
-  role = aws_iam_role.frontend.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = ["ecr:GetAuthorizationToken"]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "ecr:BatchCheckLayerAvailability",
-          "ecr:BatchGetImage",
-          "ecr:GetDownloadUrlForLayer"
-        ]
-        Resource = [aws_ecr_repository.frontend.arn]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogStream",
-          "logs:DescribeLogStreams",
-          "logs:PutLogEvents"
-        ]
-        Resource = [
-          "arn:${data.aws_partition.current.partition}:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:${aws_cloudwatch_log_group.frontend.name}:*"
-        ]
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy" "backend" {
-  name = "${local.name}-backend-runtime-access"
-  role = aws_iam_role.backend.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = ["ecr:GetAuthorizationToken"]
-        Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "ecr:BatchCheckLayerAvailability",
-          "ecr:BatchGetImage",
-          "ecr:GetDownloadUrlForLayer"
-        ]
-        Resource = [aws_ecr_repository.backend.arn]
-      },
-      {
-        Effect   = "Allow"
-        Action   = ["secretsmanager:GetSecretValue"]
-        Resource = [var.backend_secret_arn]
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "logs:CreateLogStream",
-          "logs:DescribeLogStreams",
-          "logs:PutLogEvents"
-        ]
-        Resource = [
-          "arn:${data.aws_partition.current.partition}:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:${aws_cloudwatch_log_group.backend.name}:*"
-        ]
-      }
-    ]
-  })
-}
-
-resource "aws_iam_instance_profile" "frontend" {
-  name = "${local.name}-frontend"
-  role = aws_iam_role.frontend.name
-}
-
-resource "aws_iam_instance_profile" "backend" {
-  name = "${local.name}-backend"
-  role = aws_iam_role.backend.name
-}
-
 resource "aws_launch_template" "frontend" {
   name_prefix   = "${local.name}-frontend-"
   image_id      = data.aws_ssm_parameter.al2023_ami.value
@@ -131,7 +10,7 @@ resource "aws_launch_template" "frontend" {
     log_group            = aws_cloudwatch_log_group.frontend.name
   }))
 
-  iam_instance_profile { name = aws_iam_instance_profile.frontend.name }
+  iam_instance_profile { name = var.frontend_instance_profile_name }
 
   vpc_security_group_ids = [aws_security_group.frontend.id]
 
@@ -172,7 +51,7 @@ resource "aws_launch_template" "backend" {
     log_group          = aws_cloudwatch_log_group.backend.name
   }))
 
-  iam_instance_profile { name = aws_iam_instance_profile.backend.name }
+  iam_instance_profile { name = var.backend_instance_profile_name }
 
   vpc_security_group_ids = [aws_security_group.backend.id]
 
