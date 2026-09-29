@@ -198,6 +198,7 @@ function fromSnapshot(prev, kind, params, clockOffset) {
 }
 
 function tableReducer(state, { type, params = {}, clockOffset = 0 }) {
+  if (type === 'reset') return null;
   if (['table_state', 'table-state', 'game_started', 'showdown', 'tournament_finished'].includes(type)) {
     return fromSnapshot(state, type.replace('-', '_'), params, clockOffset);
   }
@@ -217,9 +218,7 @@ function tableReducer(state, { type, params = {}, clockOffset = 0 }) {
     case 'left-room': {
       const remaining = (params.currentPlayers || []).map((player) => String(player.clientId));
       const players = state.players.filter((player) => remaining.includes(player.client_id));
-      // Server hands host to the first remaining player; a table_state follows to confirm.
-      const host_id = String(params.clientId) === state.host_id ? remaining[0] || null : state.host_id;
-      return { ...state, players, host_id };
+      return { ...state, players };
     }
     case 'turn-start': {
       const deadline = Number(params.turn_deadline) || 0;
@@ -402,10 +401,19 @@ export default function PokerTablePage() {
             setRoomStatus(message.error || 'Unable to join table');
           }
           return;
-        case 'left_room':
-          closed = true;
-          socketRef.current?.close();
-          navigate('/lobby');
+        case 'seat-left':
+          try { sessionStorage.removeItem(seatedKey(roomCode)); } catch { /* ignore */ }
+          leavingRef.current = false;
+          dispatch({ type: 'reset' });
+          setConnection('idle');
+          setRoomStatus('Choose your buy-in to take a seat');
+          setSeatRequest(null);
+          Auth.me().then((current) => {
+            setUser(current);
+            const min = Number(table?.min_bet) || 0;
+            const max = Math.min(Number(table?.max_bet) || min, Number(current.balance) || 0);
+            setBuyIn(max >= min ? min : max);
+          }).catch(() => notify('Seat released, but wallet balance could not be refreshed.', 'warning'));
           return;
         case 'player-join':
           if (String(params.clientId) !== me) {
@@ -602,7 +610,7 @@ export default function PokerTablePage() {
   const me = players.find((player) => player.client_id === myId);
   const inHand = BETTING_PHASES.includes(state?.phase);
   const myTurn = Boolean(inHand && state?.current_turn === myId);
-  const isHost = Boolean(state && state.host_id === myId);
+  const isHost = Boolean(table?.host_id && String(table.host_id) === myId);
   const readyPlayers = players.filter((player) => player.chips > 0 && player.status !== 'DISCONNECTED').length;
   const hand = useMemo(() => evaluateHand([...(me?.hole_cards || []), ...(state?.community_cards || [])]), [me?.hole_cards, state?.community_cards]);
   const currentTurnName = state?.current_turn ? (players.find((player) => player.client_id === state.current_turn)?.username || '') : '';
@@ -643,14 +651,17 @@ export default function PokerTablePage() {
   }
 
   function leaveRoom() {
-    try { sessionStorage.removeItem(seatedKey(roomCode)); } catch { /* ignore */ }
     if (leavingRef.current) return;
-    if (socketRef.current?.readyState === WebSocket.OPEN && seatRequest !== null) {
-      leavingRef.current = true;
-      send('leave-room');
-      setTimeout(() => navigate('/lobby'), 3000); // fallback if the confirmation never arrives
-    } else {
+    if (seatRequest === null) {
       navigate('/lobby');
+      return;
+    }
+    if (socketRef.current?.readyState === WebSocket.OPEN) {
+      leavingRef.current = true;
+      setRoomStatus('Returning chips to your wallet...');
+      send('leave-room');
+    } else {
+      notify('Reconnect to the table before leaving your seat.', 'warning');
     }
   }
 
@@ -666,7 +677,7 @@ export default function PokerTablePage() {
     <div className="game">
       <div className="background"><div className="glow glow-1" /><div className="glow glow-2" /><div className="glow glow-3" /><div className="cityscape" /><div className="suit-badge" style={{ left: '12%', top: '15%' }}>♠</div><div className="suit-badge" style={{ left: '25%', top: '35%' }}>♥</div><div className="suit-badge" style={{ right: '15%', top: '20%' }}>♣</div><div className="suit-badge" style={{ right: '22%', top: '40%' }}>♦</div></div>
 
-      <header className="header"><div className="room-panel"><button className="menu-button" aria-label="Menu"><span /><span /><span /></button><div><div className="room-title"><strong>Poker777</strong> | {table?.name || 'Table'} <small>#{roomCode}</small></div><div className="room-subtitle">No Limit Hold'em • {state?.big_blind ? `Blinds ${fmtChips(state.small_blind)} / ${fmtChips(state.big_blind)} • ` : ''}Buy-in {fmtChips(table?.min_bet)} – {fmtChips(table?.max_bet)}</div></div><button className="table-tool-button" onClick={toggleMute} title={muted ? 'Sound off' : 'Sound on'} aria-label={muted ? 'Turn sound on' : 'Turn sound off'}>{muted ? '🔇' : '🔊'}</button><button className="table-tool-button" onClick={() => setGuideOpen(true)}>Hand guide</button><button className="table-leave-button" onClick={leaveRoom}>Leave</button></div></header>
+      <header className="header"><div className="room-panel"><button className="menu-button" aria-label="Menu"><span /><span /><span /></button><div><div className="room-title"><strong>Poker777</strong> | {table?.name || 'Table'} <small>#{roomCode}</small></div><div className="room-subtitle">No Limit Hold'em • {state?.big_blind ? `Blinds ${fmtChips(state.small_blind)} / ${fmtChips(state.big_blind)} • ` : ''}Buy-in {fmtChips(table?.min_bet)} – {fmtChips(table?.max_bet)}</div></div><button className="table-tool-button" onClick={toggleMute} title={muted ? 'Sound off' : 'Sound on'} aria-label={muted ? 'Turn sound on' : 'Turn sound off'}>{muted ? '🔇' : '🔊'}</button><button className="table-tool-button" onClick={() => setGuideOpen(true)}>Hand guide</button><button className="table-leave-button" onClick={leaveRoom}>{seatRequest === null ? 'Back to lobby' : leavingRef.current ? 'Cashing out…' : 'Leave seat'}</button></div></header>
 
       {guideOpen && <aside className="hand-guide"><div className="hand-guide-header"><div><h2>Hand rankings</h2></div><button className="guide-close" onClick={() => setGuideOpen(false)}>×</button></div><ol className="hand-ranking-list">{HANDS.map(([name, detail, cards]) => <li key={name}><div><strong>{name}</strong><span>{detail}</span></div><div className={`guide-example ${cards.some((card) => /[♥♦]/.test(card)) ? 'red-cards' : ''}`}>{cards.map((card) => <i key={card}>{card}</i>)}</div></li>)}</ol></aside>}
 
