@@ -31,6 +31,27 @@ resource "aws_lb_target_group" "frontend" {
   tags = { Name = "${local.name}-frontend" }
 }
 
+resource "aws_lb_target_group" "backend_public" {
+  name        = "${local.name}-backend-public"
+  port        = 4000
+  protocol    = "HTTP"
+  target_type = "instance"
+  vpc_id      = aws_vpc.main.id
+
+  health_check {
+    enabled             = true
+    path                = "/health"
+    protocol            = "HTTP"
+    matcher             = "200-399"
+    interval            = 30
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 3
+  }
+
+  tags = { Name = "${local.name}-backend-public" }
+}
+
 resource "aws_lb_listener" "public_https" {
   load_balancer_arn = aws_lb.public.arn
   port              = 443
@@ -41,6 +62,54 @@ resource "aws_lb_listener" "public_https" {
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.frontend.arn
+  }
+}
+
+resource "aws_lb_listener_rule" "public_websocket" {
+  listener_arn = aws_lb_listener.public_https.arn
+  priority     = 10
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.backend_public.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/ws*"]
+    }
+  }
+}
+
+resource "aws_lb_listener_rule" "public_api_user" {
+  listener_arn = aws_lb_listener.public_https.arn
+  priority     = 20
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.backend_public.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/auth*", "/users*", "/wallet*"]
+    }
+  }
+}
+
+resource "aws_lb_listener_rule" "public_api_tables" {
+  listener_arn = aws_lb_listener.public_https.arn
+  priority     = 30
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.backend_public.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/tables*", "/internal*", "/health"]
+    }
   }
 }
 

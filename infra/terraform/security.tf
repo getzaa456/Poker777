@@ -69,7 +69,7 @@ resource "aws_security_group" "internal_alb" {
 
 resource "aws_security_group" "backend" {
   name        = "${local.name}-backend"
-  description = "Backend targets reachable only through the internal ALB"
+  description = "Backend targets reachable through the public and internal ALBs only"
   vpc_id      = aws_vpc.main.id
 
   ingress {
@@ -77,6 +77,14 @@ resource "aws_security_group" "backend" {
     to_port         = 4000
     protocol        = "tcp"
     security_groups = [aws_security_group.internal_alb.id]
+  }
+
+  ingress {
+    description     = "Public ALB path-routed API and WebSocket traffic"
+    from_port       = 4000
+    to_port         = 4000
+    protocol        = "tcp"
+    security_groups = [aws_security_group.public_alb.id]
   }
 
   egress {

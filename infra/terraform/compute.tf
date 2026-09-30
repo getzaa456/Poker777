@@ -3,11 +3,10 @@ resource "aws_launch_template" "frontend" {
   image_id      = data.aws_ssm_parameter.al2023_ami.value
   instance_type = var.frontend_instance_type
   user_data = base64encode(templatefile("${path.module}/templates/frontend-user-data.sh.tftpl", {
-    aws_region           = var.aws_region
-    ecr_registry         = split("/", aws_ecr_repository.frontend.repository_url)[0]
-    image_uri            = "${aws_ecr_repository.frontend.repository_url}:${var.frontend_image_tag}"
-    backend_internal_dns = aws_lb.internal.dns_name
-    log_group            = aws_cloudwatch_log_group.frontend.name
+    aws_region   = var.aws_region
+    ecr_registry = split("/", aws_ecr_repository.frontend.repository_url)[0]
+    image_uri    = "${aws_ecr_repository.frontend.repository_url}:${var.frontend_image_tag}"
+    log_group    = aws_cloudwatch_log_group.frontend.name
   }))
 
   iam_instance_profile { name = var.frontend_instance_profile_name }
@@ -112,12 +111,15 @@ resource "aws_autoscaling_group" "frontend" {
 }
 
 resource "aws_autoscaling_group" "backend" {
-  name                      = "${local.name}-backend"
-  min_size                  = var.backend_min_size
-  desired_capacity          = var.backend_desired_capacity
-  max_size                  = var.backend_max_size
-  vpc_zone_identifier       = aws_subnet.private_app[*].id
-  target_group_arns         = [aws_lb_target_group.backend.arn]
+  name                = "${local.name}-backend"
+  min_size            = var.backend_min_size
+  desired_capacity    = var.backend_desired_capacity
+  max_size            = var.backend_max_size
+  vpc_zone_identifier = aws_subnet.private_app[*].id
+  target_group_arns = [
+    aws_lb_target_group.backend.arn,
+    aws_lb_target_group.backend_public.arn,
+  ]
   health_check_type         = "ELB"
   health_check_grace_period = 300
   wait_for_capacity_timeout = "0"

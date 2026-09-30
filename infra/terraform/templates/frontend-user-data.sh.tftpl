@@ -12,8 +12,6 @@ docker run --detach \
   --name poker777-frontend \
   --restart unless-stopped \
   --publish 3000:3000 \
-  --env BACKEND_INTERNAL_DNS='${backend_internal_dns}' \
-  --env NGINX_RESOLVER=169.254.169.253 \
   --log-driver=awslogs \
   --log-opt awslogs-region='${aws_region}' \
   --log-opt awslogs-group='${log_group}' \
