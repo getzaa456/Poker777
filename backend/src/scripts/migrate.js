@@ -42,6 +42,7 @@ async function main() {
       console.log('[migrate] --fresh: dropping existing tables...');
       const dropSql = `
         SET FOREIGN_KEY_CHECKS = 0;
+        DROP TABLE IF EXISTS hand_results;
         DROP TABLE IF EXISTS transactions;
         DROP TABLE IF EXISTS tables;
         DROP TABLE IF EXISTS wallets;

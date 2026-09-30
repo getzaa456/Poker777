@@ -18,7 +18,7 @@ import {
   advanceTurn
 } from '../services/roomService.js';
 import { withLock } from '../services/lockService.js';
-import { joinTable } from '../services/tables.js';
+import { getTableSummary, joinTable } from '../services/tables.js';
 import {
   createShuffledDeck,
   parseCard,
@@ -438,6 +438,7 @@ async function handleLeaveRoom(ws, onlyIfDisconnectExpired = false) {
 
   if (!roomCode || !clientId) return;
 
+  let settlementPromise = Promise.resolve();
   try {
     await withLock(roomCode, async () => {
       const room = await getRoom(roomCode);
@@ -463,7 +464,7 @@ async function handleLeaveRoom(ws, onlyIfDisconnectExpired = false) {
         const finalChips = Number(leavingPlayer.chips) || 0;
         const initialBuyIn = Number(leavingPlayer.buyIn) || finalChips;
         const roundId = room.roundId || Date.now();
-        syncPlayerBalances(roomCode, roundId, { [clientId]: finalChips }, { [clientId]: initialBuyIn }).catch(err =>
+        settlementPromise = syncPlayerBalances(roomCode, roundId, { [clientId]: finalChips }, { [clientId]: initialBuyIn }).catch(err =>
           console.error('Error syncing leaving player balance:', err)
         );
       }
@@ -487,10 +488,6 @@ async function handleLeaveRoom(ws, onlyIfDisconnectExpired = false) {
       } else if (remainingPlayerIds.length < 2) {
         // 2. กรณีเหลือผู้เล่นคนเดียวในห้อง
         clearTurnTimer(roomCode);
-        if (String(room.hostId) === String(clientId)) {
-          roomUpdates.hostId = remainingPlayerIds[0];
-        }
-
         if (isGameRunning) {
           await handleEarlyFinishGame(roomCode, remainingPlayerIds[0]);
         } else {
@@ -499,10 +496,6 @@ async function handleLeaveRoom(ws, onlyIfDisconnectExpired = false) {
         roomUpdates.status = 'OPEN';
       } else {
         // 3. กรณีเหลือผู้เล่นตั้งแต่ 2 คนขึ้นไป
-        if (String(room.hostId) === String(clientId)) {
-          roomUpdates.hostId = remainingPlayerIds[0];
-        }
-
         if (isGameRunning) {
           // Mark ผู้เล่นที่ออกเป็น FOLDED
           await updatePlayer(roomCode, clientId, { isFolded: 'true', status: 'FOLDED' });
@@ -592,6 +585,7 @@ async function handleLeaveRoom(ws, onlyIfDisconnectExpired = false) {
         await publishRoomState(roomCode);
       }
     });
+    await settlementPromise;
   } catch (err) {
     console.error('Leave room error:', err);
   } finally {
@@ -672,10 +666,11 @@ wss.on('connection', (ws) => {
                 );
               }
             } else {
-              tableInfo = { room_code: roomCode };
+              tableInfo = await getTableSummary(roomCode);
             }
 
             const profile = isRejoin ? null : await getUserProfile(clientId);
+            let hostReclaimed = false;
 
             for (const currentClient of wss.clients) {
               if (currentClient !== ws && currentClient.readyState === 1
@@ -697,18 +692,31 @@ wss.on('connection', (ws) => {
                 roomCode: tableInfo.room_code || roomCode,
                 roomId: tableInfo.id,
                 roomName: tableInfo.name || '',
+                hostId: tableInfo.host_id,
+                creatorId: tableInfo.host_id,
                 minBet: tableInfo.min_bet,
                 maxBet: tableInfo.max_bet,
                 maxPlayer: tableInfo.max_seats || 6,
                 status: 'OPEN',
                 currentBet: 0,
                 pot: 0,
-                hostId: clientId,
                 smallBlind: SMALL_BLIND,
                 bigBlind: BIG_BLIND,
               };
               await updateRoom(roomCode, initialRoom);
               room = await getRoom(roomCode);
+            }
+
+            if (tableInfo.host_id && (
+              String(room.creatorId || '') !== String(tableInfo.host_id)
+              || String(room.hostId || '') !== String(tableInfo.host_id)
+            )) {
+              await updateRoom(roomCode, {
+                hostId: tableInfo.host_id,
+                creatorId: tableInfo.host_id,
+              });
+              room = await getRoom(roomCode);
+              hostReclaimed = true;
             }
 
             if (isRejoin) {
@@ -752,6 +760,13 @@ wss.on('connection', (ws) => {
 
               if (availableSeatIndex >= 0) {
                 await setPlayerSeat(roomCode, availableSeatIndex, clientId);
+              }
+
+              // [แก้บัค]: คนสร้างห้องได้สิทธิ์ Host คืนเมื่อเข้ามานั่ง (เข้าได้เฉพาะระหว่างมือ จึงไม่กระทบมือที่เล่นอยู่)
+              if (room.creatorId && String(room.creatorId) === String(clientId)
+                && String(room.hostId) !== String(clientId)) {
+                await updateRoom(roomCode, { hostId: clientId });
+                hostReclaimed = true;
               }
             }
 
@@ -807,6 +822,8 @@ wss.on('connection', (ws) => {
                 CHANNEL,
                 JSON.stringify({ eventType: 'player_join', roomCode, clientId, room: roomSnapshot })
               );
+              // Host เปลี่ยน -> ส่ง Snapshot ให้ทุกคน ปุ่ม START จะได้ย้ายไปที่คนสร้างห้อง
+              if (hostReclaimed) await publishRoomState(roomCode);
             }
           });
         } catch (err) {
@@ -827,7 +844,7 @@ wss.on('connection', (ws) => {
 
         ws.send(
           JSON.stringify({
-            type: 'left_room',
+            type: 'seat-left',
             params: { room_code: roomCode },
           })
         );
@@ -850,7 +867,8 @@ wss.on('connection', (ws) => {
             );
           }
 
-          if (String(room.hostId) !== String(clientId)) {
+          const tableInfo = await getTableSummary(roomCode);
+          if (String(tableInfo.host_id) !== String(clientId)) {
             return ws.send(
               JSON.stringify({
                 type: 'error',
@@ -1402,8 +1420,16 @@ async function handleEarlyFinishGame(roomCode, winnerId) {
 
   const room = await getRoom(roomCode);
   const roundId = room?.roundId || Date.now();
+  const rawCardsMap = await redisState.hgetall(`room:${roomCode}:cards`);
+  const holeCardsMap = Object.fromEntries(Object.entries(rawCardsMap || {}).map(([pid, cards]) => [
+    pid,
+    typeof cards === 'string' ? JSON.parse(cards) : cards,
+  ]));
+  const communityCards = typeof room?.communityCards === 'string'
+    ? JSON.parse(room.communityCards)
+    : (room?.communityCards || []);
 
-  syncPlayerBalances(roomCode, roundId, playerChipsMap, playerBuyInsMap).catch(err =>
+  syncPlayerBalances(roomCode, roundId, playerChipsMap, playerBuyInsMap, { holeCardsMap, communityCards }).catch(err =>
     console.error('Error syncing DB balances on early finish:', err)
   );
   await resetSettlementBaseline(roomCode, playerChipsMap);
@@ -1593,6 +1619,7 @@ async function handleShowdown(roomCode, room, communityCards, activePlayerIds) {
   const rawCardsMap = await redisState.hgetall(`room:${roomCode}:cards`);
   const playersWithCards = [];
   const holeCardsMap = {};
+  const allHoleCardsMap = {};
   const seats = await getRoomSeats(roomCode);
   const seatEntries = sortedSeatEntries(seats);
   const dealerPosition = seatEntries.findIndex(([seatKey]) =>
@@ -1608,6 +1635,7 @@ async function handleShowdown(roomCode, room, communityCards, activePlayerIds) {
   for (const pid of allPlayerIds) {
     const rawCards = rawCardsMap ? rawCardsMap[pid] : null;
     const holeCards = rawCards ? JSON.parse(rawCards) : [];
+    if (holeCards.length) allHoleCardsMap[pid] = holeCards;
     const isFolded = !activePlayerIds.some((activeId) => String(activeId) === String(pid));
     if (!isFolded) holeCardsMap[pid] = holeCards;
     const player = await getPlayer(roomCode, pid);
@@ -1696,7 +1724,10 @@ async function handleShowdown(roomCode, room, communityCards, activePlayerIds) {
   // 4. เรียกฟังก์ชัน Sync ชิปลง DB
   // [เพิ่มแก้ไข]: ส่ง playerBuyInsMap ในพารามิเตอร์ที่ 3
   const roundId = room.roundId || Date.now();
-  syncPlayerBalances(roomCode, roundId, playerChipsMap, playerBuyInsMap).catch(err =>
+  syncPlayerBalances(roomCode, roundId, playerChipsMap, playerBuyInsMap, {
+    holeCardsMap: allHoleCardsMap,
+    communityCards,
+  }).catch(err =>
     console.error('Error syncing DB balances:', err)
   );
   await resetSettlementBaseline(roomCode, playerChipsMap);

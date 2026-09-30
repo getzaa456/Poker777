@@ -395,12 +395,6 @@ button {
 .live-player-list { position: absolute; inset: 0; }
 .live-player { pointer-events: none; }
 
-.player-seat-0 { top: -60px; left: 50%; transform: translateX(-50%); }
-.player-seat-1 { left: -90px; top: 20%; }
-.player-seat-2 { left: -90px; bottom: 13%; }
-.player-seat-3 { bottom: -55px; left: 50%; transform: translateX(-50%); }
-.player-seat-4 { right: -90px; bottom: 13%; }
-.player-seat-5 { right: -90px; top: 20%; }
 
 .waiting-seat { 
   position: absolute; 
@@ -569,29 +563,9 @@ button {
 .bet-value span { display: block; color: #a59bce; font-size: 10px; }
 .bet-value strong { color: white; font-size: 16px; }
 
-/* Responsive adjustments */
-@media (max-width: 1000px) {
-  .table-wrapper { width: 90vw; height: 55vh; }
-  .player { transform: scale(.7); }
-  .action-bar { left: 50%; right: auto; bottom: 20px; transform: translateX(-50%) scale(.8); }
-  .user-section { bottom: 120px; transform: translateX(-50%) scale(.75); }
-}
-
-@media (max-width: 620px) {
-  .room-panel { min-width: 0; width: 100%; border-radius: 18px; flex-wrap: wrap; }
-  .room-panel > div { flex: 1 1 150px; }
-  .table-tool-button, .table-leave-button { padding: 7px 9px; font-size: 10px; }
-  .hand-guide { top: 20px; right: 20px; left: 20px; width: auto; max-height: calc(100vh - 40px); }
-  .table-notifications { top: 145px; }
-  .current-hand { bottom: 20%; min-width: 160px; }
-}
 
 .p1 { left: 15%; top: 25%; } .p2 { left: 80%; top: 15%; animation-delay: .5s; }
 .p3 { left: 30%; top: 80%; animation-delay: 1s; } .p4 { left: 70%; top: 70%; animation-delay: 1.5s; }
-/* ---- seats 6-8 (tables can have up to 9 seats) ---- */
-.player-seat-6 { top: -60px; left: 12%; }
-.player-seat-7 { top: -60px; right: 12%; }
-.player-seat-8 { bottom: -55px; left: 12%; }
 
 /* ---- turn / winner highlights ---- */
 .player.is-turn .player-info { border-color: #ffdb66; box-shadow: 0 0 22px rgba(255,219,102,.45); }
@@ -621,3 +595,266 @@ button {
 .progress-value { transition: width .1s linear; }
 .progress-value.is-low { background: linear-gradient(90deg, #ff4d6d, #ff7a59); }
 .user-tags { margin-top: 4px; font-size: 11px; color: #c9c0ea; letter-spacing: .3px; }
+
+
+/* ==========================================================================
+   LAYOUT v2 — responsive table
+   Page = header / table stage / dock (your panel + actions), as a flex column
+   that fits the viewport. The table scales to the stage (container query
+   units), seats ring the table (positions set inline from JSX), and the
+   dock flows instead of being absolutely positioned, so nothing overlaps.
+   ========================================================================== */
+.game {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+}
+
+.header { flex: 0 0 auto; padding: 12px 20px 0; }
+.room-panel { min-width: 0; max-width: 100%; padding: 8px 10px; gap: 12px; }
+.room-panel > div:nth-child(2) { min-width: 0; flex: 1 1 auto; }
+.room-title, .room-subtitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.room-title small { color: #a59bce; font-size: 12px; }
+.menu-button { width: 42px; height: 42px; flex: 0 0 auto; }
+
+/* ---- table stage ---- */
+.table-wrapper {
+  --pad-x: 96px;
+  --pad-y: 78px;
+  --ratio: 2.05;
+  flex: 1 1 auto;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  container: stage / size;
+}
+
+.table-outer-glow {
+  position: relative;
+  inset: auto;
+  flex: 0 0 auto;
+  width: min(1040px, calc(100cqw - var(--pad-x) * 2), calc((100cqh - var(--pad-y) * 2) * var(--ratio)));
+  aspect-ratio: var(--ratio);
+  border-radius: 999px;
+  padding: clamp(4px, 0.8cqw, 8px);
+}
+.table-border { border-radius: 999px; padding: clamp(5px, 1.1cqw, 12px); }
+.table {
+  border-radius: 999px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(4px, 1.4cqh, 12px);
+  container: felt / inline-size;
+}
+
+/* centre stack: timer, pot, board, hand, status (in flow — no overlaps) */
+.turn-timer, .pot, .community-area, .current-hand, .live-room-status {
+  position: relative;
+  inset: auto;
+  left: auto; top: auto; bottom: auto;
+  transform: none;
+}
+.turn-timer { order: 1; }
+.pot { order: 2; padding: 5px 18px; }
+.pot strong { font-size: clamp(15px, 2.2cqw, 20px); }
+.community-area { order: 3; }
+.current-hand { order: 4; min-width: 0; padding: 5px 12px; }
+.live-room-status { order: 5; font-size: clamp(10px, 1.4cqw, 13px); max-width: 80cqw; overflow: hidden; text-overflow: ellipsis; }
+.community-title { margin-bottom: 4px; font-size: 10px; }
+.community-cards { gap: clamp(4px, 1cqw, 10px); min-height: calc(clamp(34px, 6.4cqw, 65px) * 1.46); }
+.community-cards .community-card {
+  flex: 0 0 auto;
+  width: clamp(34px, 6.4cqw, 65px);
+  height: calc(clamp(34px, 6.4cqw, 65px) * 1.46);
+  padding: clamp(3px, 0.7cqw, 8px);
+}
+.community-cards .community-card b { font-size: clamp(12px, 2cqw, 22px); }
+.community-cards .community-card span { font-size: clamp(15px, 2.6cqw, 28px); }
+
+/* ---- seats ring (left/top come from JSX) ---- */
+.live-player-list { position: absolute; inset: 0; pointer-events: none; }
+.player, .waiting-seat {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  z-index: 8;
+}
+.player {
+  width: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+}
+.player .avatar { width: clamp(38px, 5.4cqw, 60px); height: clamp(38px, 5.4cqw, 60px); padding: 2px; margin-bottom: -8px; z-index: 1; }
+.player .avatar-inner { font-size: clamp(16px, 2.4cqw, 26px); border-width: 2px; }
+.player-info { min-width: 0; width: clamp(92px, 13cqw, 132px); padding: 10px 8px 6px; text-align: center; }
+.player-name { font-size: clamp(11px, 1.4cqw, 14px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.player-chips { font-size: clamp(10px, 1.3cqw, 13px); }
+.player-status { font-size: 9px; padding: 1px 6px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seat-cards { justify-content: center; }
+.dealer-chip {
+  position: absolute; top: -4px; left: calc(50% + clamp(38px, 5.4cqw, 60px) / 2 - 8px); z-index: 2;
+  width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center;
+  background: #fff; color: #1d1433; font-size: 11px; font-weight: 900; box-shadow: 0 2px 6px rgba(0,0,0,.5);
+}
+.waiting-seat { width: clamp(80px, 11cqw, 120px); padding: 8px; }
+
+/* ---- dock: your panel + actions ---- */
+.table-dock {
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 20;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 20px;
+  padding: 26px 20px 16px;
+}
+.user-section { position: relative; left: auto; bottom: auto; transform: none; min-width: 0; flex: 0 1 auto; }
+.user-avatar { width: 84px; height: 84px; flex: 0 0 auto; }
+.user-info { width: 240px; padding: 12px 16px 12px 30px; }
+.user-name { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-chips { font-size: 14px; }
+.user-cards { flex: 0 0 auto; }
+.user-section .user-card { width: 68px; height: 96px; padding: 7px; }
+.user-section .user-card b { font-size: 20px; }
+.user-section .user-card span { font-size: 24px; }
+
+.action-bar {
+  position: relative; right: auto; bottom: auto; left: auto; transform: none;
+  display: flex; flex-wrap: wrap; align-items: stretch; justify-content: flex-end;
+  gap: 10px; margin-left: auto;
+}
+.action-button { min-width: 92px; height: 70px; padding: 0 10px; border-radius: 14px; }
+.action-button strong { font-size: 16px; }
+.action-icon { font-size: 20px; }
+.raise { min-width: 110px; }
+.bet-control { position: relative; bottom: auto; right: auto; align-self: center; }
+.start-game-button { height: 70px; min-width: 180px; padding: 0 18px; }
+.waiting-hint { align-self: center; padding: 12px 16px; border-radius: 12px; background: rgba(30,22,55,.8); border: 1px solid rgba(255,255,255,.08); color: #c9c0ea; font-size: 13px; }
+
+/* notifications sit in the header band, right of the room panel, so they never cover a seat */
+.table-notifications { top: 14px; right: 16px; left: auto; transform: none; width: min(320px, calc(100vw - 600px)); gap: 4px; }
+.table-notification { padding: 5px 10px; font-size: 11px; border-radius: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.table-notification:nth-child(n+3) { display: none; }
+
+/* ---- wide screens: your panel centred under the table, actions to the right ---- */
+@media (min-width: 1281px) {
+  .table-dock { display: grid; grid-template-columns: minmax(0, 1fr) auto max-content; align-items: end; }
+  .table-dock .action-bar { flex-wrap: nowrap; }
+  .table-dock .user-section { grid-column: 2; }
+  .table-dock .action-bar { grid-column: 3; justify-self: end; }
+}
+
+/* ---- laptops / small desktops: one compact row so the table keeps its height ---- */
+@media (min-width: 901px) and (max-width: 1280px) {
+  .table-dock { flex-wrap: nowrap; justify-content: space-between; gap: 12px; padding: 24px 16px 12px; }
+  .user-avatar { width: 64px; height: 64px; }
+  .user-info { width: 190px; padding: 10px 12px 10px 24px; margin-left: -12px; }
+  .user-section .user-card { width: 52px; height: 74px; padding: 5px; }
+  .user-section .user-card b { font-size: 16px; }
+  .user-section .user-card span { font-size: 19px; }
+  .user-cards { margin-left: -12px; }
+  .action-bar { flex-wrap: nowrap; gap: 8px; }
+  .action-button { min-width: 72px; height: 58px; padding: 0 8px; }
+  .action-button strong { font-size: 14px; }
+  .action-icon { font-size: 17px; }
+  .raise { min-width: 88px; }
+  .bet-control { padding: 6px; gap: 4px; }
+  .bet-value { min-width: 56px; }
+  .small-control { width: 30px; height: 30px; }
+  .start-game-button { height: 58px; min-width: 160px; }
+}
+
+/* ---- small felt: drop secondary text so the centre stack never collides with seats ---- */
+@container felt (max-width: 620px) {
+  .community-title { display: none; }
+  .current-hand span { display: none; }
+  .turn-timer small { display: none; }
+  .timer-ring { width: 34px; height: 34px; }
+  .timer-ring span { width: 26px; height: 26px; font-size: 12px; }
+}
+
+/* ---- tablets ---- */
+@media (max-width: 900px) {
+  /* no room beside the header: notifications overlay it briefly instead */
+  .table-notifications { top: 8px; right: 8px; left: 8px; width: auto; }
+  .table-wrapper { --pad-x: 70px; --pad-y: 70px; }
+  .suit-badge { display: none; }
+  .table-dock { padding: 22px 12px 12px; gap: 10px; }
+  .action-button { min-width: 78px; height: 60px; }
+  .action-button strong { font-size: 14px; }
+  .start-game-button { height: 60px; }
+}
+
+/* ---- phones ---- */
+@media (max-width: 640px) {
+  .header { padding: 8px 8px 0; }
+  .menu-button { display: none; }
+  .room-panel { width: 100%; border-radius: 16px; gap: 6px; padding: 6px 8px; }
+  .room-title { font-size: 13px; }
+  .room-subtitle { font-size: 10px; }
+  .table-tool-button, .table-leave-button { padding: 7px 8px; font-size: 10px; }
+
+  .hand-guide { top: 12px; right: 12px; left: 12px; width: auto; max-height: calc(100dvh - 24px); }
+
+  .table-wrapper { --pad-x: 46px; --pad-y: 58px; --ratio: 1.55; }
+  .player-info { padding: 8px 4px 4px; }
+  .current-hand strong { font-size: 11px; }
+  .current-hand span { display: none; }
+  .community-title { display: none; }
+
+  .table-dock { padding: 20px 8px 8px; gap: 8px; }
+  .user-section { width: 100%; justify-content: center; }
+  .user-avatar { width: 58px; height: 58px; padding: 3px; }
+  .user-info { width: auto; flex: 1 1 auto; max-width: 200px; padding: 8px 10px 8px 22px; margin-left: -12px; border-radius: 0 14px 14px 0; }
+  .user-name { font-size: 14px; }
+  .user-chips { font-size: 12px; }
+  .user-tags { font-size: 10px; }
+  .progress { margin-top: 6px; }
+  .user-section .user-card { width: 48px; height: 68px; padding: 5px; }
+  .user-section .user-card b { font-size: 15px; }
+  .user-section .user-card span { font-size: 18px; }
+  .user-cards { margin-left: -10px; }
+
+  .action-bar { width: 100%; display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .action-bar > * { min-width: 0; }
+  .action-bar .fold, .action-bar .check, .action-bar .call { grid-column: span 2; }
+  .action-bar .bet-control { grid-column: span 6; justify-content: space-between; }
+  .action-bar .raise, .action-bar .bet { grid-column: span 3; }
+  .action-bar .start-game-button, .action-bar .waiting-hint { grid-column: span 6; width: 100%; text-align: center; }
+  .action-button { height: 50px; min-width: 0; flex-direction: row; gap: 6px; border-radius: 12px; }
+  .action-button strong { font-size: 13px; }
+  .action-button span { font-size: 11px; }
+  .action-icon { font-size: 16px !important; }
+  .start-game-button { height: 50px; }
+  .bet-control { padding: 4px 6px; }
+  .bet-value { flex: 1 1 auto; }
+}
+
+/* upright screens (tablets/phones held vertically): the table grows taller to use the height */
+@container stage (max-aspect-ratio: 5/4) {
+  .table-outer-glow { --ratio: 1.3; }
+}
+@container stage (max-aspect-ratio: 3/4) {
+  .table-outer-glow { --ratio: 0.82; }
+}
+
+/* your cards after folding */
+.user-section.is-folded .user-cards { opacity: .35; filter: grayscale(.6); }
+
+/* short landscape screens (phones sideways): let the page scroll instead of crushing the table */
+@media (max-height: 560px) {
+  .game { height: auto; min-height: 100dvh; }
+  .table-wrapper { flex: 0 0 auto; height: 440px; }
+  .suit-badge { display: none; }
+}

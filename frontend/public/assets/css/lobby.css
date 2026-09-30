@@ -467,10 +467,12 @@ html,body{
 .hand-result{ width:44px; font-weight:800; font-size:12px; }
 .hand-result.win-text{ color:var(--win-green); }
 .hand-result.loss-text{ color:var(--loss-red); }
+.hand-note{ flex:1; min-width:0; overflow:hidden; color:var(--text-muted); font-size:11px; text-overflow:ellipsis; white-space:nowrap; }
 
-.mini-cards{ display:flex; gap:3px; flex:1; }
+.mini-cards{ display:flex; gap:3px; flex:1; min-width:0; overflow-x:auto; }
 .mini-card{
   width:24px; height:32px;
+  flex:0 0 24px;
   background:#fff;
   border-radius:4px;
   display:flex; flex-direction:column; align-items:center; justify-content:center;
@@ -1018,4 +1020,15 @@ html,body{
   .room-modal{ padding:18px; }
   .room-code-display{ font-size:34px; letter-spacing:6px; }
   .field-row{ flex-direction:column; }
+}
+/* phones: keep the profile bar inside the screen — buttons collapse to their icons */
+@media (max-width:520px){
+  .profile-widget{ top:12px; left:12px; right:12px; gap:8px; padding:6px 8px 6px 6px; }
+  .profile-widget .profile-info{ min-width:0; flex:1 1 auto; }
+  .profile-widget .profile-name{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .xp-bar{ width:auto; max-width:110px; }
+  .topup-quick-btn > span:not(.topup-quick-icon),
+  .logout-btn > span:not(.logout-icon){ display:none; }
+  .topup-quick-btn, .logout-btn{ padding:0 9px; flex:0 0 auto; }
+  .room-code-bar{ margin-left:16px; margin-right:16px; }
 }

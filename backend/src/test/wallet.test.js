@@ -8,6 +8,7 @@ import assert from 'node:assert';
 import supertest from 'supertest';
 import { createApp } from '../server.js';
 import { pool } from '../config/db.js';
+import { syncPlayerBalances } from '../services/wallet.js';
 
 const request = supertest(await createApp());
 
@@ -150,6 +151,31 @@ test('GET /wallet/transactions pagination ?page=1&limit=2', async () => {
 test('GET /wallet/transactions without token -> 401', async () => {
   const r = await request.get('/wallet/transactions');
   assert.equal(r.status, 401);
+});
+
+test('GET /wallet/history returns persisted hand cards and real stats', async () => {
+  const { token, user } = await registerUser(uniq('handhistory'));
+  const roomCode = 'HIST01';
+  const winCards = ['AH', 'KD'];
+  await syncPlayerBalances(roomCode, 'round-win', { [user.id]: 1300 }, { [user.id]: 1000 }, {
+    holeCardsMap: { [user.id]: winCards },
+    communityCards: ['2C', '3D', '4H', '5S', '6C'],
+  });
+  await syncPlayerBalances(roomCode, 'round-loss', { [user.id]: 1200 }, { [user.id]: 1300 }, {
+    holeCardsMap: { [user.id]: ['2H', '3H'] },
+    communityCards: ['4C', '5D', '6S'],
+  });
+  await syncPlayerBalances(roomCode, 'round-win', { [user.id]: 1300 }, { [user.id]: 1000 }, {
+    holeCardsMap: { [user.id]: winCards },
+    communityCards: ['2C', '3D', '4H', '5S', '6C'],
+  });
+
+  const r = await request.get('/wallet/history').set('Authorization', `Bearer ${token}`);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.hands.length, 2);
+  assert.deepEqual(r.body.hands.map((hand) => Number(hand.amount)).sort((a, b) => a - b), [-100, 300]);
+  assert.deepEqual(r.body.hands.find((hand) => hand.round_id === 'round-win').hole_cards, winCards);
+  assert.deepEqual(r.body.stats, { wins: 1, losses: 1, winRate: 50, totalChipsWon: 300 });
 });
 
 // ========== POST /internal/wallet/adjust ==========

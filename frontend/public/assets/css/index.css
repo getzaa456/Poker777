@@ -394,7 +394,7 @@
 
     /* ===== Form error message ===== */
     .form-error {
-      display: none;
+      display: block;
       color: #ff4d6a;
       background: rgba(255, 77, 106, 0.08);
       border: 1px solid rgba(255, 77, 106, 0.25);
@@ -404,3 +404,28 @@
       font-size: 14px;
       font-weight: 600;
     }
+/* ===== Field-level validation (React renders these only when needed) ===== */
+.field-group { display: flex; flex-direction: column; gap: 5px; }
+.field-group.has-error .field input { border-color: #ff4d6a; background: #fff6f8; }
+.field-group.has-error .field input:focus { box-shadow: 0 0 0 4px rgba(255, 77, 106, 0.15); }
+.field-message { color: #e0304f; font-size: 12.5px; font-weight: 700; padding-left: 4px; }
+.field-hint { color: var(--text-muted); font-size: 12px; padding-left: 4px; }
+.form-error { margin-bottom: 0; animation: formErrorIn .2s ease-out; }
+@keyframes formErrorIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* ===== Tall forms on short screens =====
+   body used overflow:hidden + vertical centring, so a card taller than the window (Register with hints)
+   was clipped and its button unreachable. Scroll vertically instead; margin:auto still centres when it fits. */
+body { overflow-x: hidden; overflow-y: auto; align-items: flex-start; }
+/* #root is the flex item here (not .stage): give it the card width and let margin:auto centre it */
+body > #root { width: 100%; max-width: 880px; margin: auto; }
+
+@media (max-height: 860px) {
+  .auth-panel { padding-top: 26px; padding-bottom: 24px; }
+  .welcome { margin-bottom: 14px; }
+  form { gap: 11px; }
+}
+@media (max-height: 860px) and (max-width: 720px) {
+  .hero-panel { min-height: 130px; }
+  .welcome p { display: none; }
+}
