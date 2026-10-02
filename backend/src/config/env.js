@@ -44,7 +44,12 @@ export const env = {
   },
 
   jwt: {
-    secret: required('JWT_SECRET', 'dev-only-change-me-in-production-please-32-chars-min'),
+    secret: required(
+      'JWT_SECRET',
+      process.env.NODE_ENV === 'production'
+        ? null
+        : 'dev-only-change-me-in-production-please-32-chars-min'
+    ),
     expiresIn: required('JWT_EXPIRES_IN', '24h'),
     issuer: required('JWT_ISSUER', 'poker777'),
   },
