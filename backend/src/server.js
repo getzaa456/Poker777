@@ -38,10 +38,11 @@ export async function createApp() {
     })
   );
   app.use(morgan(env.isProd ? 'combined' : 'dev'));
+  app.use('/', healthRouter); 
   app.use(apiLimiter);
 
   // --- routes ---
-  app.use('/', healthRouter);        // GET /health
+         // GET /health
   app.use('/auth', authRouter);      // POST /auth/register, POST /auth/login
   app.use('/users', usersRouter);    // GET/PATCH /users/me
   app.use('/', walletRouter);        // POST /wallet/topup, GET /wallet/transactions, POST /internal/wallet/adjust
