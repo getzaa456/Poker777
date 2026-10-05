@@ -9,6 +9,17 @@ const blindOptions = [
   [10, 1000], [50, 5000], [100, 10000], [500, 50000],
 ];
 const seatOptions = [2, 4, 6, 9];
+const betStepOptions = [10, 20, 50, 100];
+
+// Level and title from real hand results (wallet/history stats).
+function playerRank({ wins = 0, losses = 0, winRate = 0 }) {
+  const hands = wins + losses;
+  const level = 1 + Math.floor(Math.sqrt(hands * 2));
+  let title = 'Rookie';
+  if (hands >= 20) title = winRate >= 55 ? 'Shark' : winRate >= 45 ? 'Regular' : 'Challenger';
+  if (hands >= 100 && winRate >= 55) title = 'Legend';
+  return { hands, level, title };
+}
 const topupOptions = [100, 500, 1000, 5000, 10000, 50000];
 
 function transactionLabel(type) {
@@ -42,6 +53,7 @@ export default function LobbyPage() {
   const [minBet, setMinBet] = useState(10);
   const [maxBet, setMaxBet] = useState(1000);
   const [maxSeats, setMaxSeats] = useState(6);
+  const [betStep, setBetStep] = useState(20);
   const [createError, setCreateError] = useState('');
   const [creating, setCreating] = useState(false);
   const [copyLabel, setCopyLabel] = useState('Copy code');
@@ -63,6 +75,7 @@ export default function LobbyPage() {
         if (!active) return;
         setUser(current);
         setSelectedAvatar(normalizeAvatarId(current.avatar_id));
+        loadHandHistory();
       } catch (error) {
         if (active) setLoadingError(error.message || 'Unable to load profile');
       }
@@ -157,6 +170,7 @@ export default function LobbyPage() {
     setMinBet(10);
     setMaxBet(1000);
     setMaxSeats(6);
+    setBetStep(20);
     setCreateError('');
     setCreatedTable(null);
     setRoomModalOpen(true);
@@ -171,6 +185,7 @@ export default function LobbyPage() {
         min_bet: Number(minBet),
         max_bet: Number(maxBet),
         max_seats: Number(maxSeats),
+        bet_step: Number(betStep),
       });
       setCreatedTable(table);
     } catch (error) {
@@ -215,6 +230,7 @@ export default function LobbyPage() {
   const chipsText = `🪙 ${fmtChips(user?.balance)}`;
   const currentAvatar = normalizeAvatarId(user?.avatar_id || selectedAvatar);
   const chosenBlind = useMemo(() => `${minBet}:${maxBet}`, [minBet, maxBet]);
+  const rank = playerRank(handStats);
 
   if (loadingError) return <div className="app-background"><div className="inline-error">{loadingError}</div></div>;
 
@@ -232,7 +248,10 @@ export default function LobbyPage() {
         <div className="profile-info">
           <div className="profile-name">{displayName}</div>
           <div className="profile-chips">{chipsText}</div>
-          <div className="xp-bar"><div className="xp-fill" /></div>
+          <div className="winrate-line" title={`Win rate ${Number(handStats.winRate).toFixed(1)}% over ${rank.hands} hands`}>
+            <div className="xp-bar"><div className="xp-fill" style={{ width: `${Math.min(100, Number(handStats.winRate) || 0)}%` }} /></div>
+            <span>{rank.hands ? `${Number(handStats.winRate).toFixed(0)}% win` : 'No hands yet'}</span>
+          </div>
         </div>
         <button className="topup-quick-btn" title="Top up chips" onClick={openTopup}><span className="topup-quick-icon">🪙</span><span>Top Up</span></button>
         <button className="expand-btn logout-btn" title="Log out" onClick={logout}><span className="logout-icon">↪</span><span>Log Out</span></button>
@@ -247,7 +266,7 @@ export default function LobbyPage() {
             <div className="avatar-picker-identity">
               <h2 className="panel-name">{displayName}</h2>
               <p className="avatar-picker-hint">Select your avatar</p>
-              <div className="panel-meta"><span className="level-chip">Lv. 1</span><span className="title-badge">Rookie</span></div>
+              <div className="panel-meta"><span className="level-chip">Lv. {rank.level}</span><span className="title-badge">{rank.title}</span><span className="level-chip">{Number(handStats.winRate).toFixed(1)}% win • {rank.hands} hands</span></div>
               <div className="rank-points">{chipsText}</div>
             </div>
             <div className="avatar-choices">
@@ -329,12 +348,14 @@ export default function LobbyPage() {
           <div className="preset-row">{blindOptions.map(([min, max]) => <button key={min} type="button" className={`preset-chip ${chosenBlind === `${min}:${max}` ? 'is-active' : ''}`} onClick={() => { setMinBet(min); setMaxBet(max); }}>{fmtChips(min)} / {fmtChips(max)}</button>)}</div>
           <div className="field-row"><div className="field-col"><label className="field-label">Min buy-in</label><input type="number" className="room-field" min="1" value={minBet} onChange={(e) => setMinBet(e.target.value)} /></div><div className="field-col"><label className="field-label">Max buy-in</label><input type="number" className="room-field" min="1" value={maxBet} onChange={(e) => setMaxBet(e.target.value)} /></div></div>
           <label className="field-label">Max seats</label><div className="preset-row">{seatOptions.map((seats) => <button key={seats} type="button" className={`preset-chip ${Number(maxSeats) === seats ? 'is-active' : ''}`} onClick={() => setMaxSeats(seats)}>{seats}</button>)}</div>
+          <label className="field-label">Bet step (how much + / − change a bet)</label>
+          <div className="preset-row">{betStepOptions.map((value) => <button key={value} type="button" className={`preset-chip ${Number(betStep) === value ? 'is-active' : ''}`} onClick={() => setBetStep(value)}>{fmtChips(value)}</button>)}<input type="number" className="room-field step-field" min="1" value={betStep} onChange={(e) => setBetStep(e.target.value)} aria-label="Custom bet step" /></div>
           {createError && <div className="inline-error">{createError}</div>}
           <GlassButton className="glass-cta-full glass-cta-pink" style={{ marginTop: 14 }} disabled={creating} onClick={createRoom} label={creating ? 'Creating…' : 'Create Room'} />
         </section> : <section className="room-modal">
           <button className="close-btn" onClick={() => setRoomModalOpen(false)}>✕</button><div className="section-label">◆ Room Created ◆</div>
           <p className="waiting-hint">Share this code with friends so they can join</p><div className="room-code-display">{createdTable.room_code}</div><button className="copy-code-btn" onClick={copyRoomCode}>{copyLabel}</button>
-          <div className="waiting-summary"><strong>{createdTable.name}</strong><br />Buy-in {fmtChips(createdTable.min_bet)} – {fmtChips(createdTable.max_bet)} &nbsp;•&nbsp; {createdTable.max_seats} seats</div>
+          <div className="waiting-summary"><strong>{createdTable.name}</strong><br />Buy-in {fmtChips(createdTable.min_bet)} – {fmtChips(createdTable.max_bet)} &nbsp;•&nbsp; {createdTable.max_seats} seats &nbsp;•&nbsp; Bet step {fmtChips(createdTable.bet_step)}</div>
           <div className="waiting-status">Waiting for players…</div><GlassButton className="glass-cta-full glass-cta-cyan" style={{ marginTop: 14 }} onClick={() => openTable(createdTable.room_code)} label="Enter Table" />
         </section>}
       </div>}

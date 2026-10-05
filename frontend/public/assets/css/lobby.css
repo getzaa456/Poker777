@@ -1032,3 +1032,11 @@ html,body{
   .topup-quick-btn, .logout-btn{ padding:0 9px; flex:0 0 auto; }
   .room-code-bar{ margin-left:16px; margin-right:16px; }
 }
+
+/* header: win-rate bar + label (replaces the decorative XP bar) */
+.winrate-line{ display:flex; align-items:center; gap:8px; }
+.winrate-line span{ font-size:11px; font-weight:700; color:var(--text-muted); white-space:nowrap; }
+.xp-fill{ transition:width .6s ease; }
+.panel-meta{ flex-wrap:wrap; }
+/* create room: custom bet step next to the presets */
+.step-field{ width:96px; flex:0 0 auto; margin:0; padding:8px 10px; }

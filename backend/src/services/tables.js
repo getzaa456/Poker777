@@ -48,6 +48,7 @@ function serializeTable(row, seatsTaken) {
     min_bet: row.min_bet,
     max_bet: row.max_bet,
     max_seats: row.max_seats,
+    bet_step: Number(row.bet_step) || 20,
     status: row.status,
     created_at: row.created_at,
     seats_taken: seatsTaken,
@@ -78,8 +79,8 @@ export async function createTable(hostId, input) {
     const roomCode = randomRoomCode();
     try {
       const [result] = await pool.query(
-        `INSERT INTO tables (room_code, name, host_id, min_bet, max_bet, max_seats, status)
-         VALUES (:roomCode, :name, :hostId, :minBet, :maxBet, :maxSeats, 'OPEN')`,
+        `INSERT INTO tables (room_code, name, host_id, min_bet, max_bet, max_seats, bet_step, status)
+         VALUES (:roomCode, :name, :hostId, :minBet, :maxBet, :maxSeats, :betStep, 'OPEN')`,
         {
           roomCode,
           name: data.name,
@@ -87,6 +88,7 @@ export async function createTable(hostId, input) {
           minBet: data.min_bet,
           maxBet: data.max_bet,
           maxSeats: data.max_seats,
+          betStep: data.bet_step,
         }
       );
       const [rows] = await pool.query(`SELECT * FROM tables WHERE id = :id LIMIT 1`, { id: result.insertId });

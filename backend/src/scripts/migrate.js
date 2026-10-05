@@ -57,6 +57,22 @@ async function main() {
     await conn.query(sql);
     console.log('[migrate] schema applied:', SCHEMA_PATH);
 
+    // Columns added after the first release: CREATE TABLE IF NOT EXISTS does not add them
+    // to a database that already exists, so add any that are missing.
+    const addedColumns = [
+      ['tables', 'bet_step', 'INT UNSIGNED NOT NULL DEFAULT 20 AFTER `max_seats`'],
+    ];
+    for (const [table, column, definition] of addedColumns) {
+      const [existing] = await conn.query(
+        'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?',
+        [table, column],
+      );
+      if (!existing.length) {
+        await conn.query(`ALTER TABLE \`${table}\` ADD COLUMN \`${column}\` ${definition}`);
+        console.log(`[migrate] added column ${table}.${column}`);
+      }
+    }
+
     const [rows] = await conn.query("SHOW TABLES");
     console.log('[migrate] tables now present:', rows.map((r) => Object.values(r)[0]));
   } catch (err) {

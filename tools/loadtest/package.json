@@ -1,0 +1,8 @@
+{
+  "name": "poker777-loadtest",
+  "private": true,
+  "description": "Bots that join tables and play real hands over WebSocket, with latency stats.",
+  "type": "module",
+  "scripts": { "start": "node loadtest.mjs" },
+  "dependencies": { "ws": "^8.18.0" }
+}

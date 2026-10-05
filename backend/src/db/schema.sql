@@ -79,6 +79,7 @@ CREATE TABLE IF NOT EXISTS `tables` (
   `min_bet`    INT UNSIGNED NOT NULL DEFAULT 10,
   `max_bet`    INT UNSIGNED NOT NULL DEFAULT 1000,
   `max_seats`  TINYINT UNSIGNED NOT NULL DEFAULT 6,
+  `bet_step`   INT UNSIGNED NOT NULL DEFAULT 20,   -- +/- step of the bet slider at this table
   `status`     ENUM('OPEN','CLOSED','IN_PROGRESS') NOT NULL DEFAULT 'OPEN',
   `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),

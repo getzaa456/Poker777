@@ -87,7 +87,7 @@ docker compose down -v
    | player1 | `demo-pass-123` |
    | player2 | `demo-pass-123` |
 
-> ถ้ามีไฟล์ `.env` ที่ root และตั้ง `VITE_API_BASE` ไว้ ต้องเป็น `http://localhost:4000` หรือเว้นว่าง
+> ไม่ต้องตั้ง `VITE_API_BASE` — dev server (`vite.config.js`) ส่ง `/auth` `/users` `/wallet` `/tables` `/ws` ต่อไปที่ Backend port 4000 ให้เอง เหมือน nginx บน production
 > ถ้า port 3000 / 4000 ถูกใช้อยู่ ให้ปิดโปรแกรมนั้นก่อน (Windows: `netstat -ano | findstr :4000` แล้ว `taskkill /PID <pid> /F`)
 
 ---
@@ -102,9 +102,9 @@ docker compose down -v
 1. **ผู้เล่น 1:** กด **CREATE ROOM** → ตั้งชื่อ / เลือก Buy-in / จำนวนที่นั่ง → **Create Room** → จดรหัสห้อง 6 ตัว → **Enter Table**
 2. **ผู้เล่น 1:** เลื่อนเลือก Buy-in → **SIT DOWN**
 3. **ผู้เล่น 2:** ใส่รหัสห้องในช่อง **Enter Room Code** → **Join** (หรือกด **JOIN ROOM** แล้วเลือกจากรายการ) → เลือก Buy-in → **SIT DOWN**
-4. **Host** (คนที่ SIT DOWN ก่อน) กด **START GAME**
+4. **เกมเริ่มเองอัตโนมัติ** ~10 วินาทีหลังมีผู้เล่น 2 คนนั่ง (คนสร้างห้องกด **START NOW** เพื่อเริ่มทันทีได้)
 5. เล่นได้เลย — แต่ละตามีเวลา 15 วินาที ถ้าหมดเวลาระบบจะ Check ให้ (ถ้า Check ได้) หรือ Fold
-6. จบมือแล้ว Host กด **START GAME** เพื่อเริ่มมือต่อไป
+6. จบมือแล้วมือถัดไปเริ่มเองใน ~6 วินาที (นับถอยหลังที่แผงด้านล่าง) — คนที่มาทีหลังนั่งได้แม้มือกำลังเล่นอยู่ จะได้ไพ่ตั้งแต่มือถัดไป
 
 Blinds คือ 10 / 20 (ตั้งใน `.env`: `POKER_SMALL_BLIND`, `POKER_BIG_BLIND`) ส่วนค่า min / max ตอนสร้างห้องคือช่วง **Buy-in**
 
@@ -166,9 +166,9 @@ Blinds คือ 10 / 20 (ตั้งใน `.env`: `POKER_SMALL_BLIND`, `POKER
 
 | อาการ | สาเหตุ / วิธีแก้ |
 |---|---|
-| หน้าเว็บขึ้น "Cannot reach server" | Backend ยังไม่ขึ้น หรือ `VITE_API_BASE` ไม่ใช่ `http://localhost:4000` |
+| หน้าเว็บขึ้น "Cannot reach server" หรือ Wallet 0 | Backend (port 4000) ยังไม่ขึ้น |
 | Login แท็บหนึ่งแล้วอีกแท็บเปลี่ยนคนตาม | เปิด Origin เดียวกัน — ใช้ `localhost` กับ `127.0.0.1` หรือ Incognito |
-| ไม่มีปุ่ม START GAME | ไม่ใช่ Host (Host = คนที่ SIT DOWN ก่อน) หรือยังมีผู้เล่นที่มีชิปไม่ถึง 2 คน |
+| ไม่มีปุ่ม START | ปุ่มนี้มีเฉพาะคนสร้างห้อง — คนอื่นเห็นนับถอยหลัง "Next hand starts in …" แทน (เกมเริ่มเองเมื่อมีผู้เล่นที่มีชิป ≥ 2 คน) |
 | "Table is already in progress" | เข้าห้องระหว่างมือกำลังเล่นไม่ได้ รอให้จบมือก่อน |
 | วิธี B: Login ไม่ได้หลังเปิด Server ใหม่ | ข้อมูลอยู่ใน RAM — บัญชีเดิมหาย ระบบสร้าง player1/player2 ใหม่ให้แล้ว ให้ Log out แล้ว Login ใหม่ |
 | ไม่มีเสียง | กดที่หน้าเว็บก่อนหนึ่งครั้ง และเช็คว่าไม่ได้กด 🔇 |

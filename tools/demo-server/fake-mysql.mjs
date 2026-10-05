@@ -1,5 +1,5 @@
 // In-memory stand-in for mysql2/promise covering only the queries Poker777 issues.
-const db = { users: [], wallets: new Map(), transactions: [], tables: [] };
+const db = { users: [], wallets: new Map(), transactions: [], tables: [], hands: [] };
 globalThis.__fakeDb = db;
 let ids = { users: 0, tables: 0, tx: 0 };
 const norm = (s) => s.replace(/\s+/g, ' ').trim();
@@ -23,11 +23,22 @@ async function query(sql, p = {}) {
   if (q.startsWith('SELECT balance_after, amount FROM transactions WHERE ref_id')) return [db.transactions.filter((t) => t.ref_id === p.refId)];
   if (q.startsWith('SELECT id, amount, type, ref_id')) return [db.transactions.filter((t) => t.user_id === String(p.userId)).reverse().slice(p.offset, p.offset + p.limit)];
   if (q.startsWith('SELECT COUNT(*) as total FROM transactions')) return [[{ total: db.transactions.filter((t) => t.user_id === String(p.userId)).length }]];
-  if (q.startsWith('INSERT INTO tables')) { const id = ++ids.tables; db.tables.push({ id, room_code: p.roomCode, name: p.name, host_id: p.hostId, min_bet: p.minBet, max_bet: p.maxBet, max_seats: p.maxSeats, status: 'OPEN', created_at: new Date() }); return [{ insertId: id }]; }
+  if (q.startsWith('INSERT INTO tables')) { const id = ++ids.tables; db.tables.push({ id, room_code: p.roomCode, name: p.name, host_id: p.hostId, min_bet: p.minBet, max_bet: p.maxBet, max_seats: p.maxSeats, bet_step: p.betStep ?? 20, status: 'OPEN', created_at: new Date() }); return [{ insertId: id }]; }
   if (q.startsWith('SELECT * FROM tables WHERE id')) return [db.tables.filter((t) => t.id === p.id)];
   if (q.startsWith('SELECT * FROM tables WHERE room_code')) return [db.tables.filter((t) => t.room_code === p.code)];
   if (q.startsWith("SELECT * FROM tables WHERE status = 'OPEN'")) return [[...db.tables].reverse()];
   if (q.startsWith('DELETE FROM tables WHERE room_code')) { db.tables = db.tables.filter((t) => t.room_code !== p.roomCode); return [{}]; }
+  if (q.startsWith('INSERT IGNORE INTO hand_results')) {
+    if (!db.hands.some((h) => h.room_code === p.roomCode && h.round_id === p.roundId && h.user_id === String(p.userId))) {
+      db.hands.push({ id: db.hands.length + 1, user_id: String(p.userId), room_code: p.roomCode, round_id: p.roundId, amount: Number(p.amount), hole_cards: JSON.parse(p.holeCards || '[]'), community_cards: JSON.parse(p.communityCards || '[]'), created_at: new Date() });
+    }
+    return [{}];
+  }
+  if (q.startsWith('SELECT id, room_code, round_id, amount')) return [db.hands.filter((h) => h.user_id === String(p.userId)).reverse().slice(0, p.limit)];
+  if (q.startsWith('SELECT COALESCE(SUM(amount > 0)')) {
+    const mine = db.hands.filter((h) => h.user_id === String(p.userId));
+    return [[{ wins: mine.filter((h) => h.amount > 0).length, losses: mine.filter((h) => h.amount < 0).length, totalChipsWon: mine.reduce((t, h) => t + Math.max(0, h.amount), 0) }]];
+  }
   if (q.startsWith('SELECT 1')) return [[{ 1: 1 }]];
   throw new Error(`fake-mysql: unhandled query: ${q}`);
 }

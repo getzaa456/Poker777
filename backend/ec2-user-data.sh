@@ -16,7 +16,7 @@ RDS_CA_FILE="${CONFIG_DIR}/rds-ca.pem"
 SECRET_ID=poker777/prod/backend
 BRANCH=AlmostDone
 
-for package in git; do
+for package in git jq; do
   if ! rpm -q "${package}" >/dev/null 2>&1; then
     dnf install -y "${package}"
   fi
@@ -50,7 +50,7 @@ if ! jq -e '
   exit 1
 fi
 
-for key in DB_HOST DB_USER DB_PASSWORD DB_NAME JWT_SECRET INTERNAL_API_KEY CORS_ALLOWED_ORIGINS; do
+for key in DB_HOST DB_USER DB_PASSWORD DB_NAME REDIS_HOST JWT_SECRET INTERNAL_API_KEY CORS_ALLOWED_ORIGINS; do
   if ! jq -e --arg key "${key}" '.[$key] | strings | length > 0' <<<"${SECRET_JSON}" >/dev/null; then
     echo "Required environment value ${key} is missing from Secrets Manager." >&2
     exit 1
@@ -99,6 +99,16 @@ chown root:poker777 "${RDS_CA_FILE}"
 chmod 0640 "${RDS_CA_FILE}"
 chown -R poker777:poker777 "${APP_DIR}"
 runuser -u poker777 -- bash -c "cd '${APP_DIR}/backend' && npm ci --omit=dev"
+
+# Create the tables / add new columns (safe to run on every boot). node --env-file reads the
+# quoted values exactly as written, so passwords containing $ or quotes are not mangled.
+for attempt in 1 2 3 4 5 6; do
+  if (cd "${APP_DIR}/backend" && node --env-file="${ENV_FILE}" src/scripts/migrate.js); then
+    break
+  fi
+  echo "migrate attempt ${attempt} failed; retrying in 10s"
+  sleep 10
+done
 
 cat >/etc/systemd/system/poker777-backend.service <<EOF
 [Unit]

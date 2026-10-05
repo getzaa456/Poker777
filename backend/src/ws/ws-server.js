@@ -42,6 +42,12 @@ const SMALL_BLIND = Math.max(1, Math.floor(Number(process.env.POKER_SMALL_BLIND)
 const BIG_BLIND = Math.max(SMALL_BLIND, Math.floor(Number(process.env.POKER_BIG_BLIND) || 20));
 const TURN_TIMER_KEY = 'poker:turn-timers';
 const DISCONNECT_TIMER_KEY = 'poker:disconnect-timers';
+// Auto start: the next hand begins by itself a few seconds after the previous one ends,
+// and the first hand once two players are seated. AUTO_START_DELAY_MS=0 turns it off
+// (the host can always press START to begin right away).
+const AUTO_START_KEY = 'poker:auto-start';
+const AUTO_START_DELAY_MS = Math.max(0, Math.floor(Number(process.env.AUTO_START_DELAY_MS ?? 6000)));
+const FIRST_HAND_DELAY_MS = Math.max(AUTO_START_DELAY_MS, 10000);
 
 if (process.env.REDIS_DISABLED !== '1') redisSub.subscribe(CHANNEL);
 redisSub.on('message', (channel, message) => {
@@ -367,6 +373,7 @@ function formatTablePayload(eventType, room, holeCardsMap = {}) {
       pot: Number(room.pot) || 0,
       current_bet: Number(room.currentBet) || 0,
       min_raise: Number(room.minRaise) || Number(room.bigBlind) || BIG_BLIND,
+      next_hand_at: Number(room.nextHandAt) || null,
       winner: room.winner || null,
       winner_name: room.winnerName || null,
       winning_hand: room.winningHand || null,
@@ -644,9 +651,9 @@ wss.on('connection', (ws) => {
             const isRejoin = Boolean(existingSeat && existingPlayer);
             const currentRoom = await getRoom(roomCode);
 
-            if (!isRejoin && ['IN_PROGRESS', 'RUNNING'].includes(currentRoom?.status)) {
-              return ws.send(JSON.stringify({ type: 'error', error: 'Table is already in progress' }));
-            }
+            // [แก้บัค]: เดิมห้ามนั่งระหว่างมือ พอมี auto start มือเริ่มต่อกันแทบตลอดจนคนใหม่นั่งไม่ได้
+            // ตอนนี้ให้นั่งได้เลย แต่ถูกนับเป็น "หมอบแล้ว" ในมือที่เล่นอยู่ แล้วได้ไพ่ตั้งแต่มือถัดไป
+            const joiningMidHand = !isRejoin && ['IN_PROGRESS', 'RUNNING'].includes(currentRoom?.status);
 
             let tableInfo;
             if (!isRejoin) {
@@ -752,11 +759,12 @@ wss.on('connection', (ws) => {
                 buyIn: actualBuyIn,
                 avatarId: profile.avatar_id ?? '',
                 seatIndex: availableSeatIndex >= 0 ? availableSeatIndex : 0,
-                isFolded: false,
+                isFolded: joiningMidHand,
                 isAllIn: false,
                 isDisconnected: false,
                 status: 'WAITING',
               });
+              if (joiningMidHand) await setPlayerFolded(roomCode, clientId);
 
               if (availableSeatIndex >= 0) {
                 await setPlayerSeat(roomCode, availableSeatIndex, clientId);
@@ -824,6 +832,7 @@ wss.on('connection', (ws) => {
               );
               // Host เปลี่ยน -> ส่ง Snapshot ให้ทุกคน ปุ่ม START จะได้ย้ายไปที่คนสร้างห้อง
               if (hostReclaimed) await publishRoomState(roomCode);
+              await maybeScheduleFirstHand(roomCode);
             }
           });
         } catch (err) {
@@ -881,148 +890,8 @@ wss.on('connection', (ws) => {
             return ws.send(JSON.stringify({ type: 'error', error: 'A hand is already in progress' }));
           }
 
-          const seats = await getRoomSeats(roomCode);
-          const seatEntries = sortedSeatEntries(seats).filter(([, playerId]) => Boolean(playerId));
-          const seatedPlayerIds = seatEntries.map(([, playerId]) => playerId);
-          const playerIds = [];
-
-          for (const pid of seatedPlayerIds) {
-            const player = await getPlayer(roomCode, pid);
-            if (player && Number(player.chips) > 0 && !parseBool(player.isDisconnected)) {
-              playerIds.push(pid);
-            }
-          }
-
-          if (playerIds.length === 1) {
-            await handleTournamentFinish(roomCode, playerIds[0]);
-            return;
-          }
-
-          if (playerIds.length < 2) {
-            return ws.send(
-              JSON.stringify({
-                type: 'error',
-                error: 'At least 2 players are required to start',
-              })
-            );
-          }
-
-          const deck = createShuffledDeck();
-          const holeCardsMap = {};
-          const playersMap = {};
-
-          for (const pid of playerIds) {
-            holeCardsMap[pid] = [deck.pop(), deck.pop()];
-
-            await setPlayerBet(roomCode, pid, 0);
-            await updatePlayer(roomCode, pid, {
-              isFolded: false,
-              isAllIn: false,
-              status: 'ACTIVE',
-            });
-
-            await redisState.hset(`room:${roomCode}:cards`, pid, JSON.stringify(holeCardsMap[pid]));
-            const pData = await getPlayer(roomCode, pid);
-            if (pData) playersMap[pid] = pData;
-          }
-          await redisState.del(`room:${roomCode}:acted_players`);
-          await redisState.del(`room:${roomCode}:raise_locked`);
-          await redisState.del(`room:${roomCode}:folded`);
-          await redisState.del(`room:${roomCode}:contributions`);
-
-          const eligibleSeats = seatEntries.filter(([, playerId]) => playerIds.includes(playerId));
-          const blindPositions = selectBlindPositions(
-            eligibleSeats,
-            room.dealerSeat === undefined ? null : Number(room.dealerSeat),
-          );
-          const {
-            dealerSeat,
-            smallBlindId,
-            bigBlindId,
-            smallBlindSeat,
-            bigBlindSeat,
-          } = blindPositions;
-          const roomSmallBlind = Math.max(1, Math.floor(Number(room.smallBlind) || SMALL_BLIND));
-          const roomBigBlind = Math.max(roomSmallBlind, Math.floor(Number(room.bigBlind) || BIG_BLIND));
-          const contributionFields = {};
-
-          for (const [blindId, requestedBlind] of [[smallBlindId, roomSmallBlind], [bigBlindId, roomBigBlind]]) {
-            const blindPlayer = await getPlayer(roomCode, blindId);
-            const blindAmount = Math.min(Number(blindPlayer.chips) || 0, requestedBlind);
-            const blindBet = await getPlayerBet(roomCode, blindId);
-            await updatePlayer(roomCode, blindId, {
-              chips: Number(blindPlayer.chips) - blindAmount,
-              isAllIn: blindAmount > 0 && blindAmount === Number(blindPlayer.chips),
-              status: blindAmount > 0 && blindAmount === Number(blindPlayer.chips) ? 'ALL_IN' : 'ACTIVE',
-            });
-            await setPlayerBet(roomCode, blindId, blindBet + blindAmount);
-            contributionFields[blindId] = blindAmount;
-            if (blindAmount > 0) await addPot(roomCode, blindAmount);
-          }
-          await redisState.hset(`room:${roomCode}:contributions`, contributionFields);
-
-          const currentBet = Math.max(
-            await getPlayerBet(roomCode, smallBlindId),
-            await getPlayerBet(roomCode, bigBlindId),
-          );
-          const blindPot = Object.values(contributionFields).reduce((sum, amount) => sum + amount, 0);
-          const playerIdsWithChips = [];
-          for (const pid of playerIds) {
-            const player = await getPlayer(roomCode, pid);
-            if (Number(player?.chips) > 0) playerIdsWithChips.push(pid);
-          }
-          const preflopFirstToAct = findNextPlayer(eligibleSeats, bigBlindId, playerIdsWithChips);
-
-          const turnDeadline = Date.now() + TURN_TIMEOUT_MS;
-
-          const roomUpdates = {
-            status: 'IN_PROGRESS',
-            phase: 'PREFLOP',
-            pot: blindPot,
-            currentBet,
-            currentTurn: preflopFirstToAct,
-            currentTurnSeat: preflopFirstToAct
-              ? eligibleSeats.find(([, playerId]) => String(playerId) === String(preflopFirstToAct))[0]
-              : null,
-            turnDeadline: preflopFirstToAct ? turnDeadline : null,
-            minRaise: roomBigBlind,
-            communityCards: JSON.stringify([]),
-            deck: JSON.stringify(deck),
-            dealerSeat,
-            smallBlind: roomSmallBlind,
-            bigBlind: roomBigBlind,
-            smallBlindSeat,
-            bigBlindSeat,
-            roundId: Date.now(), // [แก้ไข]: เพิ่ม roundId สำหรับอ้างอิงรอบการเล่นใน Idempotency Settlement
-            winner: '',
-            winnerName: '',
-            winningHand: '',
-            lastAction: '',
-          };
-
-          for (const pid of playerIds) {
-            const pData = await getPlayer(roomCode, pid);
-            if (pData) playersMap[pid] = pData;
-          }
-          await updateRoom(roomCode, roomUpdates);
-          const updatedRoom = await getRoom(roomCode);
-
-          if (preflopFirstToAct) startTurnTimer(roomCode, preflopFirstToAct, turnDeadline);
-
-          await redisPub.publish(
-            CHANNEL,
-            JSON.stringify({
-              eventType: 'game_started',
-              roomCode,
-              room: {
-                ...updatedRoom,
-                players: playersMap,
-              },
-              holeCardsMap,
-            })
-          );
-
-          if (playerIdsWithChips.length === 0) await advancePhaseIfNeeded(roomCode);
+          const result = await startHand(roomCode, room);
+          if (result.error) ws.send(JSON.stringify({ type: 'error', error: result.error }));
         });
       }
       else if (type === 'game-action') {
@@ -1249,6 +1118,200 @@ wss.on('connection', (ws) => {
 });
 
 
+// Deals a new hand. Used by the host's START button and by auto start.
+// Returns { error } when it cannot start; auto start skips the "last player standing" finish.
+async function startHand(roomCode, room, { auto = false } = {}) {
+  const seats = await getRoomSeats(roomCode);
+  const seatEntries = sortedSeatEntries(seats).filter(([, playerId]) => Boolean(playerId));
+  const seatedPlayerIds = seatEntries.map(([, playerId]) => playerId);
+  const playerIds = [];
+
+  for (const pid of seatedPlayerIds) {
+    const player = await getPlayer(roomCode, pid);
+    if (player && Number(player.chips) > 0 && !parseBool(player.isDisconnected)) {
+      playerIds.push(pid);
+    }
+  }
+
+  if (playerIds.length === 1 && !auto) {
+    await handleTournamentFinish(roomCode, playerIds[0]);
+    return { started: false };
+  }
+
+  if (playerIds.length < 2) {
+    return { error: 'At least 2 players are required to start' };
+  }
+
+  const deck = createShuffledDeck();
+  const holeCardsMap = {};
+  const playersMap = {};
+
+  for (const pid of playerIds) {
+    holeCardsMap[pid] = [deck.pop(), deck.pop()];
+
+    await setPlayerBet(roomCode, pid, 0);
+    await updatePlayer(roomCode, pid, {
+      isFolded: false,
+      isAllIn: false,
+      status: 'ACTIVE',
+    });
+
+    await redisState.hset(`room:${roomCode}:cards`, pid, JSON.stringify(holeCardsMap[pid]));
+    const pData = await getPlayer(roomCode, pid);
+    if (pData) playersMap[pid] = pData;
+  }
+  await redisState.del(`room:${roomCode}:acted_players`);
+  await redisState.del(`room:${roomCode}:raise_locked`);
+  await redisState.del(`room:${roomCode}:folded`);
+  await redisState.del(`room:${roomCode}:contributions`);
+
+  const eligibleSeats = seatEntries.filter(([, playerId]) => playerIds.includes(playerId));
+  const blindPositions = selectBlindPositions(
+    eligibleSeats,
+    room.dealerSeat === undefined ? null : Number(room.dealerSeat),
+  );
+  const {
+    dealerSeat,
+    smallBlindId,
+    bigBlindId,
+    smallBlindSeat,
+    bigBlindSeat,
+  } = blindPositions;
+  const roomSmallBlind = Math.max(1, Math.floor(Number(room.smallBlind) || SMALL_BLIND));
+  const roomBigBlind = Math.max(roomSmallBlind, Math.floor(Number(room.bigBlind) || BIG_BLIND));
+  const contributionFields = {};
+
+  for (const [blindId, requestedBlind] of [[smallBlindId, roomSmallBlind], [bigBlindId, roomBigBlind]]) {
+    const blindPlayer = await getPlayer(roomCode, blindId);
+    const blindAmount = Math.min(Number(blindPlayer.chips) || 0, requestedBlind);
+    const blindBet = await getPlayerBet(roomCode, blindId);
+    await updatePlayer(roomCode, blindId, {
+      chips: Number(blindPlayer.chips) - blindAmount,
+      isAllIn: blindAmount > 0 && blindAmount === Number(blindPlayer.chips),
+      status: blindAmount > 0 && blindAmount === Number(blindPlayer.chips) ? 'ALL_IN' : 'ACTIVE',
+    });
+    await setPlayerBet(roomCode, blindId, blindBet + blindAmount);
+    contributionFields[blindId] = blindAmount;
+    if (blindAmount > 0) await addPot(roomCode, blindAmount);
+  }
+  await redisState.hset(`room:${roomCode}:contributions`, contributionFields);
+
+  const currentBet = Math.max(
+    await getPlayerBet(roomCode, smallBlindId),
+    await getPlayerBet(roomCode, bigBlindId),
+  );
+  const blindPot = Object.values(contributionFields).reduce((sum, amount) => sum + amount, 0);
+  const playerIdsWithChips = [];
+  for (const pid of playerIds) {
+    const player = await getPlayer(roomCode, pid);
+    if (Number(player?.chips) > 0) playerIdsWithChips.push(pid);
+  }
+  const preflopFirstToAct = findNextPlayer(eligibleSeats, bigBlindId, playerIdsWithChips);
+
+  const turnDeadline = Date.now() + TURN_TIMEOUT_MS;
+
+  const roomUpdates = {
+    status: 'IN_PROGRESS',
+    phase: 'PREFLOP',
+    pot: blindPot,
+    currentBet,
+    currentTurn: preflopFirstToAct,
+    currentTurnSeat: preflopFirstToAct
+      ? eligibleSeats.find(([, playerId]) => String(playerId) === String(preflopFirstToAct))[0]
+      : null,
+    turnDeadline: preflopFirstToAct ? turnDeadline : null,
+    minRaise: roomBigBlind,
+    communityCards: JSON.stringify([]),
+    deck: JSON.stringify(deck),
+    dealerSeat,
+    smallBlind: roomSmallBlind,
+    bigBlind: roomBigBlind,
+    smallBlindSeat,
+    bigBlindSeat,
+    roundId: Date.now(), // [แก้ไข]: เพิ่ม roundId สำหรับอ้างอิงรอบการเล่นใน Idempotency Settlement
+    winner: '',
+    winnerName: '',
+    winningHand: '',
+    lastAction: '',
+    nextHandAt: '',
+  };
+
+  for (const pid of playerIds) {
+    const pData = await getPlayer(roomCode, pid);
+    if (pData) playersMap[pid] = pData;
+  }
+  await updateRoom(roomCode, roomUpdates);
+  const updatedRoom = await getRoom(roomCode);
+
+  if (preflopFirstToAct) startTurnTimer(roomCode, preflopFirstToAct, turnDeadline);
+
+  await redisPub.publish(
+    CHANNEL,
+    JSON.stringify({
+      eventType: 'game_started',
+      roomCode,
+      room: {
+        ...updatedRoom,
+        players: playersMap,
+      },
+      holeCardsMap,
+    })
+  );
+
+  if (playerIdsWithChips.length === 0) await advancePhaseIfNeeded(roomCode);
+  return { started: true };
+}
+
+// Remember when the next hand should start and tell every client (they show a countdown).
+async function scheduleAutoStart(roomCode, delayMs = AUTO_START_DELAY_MS) {
+  if (!AUTO_START_DELAY_MS) return;
+  const startAt = Date.now() + delayMs;
+  await updateRoom(roomCode, { nextHandAt: startAt });
+  await redisState.zadd(AUTO_START_KEY, startAt, roomCode);
+  await publishRoomState(roomCode);
+}
+
+// First hand: once two players with chips are seated and nothing is scheduled yet.
+async function maybeScheduleFirstHand(roomCode) {
+  const room = await getRoom(roomCode);
+  if (!room || ['IN_PROGRESS', 'RUNNING'].includes(room.status)) return;
+  if (Number(room.nextHandAt) > Date.now()) return;
+  const seats = await getRoomSeats(roomCode);
+  let ready = 0;
+  for (const pid of Object.values(seats || {})) {
+    const player = await getPlayer(roomCode, pid);
+    if (player && Number(player.chips) > 0 && !parseBool(player.isDisconnected)) ready += 1;
+  }
+  if (ready >= 2) await scheduleAutoStart(roomCode, FIRST_HAND_DELAY_MS);
+}
+
+async function processDueAutoStarts() {
+  const dueRooms = await redisState.zrangebyscore(AUTO_START_KEY, 0, Date.now());
+  for (const roomCode of dueRooms) {
+    try {
+      await withLock(roomCode, async () => {
+        await redisState.zrem(AUTO_START_KEY, roomCode);
+        const room = await getRoom(roomCode);
+        if (!room || ['IN_PROGRESS', 'RUNNING'].includes(room.status)) return;
+        const startAt = Number(room.nextHandAt) || 0;
+        if (!startAt) return; // cancelled, or the host already started a hand
+        if (startAt > Date.now()) {
+          await redisState.zadd(AUTO_START_KEY, startAt, roomCode);
+          return;
+        }
+        const result = await startHand(roomCode, room, { auto: true });
+        if (result.error) {
+          // Not enough players any more: drop the countdown until someone else sits down.
+          await updateRoom(roomCode, { nextHandAt: '' });
+          await publishRoomState(roomCode);
+        }
+      });
+    } catch (error) {
+      console.error(`[AutoStart] Failed for room ${roomCode}:`, error);
+    }
+  }
+}
+
 function startTurnTimer(roomCode, currentTurnPlayerId, deadline) {
   if (!currentTurnPlayerId) {
     clearTurnTimer(roomCode);
@@ -1376,6 +1439,7 @@ if (process.env.REDIS_DISABLED !== '1') {
   const timerPoller = setInterval(() => {
     void processDueTurnTimers().catch((error) => console.error('[Timer] Turn poll failed:', error));
     void processDueDisconnectTimers().catch((error) => console.error('[Timer] Disconnect poll failed:', error));
+    void processDueAutoStarts().catch((error) => console.error('[AutoStart] poll failed:', error));
   }, 500);
   timerPoller.unref();
 }
@@ -1402,6 +1466,10 @@ async function deleteRoom(roomCode) {
 // [เพิ่มแก้ไข]: ฟังก์ชันจัดการคนชนะเมื่อหมอบหมดจนเหลือคนเดียว พร้อม Sync DB
 async function handleEarlyFinishGame(roomCode, winnerId) {
   clearTurnTimer(roomCode);
+  // [แก้บัค]: อ่านไพ่ก่อน finishGameWithWinner เพราะ resetRoundState ข้างในลบ room:{code}:cards ทิ้ง
+  // เดิมอ่านทีหลังเลยได้ว่างเสมอ -> มือที่จบเพราะคนอื่นหมอบหมดไม่ถูกบันทึกลง hand_results (สถิติ Win rate เพี้ยน)
+  const roomBeforeReset = await getRoom(roomCode);
+  const rawCardsMap = await redisState.hgetall(`room:${roomCode}:cards`);
   await finishGameWithWinner(roomCode, winnerId);
 
   // รวบรวมชิปล่าสุดและ buyIn เพื่อ Sync DB
@@ -1418,9 +1486,8 @@ async function handleEarlyFinishGame(roomCode, winnerId) {
     }
   }
 
-  const room = await getRoom(roomCode);
+  const room = roomBeforeReset;
   const roundId = room?.roundId || Date.now();
-  const rawCardsMap = await redisState.hgetall(`room:${roomCode}:cards`);
   const holeCardsMap = Object.fromEntries(Object.entries(rawCardsMap || {}).map(([pid, cards]) => [
     pid,
     typeof cards === 'string' ? JSON.parse(cards) : cards,
@@ -1433,6 +1500,7 @@ async function handleEarlyFinishGame(roomCode, winnerId) {
     console.error('Error syncing DB balances on early finish:', err)
   );
   await resetSettlementBaseline(roomCode, playerChipsMap);
+  await scheduleAutoStart(roomCode);
 }
 
 // [แก้บัค]: syncPlayerBalances คิดส่วนต่างจาก buyIn ตั้งต้น ถ้าไม่ขยับ buyIn ตามชิปที่ Settle แล้ว
@@ -1757,4 +1825,6 @@ async function handleShowdown(roomCode, room, communityCards, activePlayerIds) {
   await redisState.del(`room:${roomCode}:cards`);
   await redisState.del(`room:${roomCode}:acted_players`);
   await redisState.del(`room:${roomCode}:raise_locked`);
+
+  if (playersWithChips.length >= 2) await scheduleAutoStart(roomCode);
 }

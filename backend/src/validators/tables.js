@@ -38,6 +38,13 @@ export const createTableSchema = z
       .min(2, 'A table needs at least 2 seats')
       .max(9, 'A table can have at most 9 seats')
       .default(6),
+    // How much the +/- buttons move the bet. Defaults to the big blind (20).
+    bet_step: z.coerce
+      .number()
+      .int('Bet step must be a whole number')
+      .min(1, 'Bet step must be at least 1')
+      .max(1_000_000, 'Bet step is too large')
+      .default(20),
   })
   .refine((v) => v.max_bet >= v.min_bet, {
     message: 'Max bet must be greater than or equal to min bet',

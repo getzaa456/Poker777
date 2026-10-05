@@ -106,18 +106,33 @@ function snapshotPlayer(player) {
     hole_cards: normalizeCards(player.hole_cards),
     status: player.status || 'WAITING',
     bet: 0,
+    act: null, // last action this street, shown as a badge on the seat
   };
 }
+
+// Badge for a player's last move. FOLD and ALL IN stay for the rest of the hand.
+function actionBadge(action, amount, bet, allIn, timedOut) {
+  const clock = timedOut ? ' ⏱' : '';
+  if (action === 'FOLD') return { kind: 'fold', label: `FOLD${clock}` };
+  if (allIn) return { kind: 'allin', label: `ALL IN ${fmtChips(bet)}` };
+  if (action === 'CHECK') return { kind: 'check', label: `CHECK${clock}` };
+  if (action === 'CALL') return { kind: 'call', label: `CALL ${fmtChips(amount)}` };
+  if (action === 'BET') return { kind: 'raise', label: `BET ${fmtChips(bet)}` };
+  if (action === 'RAISE') return { kind: 'raise', label: `RAISE ${fmtChips(bet)}` };
+  return null;
+}
+const keepsBadge = (act) => act && (act.kind === 'fold' || act.kind === 'allin');
 
 // Seats sit on an ellipse around the table in turn (seat-index) order, rotated so the
 // viewer's own seat is at the bottom — where their panel is — and the rest go clockwise.
 function seatPosition(seat, anchorSeat, seatCount) {
   const offset = (seat - anchorSeat + seatCount) % seatCount;
   const angle = Math.PI / 2 + (offset * 2 * Math.PI) / seatCount;
-  const x = 50 + 55 * Math.cos(angle);
-  const y = 50 + 60 * Math.sin(angle);
-  const side = Math.abs(Math.cos(angle)) > 0.55 ? (Math.cos(angle) < 0 ? 'left' : 'right') : (Math.sin(angle) < 0 ? 'top' : 'bottom');
-  return { style: { left: `${x.toFixed(2)}%`, top: `${y.toFixed(2)}%` }, side };
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const side = Math.abs(cos) > 0.55 ? (cos < 0 ? 'left' : 'right') : (sin < 0 ? 'top' : 'bottom');
+  // Radius comes from CSS (--rx/--ry) so narrow tables can pull the ring in.
+  return { style: { '--cos': cos.toFixed(3), '--sin': sin.toFixed(3) }, side };
 }
 
 function blindBets(players, params) {
@@ -133,7 +148,7 @@ function blindBets(players, params) {
   if (sbBet === null && bbBet === null) { sbBet = Math.min(Number(params.small_blind) || 0, pot); bbBet = pot - sbBet; }
   else if (sbBet === null) sbBet = Math.max(0, pot - bbBet);
   else if (bbBet === null) bbBet = Math.max(0, pot - sbBet);
-  return { [sb.client_id]: sbBet, [bb.client_id]: bbBet };
+  return { [sb.client_id]: sbBet, [bb.client_id]: bbBet, sbId: sb.client_id, bbId: bb.client_id };
 }
 
 function fromSnapshot(prev, kind, params, clockOffset) {
@@ -150,21 +165,34 @@ function fromSnapshot(prev, kind, params, clockOffset) {
     const key = (cards) => cards.map((card) => card.rank + card.suit).join();
     return before?.hole_cards.length && player.hole_cards.length && key(before.hole_cards) !== key(player.hole_cards);
   });
+  const before = (player) => prev?.players.find((item) => item.client_id === player.client_id);
   if (kind === 'game_started') {
     const bets = blindBets(players, params);
-    players.forEach((player) => { player.bet = bets[player.client_id] || 0; });
+    players.forEach((player) => {
+      player.bet = bets[player.client_id] || 0;
+      if (player.client_id === bets.sbId) player.act = { kind: 'blind', label: `SB ${fmtChips(player.bet)}` };
+      if (player.client_id === bets.bbId) player.act = { kind: 'blind', label: `BB ${fmtChips(player.bet)}` };
+    });
     betsKnown = true;
     ownBetKnown = true;
   } else if (inHand && sameHand && prev.phase === params.phase) {
-    // Same street: keep tracked bets.
-    players.forEach((player) => { player.bet = prev.players.find((item) => item.client_id === player.client_id)?.bet || 0; });
+    // Same street: keep tracked bets and badges.
+    players.forEach((player) => { player.bet = before(player)?.bet || 0; player.act = before(player)?.act || null; });
     betsKnown = prev.betsKnown;
     ownBetKnown = prev.ownBetKnown !== false;
   } else if (inHand && sameHand) {
     // New street (e.g. someone left and the board advanced): all bets start at zero.
+    players.forEach((player) => { player.act = keepsBadge(before(player)?.act) ? before(player).act : null; });
     betsKnown = true;
     ownBetKnown = true;
+  } else if (!inHand && prev?.result && kind === 'table_state') {
+    // Snapshot right after a showdown: keep the revealed cards and badges until the next hand.
+    players.forEach((player) => {
+      if (!player.hole_cards.length) player.hole_cards = before(player)?.hole_cards || [];
+      player.act = before(player)?.act || null;
+    });
   }
+  const nextHandAt = Number(params.next_hand_at) || 0;
   const deadline = Number(params.turn_deadline) || 0;
   return {
     room_name: params.room_name || '',
@@ -174,6 +202,7 @@ function fromSnapshot(prev, kind, params, clockOffset) {
     host_id: params.host_id ? String(params.host_id) : null,
     current_turn: params.current_turn ? String(params.current_turn) : null,
     turn_deadline: deadline ? deadline - clockOffset : null,
+    next_hand_at: nextHandAt ? nextHandAt - clockOffset : null,
     pot: Number(params.pot) || 0,
     current_bet: Number(params.current_bet) || 0,
     min_raise: Number(params.min_raise) || Number(params.big_blind) || 0,
@@ -236,8 +265,10 @@ function tableReducer(state, { type, params = {}, clockOffset = 0 }) {
         const chips = player.chips - amount;
         const bet = player.bet + amount;
         if (bet > state.current_bet && bet - state.current_bet >= state.min_raise) min_raise = bet - state.current_bet;
-        const status = action === 'FOLD' ? 'FOLDED' : amount > 0 && chips <= 0 ? 'ALL_IN' : player.status;
-        return { ...player, chips, bet, status };
+        const allIn = amount > 0 && chips <= 0;
+        const status = action === 'FOLD' ? 'FOLDED' : allIn ? 'ALL_IN' : player.status;
+        const act = actionBadge(action, amount, bet, allIn, params.timed_out) || player.act;
+        return { ...player, chips, bet, status, act };
       });
       return {
         ...state,
@@ -260,7 +291,7 @@ function tableReducer(state, { type, params = {}, clockOffset = 0 }) {
         min_raise: state.big_blind,
         betsKnown: true,
         ownBetKnown: true,
-        players: state.players.map((player) => ({ ...player, bet: 0 })),
+        players: state.players.map((player) => ({ ...player, bet: 0, act: keepsBadge(player.act) ? player.act : null })),
       };
     case 'winner': {
       // Everyone else folded (or left): the pot goes to one player without a showdown.
@@ -295,6 +326,13 @@ function tableReducer(state, { type, params = {}, clockOffset = 0 }) {
   }
 }
 
+// Chips won this hand; for "won the table" the server sends no payouts, so show the winner's stack.
+function winnerAmount(result, players) {
+  const paid = result.winnerIds.reduce((sum, id) => sum + (Number(result.payouts?.[id]) || 0), 0);
+  if (paid > 0) return paid;
+  return result.winnerIds.reduce((sum, id) => sum + (players.find((player) => player.client_id === id)?.chips || 0), 0);
+}
+
 export default function PokerTablePage() {
   usePageStyles('/assets/css/poker-table.css');
   const navigate = useNavigate();
@@ -312,6 +350,8 @@ export default function PokerTablePage() {
   const [buyIn, setBuyIn] = useState(0);
   const [seatRequest, setSeatRequest] = useState(null); // buy-in to sit with; null = not sitting yet
   const [raiseTo, setRaiseTo] = useState(0);
+  const [betDraft, setBetDraft] = useState(null); // text being typed in the bet box, null = not editing
+  const [nextHandIn, setNextHandIn] = useState(0);
   const [guideOpen, setGuideOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [countdown, setCountdown] = useState('--');
@@ -592,6 +632,15 @@ export default function PokerTablePage() {
     return () => clearInterval(id);
   }, [state?.turn_deadline]);
 
+  useEffect(() => {
+    const at = state?.next_hand_at;
+    if (!at || BETTING_PHASES.includes(state?.phase)) { setNextHandIn(0); return undefined; }
+    const tick = () => setNextHandIn(Math.max(0, Math.ceil((at - Date.now()) / 1000)));
+    tick();
+    const id = setInterval(tick, 250);
+    return () => clearInterval(id);
+  }, [state?.next_hand_at, state?.phase]);
+
   // Ticking clock for the last five seconds of the player's own turn.
   const tickTurn = state?.current_turn && String(state.current_turn) === String(user?.id) && BETTING_PHASES.includes(state?.phase);
   useEffect(() => {
@@ -610,6 +659,8 @@ export default function PokerTablePage() {
   const me = players.find((player) => player.client_id === myId);
   const inHand = BETTING_PHASES.includes(state?.phase);
   const myTurn = Boolean(inHand && state?.current_turn === myId);
+  // Sat down while a hand was running: no cards this hand, dealt in from the next one.
+  const waitingForNextHand = Boolean(inHand && me && !me.hole_cards.length);
   const isHost = Boolean(table?.host_id && String(table.host_id) === myId);
   const readyPlayers = players.filter((player) => player.chips > 0 && player.status !== 'DISCONNECTED').length;
   const hand = useMemo(() => evaluateHand([...(me?.hole_cards || []), ...(state?.community_cards || [])]), [me?.hole_cards, state?.community_cards]);
@@ -626,10 +677,35 @@ export default function PokerTablePage() {
   const maxTarget = myBet + myChips;
   const minTarget = Math.min(maxTarget, isBet ? Math.max(1, state?.big_blind || 1) : currentBet + Math.max(1, state?.min_raise || state?.big_blind || 1));
   const canRaise = maxTarget > currentBet && myChips > 0;
-  const step = Math.max(1, state?.big_blind || 10);
-  const target = Math.min(maxTarget, Math.max(minTarget, raiseTo));
+  // +/- step: the room's setting (chosen when it was created), else the big blind.
+  const step = Math.max(1, Number(table?.bet_step) || state?.big_blind || 20);
+  const clampBet = (value) => Math.min(maxTarget, Math.max(minTarget, Math.floor(Number(value) || 0)));
+  const target = clampBet(raiseTo);
+  const pot = state?.pot || 0;
+  // Pot-sized raise: call first, then raise by the whole pot (including that call).
+  const potTarget = isBet ? pot : currentBet + pot + toCall;
+  const halfPotTarget = isBet ? Math.floor(pot / 2) : currentBet + Math.floor((pot + toCall) / 2);
+  const draftNumber = betDraft === null ? null : Math.floor(Number(betDraft));
+  const draftTooLow = draftNumber !== null && draftNumber > 0 && draftNumber < minTarget;
+  const draftTooHigh = draftNumber !== null && draftNumber > maxTarget;
 
-  useEffect(() => { setRaiseTo(minTarget); }, [minTarget, state?.phase]);
+  // New street: start from the minimum again. Within a street keep the player's amount
+  // while it is still legal (another player's raise can push the minimum above it).
+  useEffect(() => { setRaiseTo(minTarget); setBetDraft(null); }, [state?.phase]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { setRaiseTo((value) => (value >= minTarget && value <= maxTarget ? value : minTarget)); }, [minTarget, maxTarget]);
+
+  function nudgeBet(direction) {
+    setBetDraft(null);
+    setRaiseTo(clampBet(target + direction * step));
+  }
+
+  function commitBetDraft() {
+    if (betDraft === null) return target;
+    const value = clampBet(betDraft);
+    setRaiseTo(value);
+    setBetDraft(null);
+    return value;
+  }
 
   function send(type, params) {
     if (socketRef.current?.readyState === WebSocket.OPEN) {
@@ -669,9 +745,6 @@ export default function PokerTablePage() {
   const maxBuyIn = Math.min(Number(table?.max_bet) || 0, Number(user?.balance) || 0);
   const canAfford = Boolean(table && user && maxBuyIn >= minBuyIn);
   const result = state?.result;
-  const resultText = result
-    ? `${result.winnerIds.map((id) => (id === myId ? 'You' : players.find((player) => player.client_id === id)?.username || id)).join(' & ')} ${result.final ? 'win the table' : 'won'}${result.hand ? ` with ${result.hand}` : ''}`
-    : '';
 
   return (
     <div className="game">
@@ -701,7 +774,15 @@ export default function PokerTablePage() {
       )}
 
       <main className="table-wrapper"><div className="table-outer-glow"><div className="table-border"><div className="table">
-        <div className="pot"><span>POT</span><strong>{fmtChips(state?.pot)}</strong></div>
+        {result && !inHand ? (
+          <div className={`winner-banner ${result.winnerIds.includes(myId) ? 'is-me' : ''}`} role="status">
+            <span className="winner-trophy">🏆</span>
+            <div>
+              <strong>{result.winnerIds.map((id) => (id === myId ? 'You' : players.find((player) => player.client_id === id)?.username || 'Player')).join(' & ')} {result.final ? 'win the table' : result.winnerIds.length > 1 ? 'split the pot' : 'won'} {fmtChips(winnerAmount(result, players))}</strong>
+              <small>{result.hand ? `with ${result.hand}` : 'everyone else folded'}</small>
+            </div>
+          </div>
+        ) : <div className="pot"><span>POT</span><strong>{fmtChips(state?.pot)}</strong></div>}
         <div className="turn-timer" style={{ visibility: inHand && state?.current_turn ? 'visible' : 'hidden' }}><div className={`timer-ring ${timeLeftPct <= 34 ? 'is-low' : ''}`} style={{ '--left': `${timeLeftPct}%` }}><span>{countdown}</span></div><div><strong>{myTurn ? 'Your Turn' : `${currentTurnName || 'Waiting'}'s turn`}</strong><small>{state?.phase || ''}{currentBet ? ` • to call ${fmtChips(currentBet)}` : ''}</small></div></div>
         <section className="community-area"><div className="community-title">COMMUNITY CARDS</div><div className="community-cards">{(state?.community_cards || []).map((card, index) => <PlayingCard key={index} card={card} className="user-card community-card" />)}</div></section>
         <div className="live-player-list">{Array.from({ length: maxPlayers }, (_, seat) => {
@@ -713,24 +794,55 @@ export default function PokerTablePage() {
           const isTurn = inHand && state?.current_turn === player.client_id;
           const isDealer = state?.dealer_seat === seat && (inHand || result);
           const won = result?.winnerIds.includes(player.client_id);
+          const payout = won ? Number(result.payouts?.[player.client_id]) || 0 : 0;
           const tags = [player.status, player.bet && (state.betsKnown || (isMe && state.ownBetKnown)) ? `Bet ${fmtChips(player.bet)}` : null].filter(Boolean).join(' • ');
-          return <div key={seat} className={`player live-player seat-${side} ${isTurn ? 'is-turn' : ''} ${won ? 'is-winner' : ''}`} style={seatStyle}>{isDealer && <span className="dealer-chip" title="Dealer">D</span>}<div className="avatar"><div className="avatar-inner">{player.avatar_id ? <AvatarFace id={player.avatar_id} prefix={`player-${player.client_id}`} /> : String(player.username || '?').slice(0, 1).toUpperCase()}</div></div><div className="player-info"><div className="player-name">{isMe ? `${player.username} (you)` : player.username}</div><div className="player-chips">🪙 {fmtChips(player.chips)}</div><div className="player-status">{tags}</div>{!isMe && player.hole_cards.length > 0 && <div className="seat-cards">{player.hole_cards.map((card, index) => <PlayingCard key={index} card={card} className="mini-playing-card" />)}</div>}</div></div>;
+          return <div key={seat} className={`player live-player seat-${side} ${isTurn ? 'is-turn' : ''} ${won ? 'is-winner' : ''}`} style={seatStyle}>{isDealer && <span className="dealer-chip" title="Dealer">D</span>}{won && !inHand && payout > 0 ? <div className="seat-action act-win">+{fmtChips(payout)}</div> : player.act && <div className={`seat-action act-${player.act.kind}`}>{player.act.label}</div>}<div className="avatar"><div className="avatar-inner">{player.avatar_id ? <AvatarFace id={player.avatar_id} prefix={`player-${player.client_id}`} /> : String(player.username || '?').slice(0, 1).toUpperCase()}</div></div><div className="player-info"><div className="player-name">{isMe ? `${player.username} (you)` : player.username}</div><div className="player-chips">🪙 {fmtChips(player.chips)}</div><div className="player-status">{tags}</div>{!isMe && player.hole_cards.length > 0 && <div className="seat-cards">{player.hole_cards.map((card, index) => <PlayingCard key={index} card={card} className="mini-playing-card" />)}</div>}</div></div>;
         })}</div>
-        <div className="live-room-status">{resultText || (state ? `${players.length}/${maxPlayers} players • ${state.phase || 'WAITING'}` : roomStatus)}</div><div className="current-hand"><strong>{hand.name}</strong><span>{hand.detail}</span></div>
+        <div className="live-room-status">{state ? `${players.length}/${maxPlayers} players • ${inHand ? state.phase : nextHandIn ? `next hand in ${nextHandIn}s` : 'WAITING'}` : roomStatus}</div><div className="current-hand"><strong>{hand.name}</strong><span>{hand.detail}</span></div>
       </div></div></div></main>
 
       <div className="table-dock">
-      <section className={`user-section ${myTurn ? 'is-your-turn' : ''} ${me?.status === 'FOLDED' ? 'is-folded' : ''}`}><div className="user-avatar"><div className="avatar-art"><AvatarFace id={normalizeAvatarId(user?.avatar_id)} prefix="user" /></div></div><div className="user-info"><div className="user-name">{me?.username || user?.display_name || user?.username || 'Me'}</div><div className="user-chips">{me ? `🪙 ${fmtChips(me.chips)} at table` : `Wallet ${fmtChips(user?.balance)}`}</div>{me && <div className="user-tags">{[state?.dealer_seat === me.seat && (inHand || result) ? 'Dealer' : null, me.status, me.bet && state?.ownBetKnown ? `Bet ${fmtChips(me.bet)}` : null].filter(Boolean).join(' • ')}</div>}<div className="progress"><div className={`progress-value ${myTurn && timeLeftPct <= 34 ? 'is-low' : ''}`} style={{ width: `${myTurn ? timeLeftPct : 0}%` }} /></div></div><div className="user-cards">{(me?.hole_cards || []).map((card, index) => <PlayingCard key={index} card={card} className="user-card" />)}</div></section>
+      <section className={`user-section ${myTurn ? 'is-your-turn' : ''} ${me?.status === 'FOLDED' ? 'is-folded' : ''}`}><div className="user-avatar"><div className="avatar-art"><AvatarFace id={normalizeAvatarId(user?.avatar_id)} prefix="user" /></div></div><div className="user-info"><div className="user-name">{me?.username || user?.display_name || user?.username || 'Me'}</div><div className="user-chips">{me ? `🪙 ${fmtChips(me.chips)} at table` : `Wallet ${fmtChips(user?.balance)}`}</div>{me && <div className="user-tags">{[state?.dealer_seat === me.seat && (inHand || result) ? 'Dealer' : null, me.act?.label || (waitingForNextHand ? 'Next hand' : me.status), me.bet && state?.ownBetKnown ? `Bet ${fmtChips(me.bet)}` : null].filter(Boolean).join(' • ')}</div>}<div className="progress"><div className={`progress-value ${myTurn && timeLeftPct <= 34 ? 'is-low' : ''}`} style={{ width: `${myTurn ? timeLeftPct : 0}%` }} /></div></div><div className="user-cards">{(me?.hole_cards || []).map((card, index) => <PlayingCard key={index} card={card} className="user-card" />)}</div></section>
 
       <section className={`action-bar ${inHand ? 'in-hand' : 'between-hands'}`}>
-        {isHost && !inHand && me && <button className="start-game-button" disabled={readyPlayers < 2} title={readyPlayers < 2 ? 'Need at least 2 players with chips' : ''} onClick={() => send('start-game')}>{readyPlayers < 2 ? 'WAITING FOR PLAYERS' : 'START GAME'}</button>}
-        {!isHost && !inHand && me && <div className="waiting-hint">Waiting for the host to start the next hand…</div>}
-        {inHand && <>
+        {isHost && !inHand && me && <button className="start-game-button" disabled={readyPlayers < 2} title={readyPlayers < 2 ? 'Need at least 2 players with chips' : 'Start the next hand now'} onClick={() => send('start-game')}>{readyPlayers < 2 ? 'WAITING FOR PLAYERS' : nextHandIn ? <>START NOW <small>auto in {nextHandIn}s</small></> : 'START GAME'}</button>}
+        {!isHost && !inHand && me && <div className="waiting-hint">{readyPlayers < 2 ? 'Waiting for more players…' : nextHandIn ? `Next hand starts in ${nextHandIn}s` : 'Waiting for the next hand…'}</div>}
+        {waitingForNextHand && <div className="waiting-hint">You're seated — you'll be dealt in next hand</div>}
+        {inHand && !waitingForNextHand && <>
         <button className="action-button fold" disabled={!myTurn} onClick={() => act('FOLD')}><span className="action-icon">✕</span><strong>FOLD</strong></button>
         <button className="action-button check" disabled={!myTurn || !canCheck} onClick={() => act('CHECK')}><span className="action-icon">✓</span><strong>CHECK</strong></button>
         <button className="action-button call" disabled={!myTurn || !canCall} onClick={() => act('CALL')}><span className="action-icon">↔</span><strong>CALL{state?.ownBetKnown && toCall ? ` ${fmtChips(Math.min(toCall, myChips))}` : ''}</strong></button>
-        <div className="bet-control"><button className="small-control" disabled={!myTurn} onClick={() => setRaiseTo(Math.max(minTarget, target - step))}>−</button><div className="bet-value"><span>{isBet ? 'BET' : 'RAISE TO'}</span><strong>{fmtChips(target)}</strong></div><button className="small-control" disabled={!myTurn} onClick={() => setRaiseTo(Math.min(maxTarget, target + step))}>+</button></div>
-        <button className="action-button raise" disabled={!myTurn || !canRaise} onClick={() => act(isBet ? 'BET' : 'RAISE', target)}><span>{isBet ? 'BET' : 'RAISE TO'}</span><strong>{fmtChips(target)}</strong></button>
+        <div className="bet-control">
+          <div className="bet-quick">
+            <button type="button" disabled={!myTurn || !canRaise} onClick={() => { setBetDraft(null); setRaiseTo(minTarget); }}>Min</button>
+            <button type="button" disabled={!myTurn || !canRaise || pot <= 0} onClick={() => { setBetDraft(null); setRaiseTo(clampBet(halfPotTarget)); }}>½ Pot</button>
+            <button type="button" disabled={!myTurn || !canRaise || pot <= 0} onClick={() => { setBetDraft(null); setRaiseTo(clampBet(potTarget)); }}>Pot</button>
+          </div>
+          <div className="bet-row">
+            <button className="small-control" disabled={!myTurn || target <= minTarget} onClick={() => nudgeBet(-1)} aria-label={`Decrease by ${step}`}>−</button>
+            <label className="bet-value">
+              <span>{isBet ? 'BET' : 'RAISE TO'} <em>±{fmtChips(step)}</em></span>
+              <input
+                className={`bet-input ${draftTooLow || draftTooHigh ? 'is-invalid' : ''}`}
+                type="number"
+                inputMode="numeric"
+                min={minTarget}
+                max={maxTarget}
+                step={step}
+                disabled={!myTurn || !canRaise}
+                value={betDraft ?? target}
+                onChange={(event) => setBetDraft(event.target.value)}
+                onBlur={commitBetDraft}
+                onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); commitBetDraft(); } }}
+                aria-label="Bet amount"
+              />
+            </label>
+            <button className="small-control" disabled={!myTurn || target >= maxTarget} onClick={() => nudgeBet(1)} aria-label={`Increase by ${step}`}>+</button>
+          </div>
+          {draftTooLow && <div className="bet-hint">Minimum {fmtChips(minTarget)}</div>}
+          {draftTooHigh && <div className="bet-hint">You have {fmtChips(maxTarget)} — that is all-in</div>}
+        </div>
+        <button className="action-button raise" disabled={!myTurn || !canRaise} onClick={() => act(isBet ? 'BET' : 'RAISE', commitBetDraft())}><span>{isBet ? 'BET' : 'RAISE TO'}</span><strong>{fmtChips(betDraft === null ? target : clampBet(betDraft))}</strong></button>
         <button className="action-button bet" disabled={!myTurn || myChips <= 0} onClick={allIn}><span>ALL IN</span><strong>{fmtChips(maxTarget)}</strong></button>
         </>}
       </section>
