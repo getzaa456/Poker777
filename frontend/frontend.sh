@@ -1,9 +1,11 @@
-sudo bash -c 'cat << "EOF" > /tmp/prepare-frontend-ami.sh
 #!/bin/bash
 set -Eeuo pipefail
 
 APP_DIR=/opt/poker777-frontend
 BRANCH=AlmostDone
+
+# สตรีม Log ของ User Data ไปไว้ที่ /var/log/poker777-user-data.log เพื่อใช้ตรวจสอบภายหลัง
+exec > >(tee -a /var/log/poker777-user-data.log) 2>&1
 
 echo "=== 1. Installing System Packages & Nginx ==="
 for package in git jq nginx; do
@@ -53,12 +55,8 @@ NGINX_EOF
 # ลบ Config default ออก
 rm -f /etc/nginx/default.d/*.conf 2>/dev/null || true
 
-# Enable Nginx ให้ auto-start ทันทีเมื่อ Boot เครื่อง
+# Enable และ Start Nginx ให้ทำงานทันที
 systemctl enable nginx
+systemctl restart nginx
 
-echo "=== PREPARE FRONTEND AMI COMPLETED SUCCESSFULLY ==="
-EOF
-chmod +x /tmp/prepare-frontend-ami.sh
-/tmp/prepare-frontend-ami.sh
-rm -f /tmp/prepare-frontend-ami.sh
-'
+echo "=== FRONTEND USER DATA COMPLETED SUCCESSFULLY ==="
