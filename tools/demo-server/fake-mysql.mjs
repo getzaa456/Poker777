@@ -43,5 +43,19 @@ async function query(sql, p = {}) {
   throw new Error(`fake-mysql: unhandled query: ${q}`);
 }
 const conn = { query, beginTransaction: async () => {}, commit: async () => {}, rollback: async () => {}, release: () => {} };
-export function createPool() { return { query, getConnection: async () => conn, end: async () => {} }; }
+// Each pool remembers its host so tests can see which endpoint served a query.
+// A host containing "down" behaves like an unreachable replica.
+globalThis.__queryLog = [];
+export function createPool(config = {}) {
+  const host = config.host || 'primary';
+  return {
+    async query(sql, params) {
+      if (host.includes('down')) { const e = new Error('connect ECONNREFUSED'); e.code = 'ECONNREFUSED'; throw e; }
+      globalThis.__queryLog.push({ host, sql: sql.replace(/\s+/g, ' ').trim().slice(0, 40) });
+      return query(sql, params);
+    },
+    getConnection: async () => conn,
+    end: async () => {},
+  };
+}
 export default { createPool };

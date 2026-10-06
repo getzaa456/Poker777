@@ -1,7 +1,7 @@
 /**
  * Wallet Service — topup, transactions, internal adjust
  */
-import { pool, withTransaction } from '../config/db.js';
+import { pool, readPool, withTransaction } from '../config/db.js';
 import { env } from '../config/env.js';
 import { ApiError } from '../middleware/errors.js';
 
@@ -68,7 +68,7 @@ export async function getTransactions(userId, page = 1, limit = 20) {
   limit = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
   const offset = (page - 1) * limit;
 
-  const [rows] = await pool.query(
+  const [rows] = await readPool.query(
     `SELECT id, amount, type, ref_id, balance_after, note, created_at
      FROM transactions
      WHERE user_id = :userId
@@ -77,7 +77,7 @@ export async function getTransactions(userId, page = 1, limit = 20) {
     { userId, limit, offset }
   );
 
-  const [countResult] = await pool.query(
+  const [countResult] = await readPool.query(
     `SELECT COUNT(*) as total FROM transactions WHERE user_id = :userId`,
     { userId }
   );
@@ -90,7 +90,7 @@ export async function getTransactions(userId, page = 1, limit = 20) {
 }
 
 export async function getHandHistory(userId, limit = 5) {
-  const [rows] = await pool.query(
+  const [rows] = await readPool.query(
     `SELECT id, room_code, round_id, amount, hole_cards, community_cards, created_at
      FROM hand_results
      WHERE user_id = :userId
@@ -99,7 +99,7 @@ export async function getHandHistory(userId, limit = 5) {
     { userId, limit }
   );
 
-  const [statsRows] = await pool.query(
+  const [statsRows] = await readPool.query(
     `SELECT
        COALESCE(SUM(amount > 0), 0) AS wins,
        COALESCE(SUM(amount < 0), 0) AS losses,

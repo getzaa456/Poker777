@@ -1,4 +1,4 @@
-import { pool } from '../config/db.js';
+import { pool, readPool } from '../config/db.js';
 import { redisState } from '../config/redisClient.js'; 
 import { errors, ApiError } from '../middleware/errors.js';
 import { validate } from '../middleware/validate.js';
@@ -109,7 +109,7 @@ export async function createTable(hostId, input) {
 //  * Returns an array of serialized table objects.
 //  */
 export async function listOpenTables() {
-  const [rows] = await pool.query(
+  const [rows] = await readPool.query(
     `SELECT * FROM tables WHERE status = 'OPEN' ORDER BY created_at DESC`
   );
   // Best-effort: attach live seat count for each table

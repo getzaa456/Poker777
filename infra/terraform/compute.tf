@@ -41,14 +41,15 @@ resource "aws_launch_template" "backend" {
   image_id      = data.aws_ssm_parameter.al2023_ami.value
   instance_type = var.backend_instance_type
   user_data = base64encode(templatefile("${path.module}/templates/backend-user-data.sh.tftpl", {
-    aws_region         = var.aws_region
-    ecr_registry       = split("/", aws_ecr_repository.backend.repository_url)[0]
-    image_uri          = "${aws_ecr_repository.backend.repository_url}:${var.backend_image_tag}"
-    backend_secret_arn = var.backend_secret_arn
-    site_origin        = "https://${var.site_domain}"
-    db_writer_endpoint = aws_db_instance.writer.address
-    redis_endpoint     = aws_elasticache_replication_group.main.primary_endpoint_address
-    log_group          = aws_cloudwatch_log_group.backend.name
+    aws_region          = var.aws_region
+    ecr_registry        = split("/", aws_ecr_repository.backend.repository_url)[0]
+    image_uri           = "${aws_ecr_repository.backend.repository_url}:${var.backend_image_tag}"
+    backend_secret_arn  = var.backend_secret_arn
+    db_reader_endpoints = join(",", aws_db_instance.reader[*].address)
+    site_origin         = "https://${var.site_domain}"
+    db_writer_endpoint  = aws_db_instance.writer.address
+    redis_endpoint      = aws_elasticache_replication_group.main.primary_endpoint_address
+    log_group           = aws_cloudwatch_log_group.backend.name
   }))
 
   iam_instance_profile { name = var.backend_instance_profile_name }

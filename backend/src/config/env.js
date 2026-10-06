@@ -34,6 +34,11 @@ export const env = {
     database: required('DB_NAME', 'poker777'),
     connectionLimit: parseInt(required('DB_CONNECTION_LIMIT', '10'), 10),
     sslCa: process.env.DB_SSL_CA || '',
+    // Read replica endpoints, comma-separated (RDS MySQL: one endpoint per replica). Optional.
+    readHosts: (process.env.DB_READ_HOSTS || process.env.DB_READ_HOST || '')
+      .split(',')
+      .map((host) => host.trim())
+      .filter(Boolean),
   },
 
   redis: {
@@ -85,6 +90,6 @@ if (!env.isTest && env.jwt.secret.length < 32) {
 // Sanity log (no secrets) on boot.
 if (!env.isTest) {
   console.log(
-    `[config] env=${env.nodeEnv} port=${env.port} db=${env.db.host}:${env.db.port}/${env.db.database} redis=${env.redis.host}:${env.redis.port} corsOrigins=${env.corsOrigins.length}`
+    `[config] env=${env.nodeEnv} port=${env.port} db=${env.db.host}:${env.db.port}/${env.db.database} readReplicas=${env.db.readHosts.length} redis=${env.redis.host}:${env.redis.port} corsOrigins=${env.corsOrigins.length}`
   );
 }

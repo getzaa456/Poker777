@@ -1,6 +1,6 @@
 # Poker777 — สรุปการแก้ไข และสิ่งที่ควรทำต่อ
 
-อัปเดตล่าสุด: **5 ต.ค. 2026** • branch `AlmostDone` (ต่อจาก commit `517e1cb`)
+อัปเดตล่าสุด: **6 ต.ค. 2026** • branch `AlmostDone` (ต่อจาก commit `517e1cb`)
 
 หลักที่ใช้ตลอด: **แก้ Frontend ได้เต็มที่ / แตะ Backend เฉพาะบัคจริงหรือฟีเจอร์ที่ทีมขอ** — ทุกจุดที่แก้ใน Backend มีคอมเมนต์ `[แก้บัค]` กำกับ ค้นหาได้ด้วย
 
@@ -44,6 +44,12 @@ grep -rn "แก้บัค" backend/src
 **ฟีเจอร์ฝั่ง Backend ที่เพิ่ม (ตามที่ทีมขอ)**
 - **Auto start** (`ws/ws-server.js`): มือแรกเริ่มเอง 10 วิหลังมีผู้เล่นที่มีชิป ≥ 2 คน, มือถัดไปเริ่มเอง 6 วิหลังจบมือ — ใช้ Redis sorted set + lock จึงทำงานถูกเมื่อมีหลาย EC2; ตั้งด้วย env `AUTO_START_DELAY_MS` (`0` = ปิด); คนสร้างห้องกด START NOW ได้; ส่ง `next_hand_at` ให้หน้าเว็บนับถอยหลัง; โค้ดเริ่มมือแยกเป็นฟังก์ชัน `startHand()` ใช้ร่วมกับปุ่ม START
 - **Bet step ต่อห้อง:** คอลัมน์ใหม่ `tables.bet_step` (ค่าเริ่มต้น 20) — `schema.sql`, `validators/tables.js`, `services/tables.js`; `scripts/migrate.js` เพิ่มคอลัมน์ให้ฐานข้อมูลที่มีอยู่แล้วอัตโนมัติ (เช็คจาก `information_schema`)
+- **ใช้ RDS Read Replica (6 ต.ค.)** — เดิมมี endpoint เดียว (Primary) ทุก query วิ่งไป Primary ทั้งที่ Terraform สร้าง Replica ไว้ 3 ตัว
+  - `config/db.js`: `pool` = Primary (เหมือนเดิม) + `readPool` ใหม่ กระจาย query ไปทุก Replica แบบวนรอบ (RDS MySQL ไม่ใช่ Aurora — Replica แต่ละตัวมี endpoint ของตัวเอง ไม่มี reader endpoint กลาง)
+  - ส่งไป Replica **เฉพาะ** query อ่านอย่างเดียวที่ช้าไปเสี้ยววินาทีได้: รายการห้อง (`listOpenTables`), ประวัติธุรกรรม (`getTransactions`), ประวัติ/สถิติการเล่น (`getHandHistory`) — ยอดเงิน, Login, ห้องที่เพิ่งสร้าง, การเขียนทุกอย่าง ยังใช้ Primary (Replica อาจตามหลังเล็กน้อย = replication lag)
+  - Replica ล่ม/ต่อไม่ได้ → อ่านจาก Primary แทนอัตโนมัติ (log `[db] read replica unavailable`)
+  - ตั้งค่า: env `DB_READ_HOSTS=replica1,replica2,replica3` (คั่นด้วยจุลภาค; ไม่ตั้ง = ใช้ Primary อย่างเดียวเหมือนเดิม) — Terraform ใส่ให้อัตโนมัติจาก `aws_db_instance.reader[*].address` (`compute.tf` + `backend-user-data.sh.tftpl`); ถ้าใช้ `backend/ec2-user-data.sh` ให้เพิ่ม key `DB_READ_HOSTS` ใน Secret เอง; log ตอนเปิด Server บอกจำนวน (`readReplicas=3`)
+  - ทดสอบ: ยอดเงินอ่านจาก Primary ✓, รายการ/ประวัติกระจายไป replica-a / replica-b ✓, replica ที่ล่มถอยไป Primary ✓, ไม่ตั้งค่า → ทำงานเหมือนเดิม ✓
 
 ไฟล์อื่น: `backend/.dockerignore` — กัน `node_modules` ของ Windows ถูก COPY เข้า Docker image
 
@@ -160,7 +166,7 @@ grep -rn "แก้บัค" backend/src
 | ผู้เล่นชิปหมดยังนับเป็นคนไม่หมอบ (มือเล่นยาวจน Showdown) | ❌ ยังไม่แก้ (เงินไม่ผิด) |
 | ไม่มีปุ่ม Rebuy | ❌ ยังไม่ทำ |
 | Terraform: `backend_internal_dns` ไม่มี `:4000` | ❌ ยังเป็นบัค **ถ้า** deploy ด้วย Terraform (ไฟล์ `nginx-ec2-site.conf` ใส่ `:4000` ถูกแล้ว) |
-| RDS Read-replica มีใน Diagram แต่โค้ดไม่ใช้ | ❌ ยังไม่ทำ |
+| RDS Read-replica มีใน Diagram แต่โค้ดไม่ใช้ | ✅ ใช้แล้ว (รายการห้อง/ประวัติ/สถิติ) — ดู "ใช้ RDS Read Replica" ในข้อ 1 |
 | CloudFront มีใน Diagram แต่ Learner Lab ใช้ไม่ได้ | ℹ️ ระบบทำงานได้โดยไม่ต้องมี (ALB + ACM ทำ HTTPS แทน) — ควรแก้ Diagram |
 | ไฟล์เก่าที่ไม่ได้ใช้ | ❌ ยังอยู่: `ws/ExServer.js`, `ws/Old-server.js`, `services/ExRoomService.js`, `frontend/test.html`, ฟังก์ชันไม่มีใครเรียกใน `roomService.js` |
 
@@ -198,7 +204,7 @@ grep -rn "แก้บัค" backend/src
 2. แจ้งผู้เล่นเมื่อเปิดโต๊ะเดียวกันซ้ำหลายแท็บ (แท็บเก่าถูกตัดเงียบๆ)
 3. ข้อความ ping ระดับ App ให้หน้าเว็บรู้ตัวว่าหลุดแม้ไม่มีมือกำลังเล่น
 4. ลบไฟล์เก่าที่ไม่ได้ใช้ (รายการในข้อ 5) และโฟลเดอร์ `deploy/` (ซ้ำกับ `backend/ec2-user-data.sh`)
-5. ใช้ RDS Read-replica สำหรับ query อ่านอย่างเดียว (รายการห้อง, ประวัติ, สถิติ) — หรือเอาออกจาก Diagram
+5. ~~ใช้ RDS Read-replica~~ ทำแล้ว — ถ้า deploy ด้วย `backend/ec2-user-data.sh` อย่าลืมเพิ่ม `DB_READ_HOSTS` ใน Secret (Security Group ของ Replica ต้องให้ App Server ต่อ port 3306 ได้เหมือน Primary)
 6. แก้ Diagram: เอา CloudFront ออก/หมายเหตุว่า Learner Lab ใช้ไม่ได้
 7. ลบบัญชีบอทจากการทดสอบโหลดบนฐานข้อมูลจริง (ถ้าเคยรัน `loadtest` กับเว็บจริง)
 
