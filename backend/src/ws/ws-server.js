@@ -1435,6 +1435,31 @@ async function processDueDisconnectTimers() {
   }
 }
 
+// [แก้บัค]: ห้องจะถูกลบก็ต่อเมื่อคนสุดท้ายลุก (handleLeaveRoom) ถ้ากด Create room แล้วไม่ได้นั่งเลย
+// (เช่นกด Back to lobby) ห้องจะค้างอยู่ในรายการตลอด -> กวาดห้องที่ไม่มีใครนั่งและสร้างมานานเกิน EMPTY_ROOM_GRACE_MS ทิ้ง
+// (ให้เวลาเจ้าของห้องเลือก buy-in / ส่งรหัสห้องให้เพื่อนก่อน) ทำใต้ withLock เดียวกับตอน join จะได้ไม่ลบห้องที่มีคนกำลังนั่ง
+const EMPTY_ROOM_GRACE_MS = Math.max(30000, Math.floor(Number(process.env.EMPTY_ROOM_GRACE_MS) || 120000));
+const EMPTY_ROOM_SWEEP_MS = 30000;
+
+async function sweepEmptyRooms() {
+  const [rows] = await pool.query(
+    'SELECT room_code FROM tables WHERE created_at < NOW() - INTERVAL :seconds SECOND',
+    { seconds: Math.ceil(EMPTY_ROOM_GRACE_MS / 1000) }
+  );
+  for (const { room_code: roomCode } of rows) {
+    try {
+      await withLock(roomCode, async () => {
+        if ((await redisState.hlen(`room:${roomCode}:seats`)) > 0) return;
+        clearTurnTimer(roomCode);
+        await deleteRoom(roomCode);
+        console.log(`[Rooms] removed empty room ${roomCode}`);
+      });
+    } catch (error) {
+      if (error.message !== 'Room is busy') console.error(`[Rooms] cleanup failed for ${roomCode}:`, error);
+    }
+  }
+}
+
 if (process.env.REDIS_DISABLED !== '1') {
   const timerPoller = setInterval(() => {
     void processDueTurnTimers().catch((error) => console.error('[Timer] Turn poll failed:', error));
@@ -1442,6 +1467,10 @@ if (process.env.REDIS_DISABLED !== '1') {
     void processDueAutoStarts().catch((error) => console.error('[AutoStart] poll failed:', error));
   }, 500);
   timerPoller.unref();
+  const roomSweeper = setInterval(() => {
+    void sweepEmptyRooms().catch((error) => console.error('[Rooms] sweep failed:', error));
+  }, EMPTY_ROOM_SWEEP_MS);
+  roomSweeper.unref();
 }
 
 async function deleteRoom(roomCode) {

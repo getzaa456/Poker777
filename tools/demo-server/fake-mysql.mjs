@@ -27,6 +27,7 @@ async function query(sql, p = {}) {
   if (q.startsWith('SELECT * FROM tables WHERE id')) return [db.tables.filter((t) => t.id === p.id)];
   if (q.startsWith('SELECT * FROM tables WHERE room_code')) return [db.tables.filter((t) => t.room_code === p.code)];
   if (q.startsWith("SELECT * FROM tables WHERE status = 'OPEN'")) return [[...db.tables].reverse()];
+  if (q.startsWith('SELECT room_code FROM tables WHERE created_at < NOW()')) return [db.tables.filter((t) => t.created_at < Date.now() - p.seconds * 1000).map((t) => ({ room_code: t.room_code }))];
   if (q.startsWith('DELETE FROM tables WHERE room_code')) { db.tables = db.tables.filter((t) => t.room_code !== p.roomCode); return [{}]; }
   if (q.startsWith('INSERT IGNORE INTO hand_results')) {
     if (!db.hands.some((h) => h.room_code === p.roomCode && h.round_id === p.roundId && h.user_id === String(p.userId))) {
