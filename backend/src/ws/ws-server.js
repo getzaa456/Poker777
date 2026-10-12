@@ -605,6 +605,9 @@ async function handleLeaveRoom(ws, onlyIfDisconnectExpired = false) {
     });
     await settlementPromise;
   } catch (err) {
+    // [แก้บัค]: ห้องไม่ว่างตอนตัวจับเวลาหลุดการเชื่อมต่อมาถึง = รายการยังอยู่ รอบหน้าลองใหม่เอง ไม่ใช่ error
+    // (เดิมพิมพ์ stack ทุกครั้ง: Load test 4 เครื่องเดียว 5,209 ครั้งใน 2 นาที)
+    if (onlyIfDisconnectExpired && err?.message === 'Room is busy') return;
     console.error('Leave room error:', err);
   } finally {
     ws.roomCode = null;
@@ -1435,9 +1438,19 @@ async function processDueTurnTimers() {
   }
 }
 
+// [แก้บัค]: ทุก Backend อ่านรายการที่ครบเวลาชุดเดียวกัน เรียงเหมือนกัน ทุก 0.5 วิ แล้วแย่ง lock ห้องเดียวกัน
+// -> หลังผู้เล่นหลุดพร้อมกันจำนวนมาก (Frontend ล่ม / deploy) เกือบทุกครั้งได้ "Room is busy" งานค้างเป็นชั่วโมง
+// (Load test 4: ค้าง 1,100 รายการนานกว่า 25 นาที, CPU 34 % ทั้งที่ไม่มีผู้เล่น และ Auto Scaling ยิ่งเพิ่มเครื่องยิ่งแย่งกัน)
+// -> จองแต่ละรายการก่อนด้วย SET NX ที่หมดอายุเอง: มีเครื่องเดียวที่ทำรายการนั้นในแต่ละช่วง ถ้าเครื่องนั้นพังกลางทาง
+// การจองหมดอายุแล้วเครื่องอื่นทำต่อ (ตัวรายการยังอยู่ใน sorted set จน handleLeaveRoom ลบเอง) • ทำทีละไม่เกิน 100 รายการต่อรอบ
+const DISCONNECT_CLAIM_MS = 2000;
+const DISCONNECT_BATCH = 100;
+
 async function processDueDisconnectTimers() {
-  const duePlayers = await redisState.zrangebyscore(DISCONNECT_TIMER_KEY, 0, Date.now());
+  const duePlayers = await redisState.zrangebyscore(DISCONNECT_TIMER_KEY, 0, Date.now(), 'LIMIT', 0, DISCONNECT_BATCH);
   for (const key of duePlayers) {
+    const claimed = await redisState.set(`poker:disconnect-claim:${key}`, '1', 'PX', DISCONNECT_CLAIM_MS, 'NX');
+    if (!claimed) continue; // another backend has it
     const separator = key.indexOf(':');
     if (separator < 0) continue;
     const roomCode = key.slice(0, separator);
