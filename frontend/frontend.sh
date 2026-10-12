@@ -115,6 +115,11 @@ NGINX_EOF
 # ลบ Config default ออก
 rm -f /etc/nginx/default.d/*.conf 2>/dev/null || true
 
+# [แก้บัค] ค่าเริ่มต้นของ nginx รับได้ 1024 การเชื่อมต่อต่อ worker (t3.micro = 2 worker) และผู้เล่น 1 คนใช้ 2 การเชื่อมต่อ
+# (ฝั่งผู้เล่น + ฝั่ง ALB ภายใน) → เครื่องละ ~1,000 คนก็เต็ม แล้ว health check ล้ม → ASG ฆ่าเครื่องทิ้ง (เจอใน Load test 4)
+sed -i -E 's/^(\s*)worker_connections\s+[0-9]+;/\1worker_connections 16384;/' /etc/nginx/nginx.conf
+grep -q '^worker_rlimit_nofile' /etc/nginx/nginx.conf || sed -i '/^worker_processes/a worker_rlimit_nofile 65535;' /etc/nginx/nginx.conf
+
 # ตรวจ config ก่อน ถ้าผิดจะหยุดตรงนี้ (ไม่ restart ด้วย config เสีย)
 nginx -t
 

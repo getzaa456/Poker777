@@ -7,7 +7,12 @@ import { Icon } from './Icon.jsx';
 // so skipping the clip or calling the API by hand gains nothing.
 const VIDEO_ID = 'dQw4w9WgXcQ';
 const TICK_MS = 250;
+const UNSTARTED = -1;
 const PLAYING = 1;
+const BUFFERING = 3;
+// YouTube may show its own ad first (the clip is monetised by its owner). The player reports an ad as
+// unstarted/buffering, so those count too — only a paused/stopped video or a hidden tab stops the clock.
+const COUNTING = new Set([UNSTARTED, PLAYING, BUFFERING]);
 
 let youTubeApi;
 function loadYouTubeApi() {
@@ -40,6 +45,7 @@ export default function RewardModal({ onClose, onBalance }) {
   const [session, setSession] = useState(null);
   const [watchedMs, setWatchedMs] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [inClip, setInClip] = useState(false);
   const [muted, setMuted] = useState(false);
   const [picked, setPicked] = useState(null);
   const [result, setResult] = useState(null);
@@ -80,26 +86,32 @@ export default function RewardModal({ onClose, onBalance }) {
     }
   }
 
-  // Player + watch counter: only time spent actually playing, with the tab in front, counts.
+  // Player + watch counter: time with the clip (or YouTube's ad before it) running and the tab in front counts.
+  // The server keeps its own clock, so this only decides when the boxes appear.
   useEffect(() => {
     if (phase !== 'watch') return undefined;
     let cancelled = false;
+    let ready = false;
     loadYouTubeApi().then((YT) => {
       if (cancelled || !hostRef.current) return;
       playerRef.current = new YT.Player(hostRef.current, {
         videoId: VIDEO_ID,
-        playerVars: { autoplay: 1, controls: 0, disablekb: 1, rel: 0, playsinline: 1, fs: 0, iv_load_policy: 3 },
+        // controls on: a skippable ad shows its Skip button; pausing just stops the counter
+        playerVars: { autoplay: 1, controls: 1, disablekb: 1, rel: 0, playsinline: 1, fs: 0, iv_load_policy: 3 },
+        events: { onReady: () => { ready = true; } },
       });
     }).catch(() => {
       if (!cancelled) { setError('The video could not load (an ad blocker may be blocking YouTube). Allow it and try again.'); setPhase('error'); }
     });
     const id = setInterval(() => {
       const player = playerRef.current;
-      const playing = typeof player?.getPlayerState === 'function' && player.getPlayerState() === PLAYING;
+      const state = ready && typeof player?.getPlayerState === 'function' ? player.getPlayerState() : null;
+      const running = COUNTING.has(state);
       const visible = document.visibilityState === 'visible';
-      setPaused(!playing || !visible);
-      setMuted(Boolean(playing && player.isMuted?.()));
-      if (playing && visible) setWatchedMs((ms) => ms + TICK_MS);
+      setPaused(ready && (!running || !visible));
+      setInClip(state === PLAYING);
+      setMuted(Boolean(state === PLAYING && player.isMuted?.()));
+      if (running && visible) setWatchedMs((ms) => ms + TICK_MS);
     }, TICK_MS);
     return () => { cancelled = true; clearInterval(id); };
   }, [phase]);
@@ -159,8 +171,11 @@ export default function RewardModal({ onClose, onBalance }) {
 
         {phase === 'watch' && <div className="reward-watch">
           <div className="reward-progress"><div style={{ width: `${progress}%` }} /></div>
-          <p className="reward-sub">{paused ? 'Paused — keep the video playing to unlock the boxes' : muted ? `Rick is sad you muted him… ${secondsLeft}s` : `Boxes unlock in ${secondsLeft}s`}</p>
-          {/* The video itself ignores clicks (no pause/skip); this covers browsers that block autoplay. */}
+          <p className="reward-sub">{paused ? 'Paused — keep the video playing to unlock the boxes'
+            : muted ? `Rick is sad you muted him… ${secondsLeft}s`
+            : inClip ? `Boxes unlock in ${secondsLeft}s`
+            : `Boxes unlock in ${secondsLeft}s (YouTube ads count too)`}</p>
+          {/* Covers a pause and browsers that block autoplay. */}
           {paused && <button className="reward-cta" onClick={() => { try { playerRef.current?.playVideo(); } catch { /* not ready yet */ } }}>Play video</button>}
         </div>}
 

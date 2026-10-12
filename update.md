@@ -156,7 +156,9 @@ grep -rn "แก้บัค" backend/src
 | ส่ง box แปลกๆ (`3`, `-1`, `"1"`, `1.5`, `null`) | รับเฉพาะเลขจำนวนเต็ม 0–2 → `400` |
 | ปั๊มเหรียญ | รับได้เฉพาะเงินใน Wallet < 100, Cooldown 5 นาที, วันละ 5 ครั้ง |
 
-ฝั่งหน้าเว็บนับเวลาเฉพาะตอนคลิป **กำลังเล่นจริง + อยู่ในแท็บ** (YouTube IFrame API) กดหยุด/สลับแท็บ = หยุดนับ, คลิปกดข้ามไม่ได้ — ส่วนนี้คนเปิด DevTools ข้ามได้ แต่ไม่ได้อะไรเพราะ Server ยังบังคับเวลาอยู่
+ฝั่งหน้าเว็บนับเวลาเฉพาะตอนคลิป **กำลังเล่นจริง + อยู่ในแท็บ** (YouTube IFrame API) กดหยุด/สลับแท็บ = หยุดนับ — ส่วนนี้คนเปิด DevTools ข้ามได้ แต่ไม่ได้อะไรเพราะ Server ยังบังคับเวลาอยู่
+
+**แก้ (13 ต.ค.) — โฆษณาของ YouTube กดข้ามไม่ได้:** คลิป Rickroll ทางการเจ้าของเปิดรับโฆษณา YouTube จึงแทรกโฆษณาก่อนคลิป (เราห้ามไม่ได้) แต่ CSS ตั้ง `pointer-events:none` ไว้ที่ iframe → ปุ่ม "Skip Ad" กดไม่ได้ และตัวนับไม่นับช่วงโฆษณา → ต้องดูโฆษณาจบ + 10 วิ • แก้: iframe กดได้ (`lobby.css`), เปิด `controls: 1`, **นับเวลาช่วงโฆษณาด้วย** (สถานะ unstarted/buffering/playing — หยุดนับเฉพาะตอนกด pause หรือสลับแท็บ) และขึ้นข้อความ "YouTube ads count too" (`RewardModal.jsx`) — Server ไม่ได้แก้ ยังบังคับ 10 วิเหมือนเดิม
 
 รางวัลต่อกล่อง (แก้ใน `PRIZES` ของ `reward.js`): 100 (35%) • 300 (30%) • 500 (20%) • 1,000 (12%) • 3,000 (3%) — บันทึกเป็นธุรกรรม `BONUS` (ไม่ต้องแก้ Schema / ไม่ต้อง migrate)
 
@@ -188,6 +190,14 @@ grep -rn "แก้บัค" backend/src
 
 ไฟล์ใหม่ `frontend/src/components/AnimatedNumber.jsx` • CSS ต่อท้าย `poker-table.css`, `lobby.css`, `rooms.css` (หัวข้อ MOTION)
 
+### 2.12 ทดสอบโหลดบน AWS + บัคตัวจับเวลาหลุดการเชื่อมต่อค้าง (12 ต.ค.)
+
+**ทดสอบ:** สร้างระบบเต็มตาม Deployment Guide ด้วย `infra/terraform-test/` แล้วยิงบอท 10 → 1,000 คน — ผลอยู่ใน `docs/loadtest-results.md` และ `docs/loadtest/Test1-Poker777/`, `Test2-Poker777/` (สรุป: **1,000 คนบน Backend t3.micro เครื่องเดียว ใช้ CPU ราวครึ่ง core**, ไม่มีใครหลุด, RDS/Redis/ALB ไม่ใช่คอขวด, read replica ใช้งานจริง)
+
+**บัค `[แก้บัค]` (`backend/src/ws/ws-server.js` → `handleLeaveRoom`):** ตอนผู้เล่นหลุด ระบบใส่รายการใน `poker:disconnect-timers` รอ 30 วิ — ถ้าครบเวลาแล้วห้องถูกลบไปแล้ว / ผู้เล่นออกไปแล้ว / ต่อกลับมาแล้ว โค้ด `return` โดยไม่ลบรายการ → poller (ทุก 0.5 วิ) ทำซ้ำตลอดไป • หลังทดสอบค้าง 95 รายการ → CPU Backend ตอนว่าง 1 % → 6 %, Redis 0.3 % → 4 % • เกิดกับผู้เล่นจริงได้ (กด "ออก" แล้วปิดหน้าเว็บทันที) และสะสมไปเรื่อยๆ • แก้: ลบรายการทันทีเมื่อไม่ต้องใช้แล้ว • **ยังไม่ได้ทดสอบบน AWS** (ต้อง deploy ใหม่)
+
+**เครื่องมือใหม่ใน `tools/loadtest/`:** `aws-test.mjs` (ทดสอบไล่ขั้น + ดึงกราฟ/ตัวเลข CloudWatch + วัด DB/RAM ผ่าน SSM), `db-counters.mjs` (นับ SELECT ต่อเครื่อง RDS) • `loadtest.mjs` เพิ่ม `--accounts-only`, `--reuse-only`, `--browse-rps`, p99
+
 ---
 
 ## 3. Deploy และเครื่องมือ
@@ -197,6 +207,7 @@ grep -rn "แก้บัค" backend/src
 - **บัค:** nginx ที่สคริปต์ตั้งค่าเสิร์ฟแค่ไฟล์หน้าเว็บ ไม่ได้ส่งต่อ `/auth /users /wallet /tables /health /ws` ไป Internal ALB → ทุก request API ได้ `index.html` กลับมา (Login/เข้าโต๊ะไม่ได้) • ไฟล์เป็น CRLF → `bash` บน Linux พัง (`$'': command not found`)
 - **แก้:** ใส่ส่วน proxy ไป Backend (เหมือน `nginx-ec2-site.conf` ที่เคยใช้ได้บนเว็บจริงทุกบรรทัด — เทียบ diff แล้ว) • หา DNS ของ Internal ALB `poker777-prod-internal` เองผ่าน AWS CLI (หรือใส่ `BACKEND_ORIGIN` บรรทัดบนสุดเอง) — ใส่แบบไม่มี `http://` หรือไม่มี `:4000` ก็ได้ • ถ้าหา Backend ไม่เจอจะหยุดพร้อมบอกเหตุผล แทนที่จะสร้าง AMI ที่ใช้ไม่ได้ • `nginx -t` ก่อน restart • แปลงเป็น LF + เพิ่ม `.gitattributes` บังคับ `*.sh` เป็น LF เสมอ
 - **เงื่อนไข:** สร้าง Internal ALB ก่อน (ขั้น 13) และ EC2 ที่ใช้สร้าง AMI ต้องมี IAM profile `LabInstanceProfile`
+- **[แก้บัค] (13 ต.ค.) — เพดาน ~1,000 ผู้เล่นต่อ Frontend:** nginx ใช้ค่าเริ่มต้น `worker_connections 1024` × 2 worker (t3.micro) และผู้เล่น 1 คนใช้ 2 การเชื่อมต่อ (ฝั่งผู้เล่น + ฝั่ง Internal ALB) → เครื่องละ ~1,000 คนก็เต็ม • Load test 4: ที่ ~2,000 คน (Frontend 2 เครื่อง) nginx เต็ม → health check ล้ม → ASG ปิดเครื่องทิ้งทีละเครื่อง → ผู้เล่นหลุดและต่อใหม่พร้อมกัน → ELB 5xx 43,907 ครั้ง (log: `worker_connections are not enough` 28,816 ครั้ง) ทั้งที่ Backend CPU แค่ ~16 % • แก้: ตั้ง `worker_connections 16384` + `worker_rlimit_nofile 65535` ใน `/etc/nginx/nginx.conf` (รันซ้ำได้) — **AMI Frontend ที่สร้างไปแล้วต้องสร้างใหม่**
 
 | ไฟล์ | เปลี่ยนอะไร | ทำไม |
 |---|---|---|

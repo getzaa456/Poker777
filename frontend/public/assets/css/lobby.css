@@ -1058,7 +1058,7 @@ html,body{
 .reward-cta:hover{ filter:brightness(1.08); }
 
 .reward-video{ width:100%; aspect-ratio:16/9; border-radius:var(--radius-md); overflow:hidden; background:#000; transition:width .3s ease; align-self:center; }
-.reward-video iframe{ width:100%; height:100%; display:block; border:0; pointer-events:none; }
+.reward-video iframe{ width:100%; height:100%; display:block; border:0; } /* clickable: YouTube's own ads need their Skip button */
 .reward-video.is-small{ width:42%; }
 .reward-video.is-hidden{ display:none; }
 .reward-progress{ height:8px; border-radius:999px; background:rgba(255,255,255,0.08); overflow:hidden; }

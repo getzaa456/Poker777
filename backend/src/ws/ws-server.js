@@ -449,11 +449,22 @@ async function handleLeaveRoom(ws, onlyIfDisconnectExpired = false) {
   try {
     await withLock(roomCode, async () => {
       const room = await getRoom(roomCode);
-      if (!room) return;
+      // [แก้บัค]: timer ที่ครบเวลาแล้วแต่ห้องถูกลบไปแล้ว / ผู้เล่นไม่อยู่ในห้องแล้ว / ต่อกลับมาแล้ว เดิม return เลยโดยไม่ลบ
+      // ออกจาก poker:disconnect-timers -> poller วนทำซ้ำทุก 0.5 วิไม่มีวันจบ (เจอจาก load test: ค้าง 95 รายการ, CPU ตอนว่าง 1% -> 6%)
+      // เกิดง่ายตอนผู้เล่นกด "ออก" แล้วปิดหน้าเว็บทันที (close มาถึงก่อน leave-room ถูกประมวลผล)
+      if (!room) {
+        if (onlyIfDisconnectExpired) await clearDisconnectTimer(roomCode, clientId);
+        return;
+      }
 
       const leavingPlayer = await getPlayer(roomCode, clientId);
-      if (onlyIfDisconnectExpired && (!parseBool(leavingPlayer?.isDisconnected)
-        || Number(leavingPlayer.disconnectDeadline) > Date.now())) return;
+      if (onlyIfDisconnectExpired) {
+        if (!leavingPlayer || !parseBool(leavingPlayer.isDisconnected)) {
+          await clearDisconnectTimer(roomCode, clientId); // stale: already left or reconnected
+          return;
+        }
+        if (Number(leavingPlayer.disconnectDeadline) > Date.now()) return; // re-armed with a later deadline
+      }
       await clearDisconnectTimer(roomCode, clientId);
 
       const seats = (await getRoomSeats(roomCode)) || {};
