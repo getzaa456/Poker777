@@ -10,7 +10,9 @@ const UNLOCK_SCRIPT = `
   end
 `;
 
-export async function withLock(roomId, actionLogic) {
+// wait: false = ลองครั้งเดียว ไม่ได้ก็ throw ทันที — สำหรับตัวจับเวลาเบื้องหลังที่รอบหน้าจะลองใหม่เองอยู่แล้ว
+// [แก้บัค]: เดิมตัวจับเวลาก็รอ lock ได้ถึง ~2 วิต่อห้อง เลยไปแย่งคิวกับ Action ของผู้เล่น (Load test 5)
+export async function withLock(roomId, actionLogic, { wait = true } = {}) {
   const lockKey = `lock:room:${roomId}`;                  // ชื่อ Key สำหรับล็อกห้องนี้
   const token = Math.random().toString(36).substring(2);  // สร้าง Token สุ่มเพื่อระบุตัวตนของผู้ถือ Lock
 
@@ -20,7 +22,8 @@ export async function withLock(roomId, actionLogic) {
   // [แก้บัค]: เดิมขอครั้งเดียวไม่ได้ก็ throw ทันที -> Action/การหลุดเน็ตที่ชนกับงานอื่นหายไปเลย
   // (เช่น handleDisconnect ชนกับ Timer ทำให้เกิดที่นั่งผีที่ไม่มีวันถูกลบ) จึงรอแล้วลองใหม่ประมาณ 2 วินาที
   let isAcquired = null;
-  for (let attempt = 0; attempt < 40 && !isAcquired; attempt++) {
+  const attempts = wait ? 40 : 1;
+  for (let attempt = 0; attempt < attempts && !isAcquired; attempt++) {
     if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 30 + Math.floor(Math.random() * 40)));
     isAcquired = await redisState.set(lockKey, token, 'PX', 3000, 'NX');
   }
