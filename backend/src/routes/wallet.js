@@ -1,28 +1,17 @@
 /**
- * Wallet Routes — POST /wallet/topup, GET /wallet/transactions, POST /internal/wallet/adjust
+ * Wallet Routes — GET /wallet/transactions, /wallet/history, /wallet/reward*, POST /internal/wallet/adjust
  */
 import { Router } from 'express';
 import { requireAuth } from '../middleware/auth.js';
-import { topUp, getTransactions, getHandHistory, adjustWallet } from '../services/wallet.js';
+import { getTransactions, getHandHistory, adjustWallet } from '../services/wallet.js';
 import { env } from '../config/env.js';
 import { ApiError } from '../middleware/errors.js';
+import { getRewardStatus, startReward, claimReward } from '../services/reward.js';
 
 export const router = Router();
 
-/**
- * POST /wallet/topup
- * Auth: required
- * Body: { amount: int }
- */
-router.post('/wallet/topup', requireAuth, async (req, res, next) => {
-  try {
-    const { amount } = req.body;
-    const result = await topUp(req.user.id, amount);
-    res.json(result);
-  } catch (err) {
-    next(err);
-  }
-});
+// [แก้บัค]: ลบ POST /wallet/topup — เติมเหรียญฟรีได้ครั้งละ 100,000 ไม่จำกัดครั้ง (เศรษฐกิจในเกมพัง)
+// เหรียญฟรีตอนนี้มาจาก /wallet/reward (ดูคลิป + กล่องสุ่ม มี cooldown และจำกัดต่อวัน) เท่านั้น
 
 /**
  * GET /wallet/transactions
@@ -43,6 +32,32 @@ router.get('/wallet/history', requireAuth, async (req, res, next) => {
   try {
     const result = await getHandHistory(req.user.id);
     res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// [เพิ่มฟีเจอร์]: เหรียญหมด -> ดูคลิป -> เลือกกล่อง (กติกาและการกันโกงอยู่ใน services/reward.js)
+router.get('/wallet/reward', requireAuth, async (req, res, next) => {
+  try {
+    res.json(await getRewardStatus(req.user.id));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/wallet/reward/start', requireAuth, async (req, res, next) => {
+  try {
+    res.json(await startReward(req.user.id));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Body: { session_id: string, box: 0 | 1 | 2 }
+router.post('/wallet/reward/claim', requireAuth, async (req, res, next) => {
+  try {
+    res.json(await claimReward(req.user.id, req.body));
   } catch (err) {
     next(err);
   }

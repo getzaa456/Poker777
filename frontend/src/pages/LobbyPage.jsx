@@ -4,6 +4,9 @@ import { Auth, Tables, Wallet, fmtChips } from '../lib/api.js';
 import { AvatarFace, avatarIds, normalizeAvatarId } from '../components/avatars.jsx';
 import { usePageStyles } from '../hooks/usePageStyles.js';
 import { GlassButton } from '../components/GlassButton.jsx';
+import RewardModal from '../components/RewardModal.jsx';
+import { Icon } from '../components/Icon.jsx';
+import { AnimatedNumber } from '../components/AnimatedNumber.jsx';
 
 const blindOptions = [
   [10, 1000], [50, 5000], [100, 10000], [500, 50000],
@@ -20,10 +23,9 @@ function playerRank({ wins = 0, losses = 0, winRate = 0 }) {
   if (hands >= 100 && winRate >= 55) title = 'Legend';
   return { hands, level, title };
 }
-const topupOptions = [100, 500, 1000, 5000, 10000, 50000];
 
 function transactionLabel(type) {
-  return ({ TOPUP: '💰 Top Up', BONUS: '🎁 Bonus', WIN: '🏆 Win', LOSS: '❌ Loss', BUYIN: '🎫 Buy-in', SETTLE: '⚖️ Settle' })[type] || type;
+  return ({ TOPUP: 'Top Up', BONUS: 'Bonus', WIN: 'Win', LOSS: 'Loss', BUYIN: 'Buy-in', SETTLE: 'Settle' })[type] || type;
 }
 
 export default function LobbyPage() {
@@ -41,11 +43,8 @@ export default function LobbyPage() {
   const [txHasMore, setTxHasMore] = useState(false);
   const [txLoading, setTxLoading] = useState(false);
 
-  const [topupOpen, setTopupOpen] = useState(false);
-  const [topupAmount, setTopupAmount] = useState('');
-  const [selectedTopup, setSelectedTopup] = useState(null);
-  const [topupMessage, setTopupMessage] = useState({ text: '', tone: '' });
-  const [topupBusy, setTopupBusy] = useState(false);
+  const [rewardOpen, setRewardOpen] = useState(false);
+  const [rewardReady, setRewardReady] = useState(false);
 
   const [roomModalOpen, setRoomModalOpen] = useState(false);
   const [createdTable, setCreatedTable] = useState(null);
@@ -76,6 +75,7 @@ export default function LobbyPage() {
         setUser(current);
         setSelectedAvatar(normalizeAvatarId(current.avatar_id));
         loadHandHistory();
+        Wallet.rewardStatus().then((status) => active && setRewardReady(status.eligible)).catch(() => {});
       } catch (error) {
         if (active) setLoadingError(error.message || 'Unable to load profile');
       }
@@ -135,33 +135,9 @@ export default function LobbyPage() {
     navigate('/');
   }
 
-  function openTopup(event) {
+  function openReward(event) {
     event?.stopPropagation();
-    setTopupAmount('');
-    setSelectedTopup(null);
-    setTopupMessage({ text: '', tone: '' });
-    setTopupOpen(true);
-  }
-
-  async function doTopup() {
-    const amount = Number.parseInt(topupAmount, 10);
-    if (!amount || amount < 1 || amount > 100000) {
-      setTopupMessage({ text: '⚠️ Please enter an amount from 1 to 100,000', tone: 'error' });
-      return;
-    }
-    setTopupBusy(true);
-    setTopupMessage({ text: 'Processing…', tone: '' });
-    try {
-      const result = await Wallet.topUp(amount);
-      setUser((current) => ({ ...current, balance: result.balance }));
-      setTopupMessage({ text: `✅ Topped up ${fmtChips(result.amount)} chips!`, tone: 'success' });
-      loadTransactions(1);
-      setTimeout(() => setTopupOpen(false), 900);
-    } catch (error) {
-      setTopupMessage({ text: `❌ ${error.message || 'Top up failed'}`, tone: 'error' });
-    } finally {
-      setTopupBusy(false);
-    }
+    setRewardOpen(true);
   }
 
   function openCreateRoom() {
@@ -227,7 +203,7 @@ export default function LobbyPage() {
   }
 
   const displayName = user?.display_name || user?.username || 'Loading…';
-  const chipsText = `🪙 ${fmtChips(user?.balance)}`;
+  const chipsText = <><Icon name="coin" /> <AnimatedNumber value={user?.balance} bump /></>;
   const currentAvatar = normalizeAvatarId(user?.avatar_id || selectedAvatar);
   const chosenBlind = useMemo(() => `${minBet}:${maxBet}`, [minBet, maxBet]);
   const rank = playerRank(handStats);
@@ -253,7 +229,7 @@ export default function LobbyPage() {
             <span>{rank.hands ? `${Number(handStats.winRate).toFixed(0)}% win` : 'No hands yet'}</span>
           </div>
         </div>
-        <button className="topup-quick-btn" title="Top up chips" onClick={openTopup}><span className="topup-quick-icon">🪙</span><span>Top Up</span></button>
+        <button className={`topup-quick-btn reward-quick-btn ${rewardReady ? 'is-ready' : ''}`} title="Watch a video, open a box, get free chips" onClick={openReward}><span className="topup-quick-icon"><Icon name="gift" size={13} /></span><span>Free</span></button>
         <button className="expand-btn logout-btn" title="Log out" onClick={logout}><span className="logout-icon">↪</span><span>Log Out</span></button>
       </header>
 
@@ -283,7 +259,7 @@ export default function LobbyPage() {
         <div className="stats-grid">
           <div className="stat"><div className="stat-label">Win / Loss</div><div className="stat-value"><span className="win">{handStats.wins}</span> / <span className="loss">{handStats.losses}</span></div></div>
           <div className="stat"><div className="stat-label">Win Rate</div><div className="stat-value">{Number(handStats.winRate).toFixed(1)}%</div></div>
-          <div className="stat"><div className="stat-label">Total Chips Won</div><div className="stat-value">🪙 {fmtChips(handStats.totalChipsWon)}</div></div>
+          <div className="stat"><div className="stat-label">Total Chips Won</div><div className="stat-value"><Icon name="coin" /> {fmtChips(handStats.totalChipsWon)}</div></div>
         </div>
 
         <div className="section-label">◆ Recent 5 Hands ◆</div>
@@ -322,7 +298,7 @@ export default function LobbyPage() {
         </div>
         {txHasMore && <button className="tx-load-more" disabled={txLoading} onClick={() => loadTransactions(txPage + 1)}>{txLoading ? 'Loading…' : 'Load more'}</button>}
 
-        <GlassButton className="glass-cta-full glass-cta-gold" style={{ marginTop: 14 }} onClick={openTopup} label="Top Up Chips" />
+        <GlassButton className="glass-cta-full glass-cta-gold" style={{ marginTop: 14 }} onClick={openReward} label="Free Chips" />
         <GlassButton className="glass-cta-full glass-cta-gold" style={{ marginTop: 14 }} disabled={avatarSaving} onClick={saveAvatar} label={avatarSaving ? 'Saving…' : 'Confirm Avatar'} />
       </section>
 
@@ -360,16 +336,11 @@ export default function LobbyPage() {
         </section>}
       </div>}
 
-      {topupOpen && <div className="modal-overlay open" onClick={(e) => e.target === e.currentTarget && setTopupOpen(false)}>
-        <div className="modal-card topup-card">
-          <button className="modal-close" onClick={() => setTopupOpen(false)}>✕</button>
-          <div className="topup-header"><div className="topup-icon">🪙</div><div><div className="modal-title">Top Up Chips</div><div className="topup-subtitle">Choose an amount, then confirm your top up.</div></div></div>
-          <div className="topup-balance-card"><span className="topup-balance-label">Current balance</span><span className="topup-balance-value">{chipsText}</span></div>
-          <div className="topup-section-label">Quick amount</div><div className="topup-presets">{topupOptions.map((amount) => <button key={amount} type="button" className={`topup-preset ${selectedTopup === amount ? 'is-active' : ''}`} onClick={() => { setSelectedTopup(amount); setTopupAmount(String(amount)); setTopupMessage({ text: '', tone: '' }); }}><span>🪙</span>{fmtChips(amount)}</button>)}</div>
-          <div className="topup-section-label">Custom amount</div><div className="topup-custom"><div className="topup-input-wrap"><span className="topup-input-icon">🪙</span><input type="number" value={topupAmount} onChange={(e) => { setTopupAmount(e.target.value); setSelectedTopup(null); }} onKeyDown={(e) => e.key === 'Enter' && !topupBusy && doTopup()} placeholder="Enter chips" min="1" max="100000" /></div><button type="button" className="topup-confirm-btn" disabled={topupBusy} onClick={doTopup}>Top Up</button></div>
-          <div className="topup-hint">Maximum 100,000 chips per top up.</div><div className={`topup-message ${topupMessage.tone}`}>{topupMessage.text}</div>
-        </div>
-      </div>}
+      {rewardOpen && <RewardModal
+        onClose={() => { setRewardOpen(false); Wallet.rewardStatus().then((status) => setRewardReady(status.eligible)).catch(() => {}); }}
+        onBalance={(balance) => { setUser((current) => ({ ...current, balance })); if (profileOpen) loadTransactions(1); }}
+      />}
+
     </div>
   );
 }

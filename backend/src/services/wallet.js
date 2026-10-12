@@ -1,64 +1,9 @@
 /**
- * Wallet Service — topup, transactions, internal adjust
+ * Wallet Service — transactions, hand history, internal adjust
  */
 import { pool, readPool, withTransaction } from '../config/db.js';
 import { env } from '../config/env.js';
 import { ApiError } from '../middleware/errors.js';
-
-/**
- * POST /wallet/topup — เติมชิป
- * Atomic: UPDATE wallets + INSERT transactions ใน DB transaction เดียว
- */
-export async function topUp(userId, amount) {
-  // Validate
-  if (!Number.isInteger(amount) || amount <= 0) {
-    throw new ApiError('INVALID_AMOUNT', 'Amount must be a positive integer');
-  }
-  if (amount < env.economy.topupMin) {
-    throw new ApiError('AMOUNT_TOO_LOW', `Minimum topup is ${env.economy.topupMin}`);
-  }
-  if (amount > env.economy.topupMax) {
-    throw new ApiError('AMOUNT_TOO_HIGH', `Maximum topup is ${env.economy.topupMax}`);
-  }
-
-  const refId = `topup:${userId}:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
-
-  return withTransaction(async (conn) => {
-    // Lock wallet row and read current balance
-    const [walletRows] = await conn.query(
-      `SELECT balance FROM wallets WHERE user_id = :userId FOR UPDATE`,
-      { userId }
-    );
-
-    if (!walletRows.length) {
-      throw new ApiError('WALLET_NOT_FOUND', 'Wallet not found', 404);
-    }
-
-    const balanceAfter = walletRows[0].balance + amount;
-
-    // Update wallet
-    await conn.query(
-      `UPDATE wallets SET balance = :balanceAfter, version = version + 1, updated_at = NOW()
-       WHERE user_id = :userId`,
-      { balanceAfter, userId }
-    );
-
-    // Insert transaction
-    await conn.query(
-      `INSERT INTO transactions (user_id, amount, type, ref_id, balance_after, note)
-       VALUES (:userId, :amount, 'TOPUP', :refId, :balanceAfter, :note)`,
-      {
-        userId,
-        amount,
-        refId,
-        balanceAfter,
-        note: `Topup ${amount} chips`,
-      }
-    );
-
-    return { balance: balanceAfter, amount, type: 'TOPUP' };
-  });
-}
 
 /**
  * GET /wallet/transactions — pagination, newest first

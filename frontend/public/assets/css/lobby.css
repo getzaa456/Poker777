@@ -1040,3 +1040,77 @@ html,body{
 .panel-meta{ flex-wrap:wrap; }
 /* create room: custom bet step next to the presets */
 .step-field{ width:96px; flex:0 0 auto; margin:0; padding:8px 10px; }
+
+/* ==========================================================================
+   Free chips: watch a clip, then pick a mystery box (components/RewardModal.jsx)
+   ========================================================================== */
+.reward-quick-btn{ border-color:rgba(255,92,170,0.4); background:linear-gradient(135deg, rgba(255,92,170,0.2), rgba(139,110,247,0.14)); color:#ffc2e2; }
+.reward-quick-btn.is-ready{ animation:rewardPulse 1.6s ease-in-out infinite; }
+@keyframes rewardPulse{ 0%,100%{ box-shadow:0 0 0 0 rgba(255,92,170,0.45); } 50%{ box-shadow:0 0 0 7px rgba(255,92,170,0); } }
+
+.reward-card{ width:520px; text-align:center; display:flex; flex-direction:column; gap:12px;
+  background:radial-gradient(circle at top, rgba(255,92,170,0.16), transparent 40%), linear-gradient(180deg, rgba(27,16,58,0.98), rgba(17,10,38,0.98)); }
+.reward-text{ color:var(--text-main); font-size:15px; line-height:1.5; }
+.reward-sub{ color:var(--text-muted); font-size:13px; }
+.reward-error{ color:var(--loss-red); }
+.reward-cta{ align-self:center; padding:12px 26px; border-radius:999px; border:0; cursor:pointer;
+  background:linear-gradient(135deg, #ff5caa, #8b6ef7); color:#fff; font:800 15px var(--font-body); box-shadow:0 8px 22px rgba(255,92,170,0.3); }
+.reward-cta:hover{ filter:brightness(1.08); }
+
+.reward-video{ width:100%; aspect-ratio:16/9; border-radius:var(--radius-md); overflow:hidden; background:#000; transition:width .3s ease; align-self:center; }
+.reward-video iframe{ width:100%; height:100%; display:block; border:0; pointer-events:none; }
+.reward-video.is-small{ width:42%; }
+.reward-video.is-hidden{ display:none; }
+.reward-progress{ height:8px; border-radius:999px; background:rgba(255,255,255,0.08); overflow:hidden; }
+.reward-progress > div{ height:100%; background:linear-gradient(90deg, #ff5caa, var(--gold)); transition:width .25s linear; }
+
+.reward-boxes{ display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; }
+.reward-box{ position:relative; aspect-ratio:1; border-radius:var(--radius-md); cursor:pointer;
+  border:1px solid rgba(255,209,102,0.35); background:linear-gradient(160deg, rgba(255,209,102,0.16), rgba(139,110,247,0.14));
+  color:var(--text-main); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+  transition:transform .15s ease, border-color .15s ease, opacity .3s ease; font-family:var(--font-body); }
+.reward-box:not(:disabled):hover{ transform:translateY(-4px) rotate(-2deg); border-color:var(--gold); }
+.reward-box:disabled{ cursor:default; }
+.reward-box-icon{ font-size:clamp(34px, 9vw, 48px); line-height:1; }
+.reward-box-amount{ font:800 18px var(--font-display); color:var(--gold); }
+.reward-box-label{ font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; }
+.reward-box.is-shaking{ animation:rewardShake .35s ease-in-out infinite; border-color:var(--gold); }
+.reward-box.is-open{ animation:rewardOpen .45s cubic-bezier(.2,.8,.3,1.4) backwards; }
+.reward-box.is-open:not(.is-picked){ opacity:.5; animation-delay:.35s; }
+.reward-box.is-picked.is-open{ border-color:var(--gold); box-shadow:0 0 26px rgba(255,209,102,0.45); opacity:1; }
+@keyframes rewardShake{ 0%,100%{ transform:rotate(0); } 25%{ transform:rotate(-6deg); } 75%{ transform:rotate(6deg); } }
+@keyframes rewardOpen{ from{ transform:scale(.7); opacity:0; } to{ transform:scale(1); } }
+@media (max-width:480px){ .reward-card{ padding:22px 16px; } .reward-video.is-small{ width:60%; } }
+@media (prefers-reduced-motion:reduce){ .reward-box, .reward-quick-btn.is-ready{ animation:none !important; } }
+
+/* ==========================================================================
+   MOTION — page entrance, dialogs, mystery-box burst (one-shot, respects reduced motion)
+   ========================================================================== */
+.profile-widget, .logo-section, .action-buttons > *, .room-code-bar { animation: riseIn .55s cubic-bezier(.2, .8, .3, 1) backwards; }
+.profile-widget { animation-delay: 0s; }
+.logo-section { animation-delay: .08s; }
+.action-buttons > *:nth-child(1) { animation-delay: .18s; }
+.action-buttons > *:nth-child(2) { animation-delay: .26s; }
+.room-code-bar { animation-delay: .34s; }
+@keyframes riseIn { from { opacity: 0; transform: translateY(18px); } }
+
+/* dialogs grow out of the middle instead of just appearing */
+.modal-card, .room-modal { animation: dialogIn .28s cubic-bezier(.2, .9, .3, 1.15); }
+@keyframes dialogIn { from { opacity: 0; transform: translateY(10px) scale(.94); } }
+
+/* coins burst out of the box you picked */
+.reward-burst { position: absolute; left: 50%; top: 40%; width: 0; height: 0; pointer-events: none; }
+.reward-burst i {
+  position: absolute; width: 9px; height: 9px; margin: -4.5px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff3c4, #ffd166 45%, #d99a00);
+  transform: rotate(var(--angle)) translateY(0); opacity: 0;
+  animation: burst .8s cubic-bezier(.15, .7, .3, 1) .15s forwards;
+}
+@keyframes burst {
+  0% { opacity: 1; transform: rotate(var(--angle)) translateY(0) scale(.6); }
+  100% { opacity: 0; transform: rotate(var(--angle)) translateY(-70px) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-widget, .logo-section, .action-buttons > *, .room-code-bar, .modal-card, .room-modal, .reward-burst i { animation: none; }
+}

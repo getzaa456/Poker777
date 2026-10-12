@@ -92,14 +92,21 @@ export const Auth = {
 };
 
 export const Wallet = {
-  async topUp(amount) {
-    return api('/wallet/topup', { method: 'POST', body: { amount } });
-  },
   async transactions(page = 1, limit = 20) {
     return api(`/wallet/transactions?page=${page}&limit=${limit}`);
   },
   async handHistory() {
     return api('/wallet/history');
+  },
+  // Free chips: watch a clip, then pick one of three boxes. The server holds the prizes and the timer.
+  async rewardStatus() {
+    return api('/wallet/reward');
+  },
+  async startReward() {
+    return api('/wallet/reward/start', { method: 'POST' });
+  },
+  async claimReward(sessionId, box) {
+    return api('/wallet/reward/claim', { method: 'POST', body: { session_id: sessionId, box } });
   },
 };
 

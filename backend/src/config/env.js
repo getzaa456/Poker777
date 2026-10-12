@@ -61,8 +61,14 @@ export const env = {
 
   economy: {
     welcomeBonus: parseInt(required('WELCOME_BONUS', '1000'), 10),
-    topupMin: parseInt(required('TOPUP_MIN', '1'), 10),
-    topupMax: parseInt(required('TOPUP_MAX', '100000'), 10),
+  },
+
+  // [เพิ่มฟีเจอร์]: ดูคลิปแล้วสุ่มกล่องรับเหรียญ (services/reward.js) — ทุกค่าไม่บังคับ
+  reward: {
+    watchSeconds: Math.max(1, parseInt(process.env.REWARD_WATCH_SECONDS || '10', 10) || 10),
+    maxBalance: Math.max(1, parseInt(process.env.REWARD_MAX_BALANCE || '100', 10) || 100),
+    cooldownSeconds: Math.max(0, parseInt(process.env.REWARD_COOLDOWN_SECONDS ?? '300', 10) || 0),
+    dailyLimit: Math.max(1, parseInt(process.env.REWARD_DAILY_LIMIT || '5', 10) || 5),
   },
 
   internalApiKey: required('INTERNAL_API_KEY', 'dev-internal-key'),
