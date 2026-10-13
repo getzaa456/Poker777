@@ -1,0 +1,101 @@
+{
+  "step": 2,
+  "bots": 700,
+  "start": "2026-10-12T14:04:08.484Z",
+  "playStart": "2026-10-12T14:18:05.931Z",
+  "end": "2026-10-12T14:23:08.461Z",
+  "botResult": {
+    "at": "21:23:05",
+    "seated": 700,
+    "wanted": 700,
+    "actions": 25508,
+    "hands": 2924,
+    "p50_ms": 307,
+    "p95_ms": 627,
+    "p99_ms": 860,
+    "max_ms": 2602,
+    "browse_requests": 297,
+    "browse_p50_ms": 255,
+    "browse_p95_ms": 269,
+    "browse_limited": 0,
+    "browse_failed": 1,
+    "disconnects": 0,
+    "errors": "{\"Insufficient balance\":763,\"You must CALL or FOLD\":589,\"Nothing to call; use CHECK\":13102,\"A hand is already in progress\":3}"
+  },
+  "backendSample": {
+    "node_rss_mb": 132.6,
+    "node_cpu_pct_lifetime": 5.5,
+    "machine_mem_total_mb": 913,
+    "machine_mem_used_mb": 285,
+    "machine_mem_available_mb": 479
+  },
+  "cloudwatch": {
+    "minutes_measured": 5,
+    "alb_p50_ms": 9.781042265492317,
+    "alb_p95_ms": 19.9908046037431,
+    "alb_p99_ms": 104.21489634456645,
+    "internal_alb_p95_ms": 13.719212021148536,
+    "requests": 295,
+    "requests_per_min": 58.506594387333486,
+    "http_5xx": 1,
+    "http_4xx": 0,
+    "error_rate_5xx_pct": 0.3389830508474576,
+    "alb_connections_max": 2112,
+    "alb_new_connections": 14,
+    "alb_lcu": 0.10039190399979922,
+    "backend_cpu_avg_pct": 20.578251335630153,
+    "backend_cpu_max_pct": 21.624146964109922,
+    "frontend_cpu_avg_pct": 2.583853500853956,
+    "backend_net_in_mb": 236.61036014556885,
+    "backend_net_out_mb": 244.47916221618652,
+    "rds": {
+      "writer": {
+        "cpu_avg_pct": 7.231679126285025,
+        "cpu_max_pct": 8.004268943436498,
+        "connections_max": 15,
+        "read_iops_avg": 0.7065869029113746,
+        "free_memory_min_mb": 110.48828125
+      },
+      "read-1": {
+        "cpu_avg_pct": 5.9327732350343965,
+        "cpu_max_pct": 6.133435557259288,
+        "connections_max": 1,
+        "read_iops_avg": 0.4599363136120928,
+        "free_memory_min_mb": 107
+      },
+      "read-2": {
+        "cpu_avg_pct": 5.920573389128499,
+        "cpu_max_pct": 6.366666666666666,
+        "connections_max": 1,
+        "read_iops_avg": 0.3433137434380036,
+        "free_memory_min_mb": 116.1796875
+      },
+      "read-3": {
+        "cpu_avg_pct": 5.985995470359437,
+        "cpu_max_pct": 6.73762409221134,
+        "connections_max": 1,
+        "read_iops_avg": 0.37997617064151545,
+        "free_memory_min_mb": 115.17578125
+      }
+    },
+    "rds_write_iops_avg": 125.1097146115321,
+    "rds_write_latency_ms": 0.6859365688487636,
+    "replica_lag_max_s": 1,
+    "redis": {
+      "poker777-prod-redis-001": {
+        "cpu_avg_pct": 10.08695181876492,
+        "cpu_max_pct": 10.631561406432262,
+        "memory_max_mb": 7.479850769042969,
+        "net_out_mb": 276.92888736724854,
+        "connections_max": 8
+      },
+      "poker777-prod-redis-002": {
+        "cpu_avg_pct": 4.150295737252575,
+        "cpu_max_pct": 4.534089014835806,
+        "memory_max_mb": 7.42010498046875,
+        "net_out_mb": 11.221735000610352,
+        "connections_max": 6
+      }
+    }
+  }
+}

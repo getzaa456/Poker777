@@ -1,0 +1,204 @@
+[
+  {
+    "label": "after-step1-300 (before step2)",
+    "at": "2026-10-12T14:07:36.976Z",
+    "counters": {
+      "poker777-prod-writer": {
+        "Com_insert": 29173,
+        "Com_select": 86985,
+        "Com_update": 9279,
+        "Questions": 183029,
+        "Threads_connected": 18,
+        "Uptime": 17004
+      },
+      "poker777-prod-read-1": {
+        "Com_insert": 22087,
+        "Com_select": 22441,
+        "Com_update": 9279,
+        "Questions": 23309,
+        "Threads_connected": 4,
+        "Uptime": 15863
+      },
+      "poker777-prod-read-2": {
+        "Com_insert": 22089,
+        "Com_select": 23182,
+        "Com_update": 9279,
+        "Questions": 24075,
+        "Threads_connected": 4,
+        "Uptime": 16395
+      },
+      "poker777-prod-read-3": {
+        "Com_insert": 22084,
+        "Com_select": 21872,
+        "Com_update": 9279,
+        "Questions": 22730,
+        "Threads_connected": 4,
+        "Uptime": 15403
+      }
+    }
+  },
+  {
+    "label": "after-test2",
+    "at": "2026-10-12T14:56:25.290Z",
+    "counters": {
+      "poker777-prod-writer": {
+        "Com_insert": 72375,
+        "Com_select": 167596,
+        "Com_update": 30361,
+        "Questions": 376219,
+        "Threads_connected": 18,
+        "Uptime": 19932
+      },
+      "poker777-prod-read-1": {
+        "Com_insert": 65289,
+        "Com_select": 26847,
+        "Com_update": 30361,
+        "Questions": 27858,
+        "Threads_connected": 4,
+        "Uptime": 18791
+      },
+      "poker777-prod-read-2": {
+        "Com_insert": 65291,
+        "Com_select": 27581,
+        "Com_update": 30361,
+        "Questions": 28618,
+        "Threads_connected": 4,
+        "Uptime": 19323
+      },
+      "poker777-prod-read-3": {
+        "Com_insert": 65286,
+        "Com_select": 26271,
+        "Com_update": 30361,
+        "Questions": 27275,
+        "Threads_connected": 4,
+        "Uptime": 18331
+      }
+    }
+  },
+  {
+    "label": "idle-1",
+    "at": "2026-10-12T14:56:53.718Z",
+    "counters": {
+      "poker777-prod-writer": {
+        "Com_insert": 72375,
+        "Com_select": 167681,
+        "Com_update": 30361,
+        "Questions": 376362,
+        "Threads_connected": 18,
+        "Uptime": 19960,
+        "performance_schema": 0
+      },
+      "poker777-prod-read-1": {
+        "Com_insert": 65289,
+        "Com_select": 26875,
+        "Com_update": 30361,
+        "Questions": 27888,
+        "Threads_connected": 4,
+        "Uptime": 18819,
+        "performance_schema": 0
+      },
+      "poker777-prod-read-2": {
+        "Com_insert": 65291,
+        "Com_select": 27609,
+        "Com_update": 30361,
+        "Questions": 28648,
+        "Threads_connected": 4,
+        "Uptime": 19351,
+        "performance_schema": 0
+      },
+      "poker777-prod-read-3": {
+        "Com_insert": 65286,
+        "Com_select": 26299,
+        "Com_update": 30361,
+        "Questions": 27305,
+        "Threads_connected": 4,
+        "Uptime": 18359,
+        "performance_schema": 0
+      }
+    }
+  },
+  {
+    "label": "idle-2",
+    "at": "2026-10-12T15:03:10.176Z",
+    "counters": {
+      "poker777-prod-writer": {
+        "Com_insert": 72376,
+        "Com_select": 168882,
+        "Com_update": 30361,
+        "Questions": 378322,
+        "Threads_connected": 18,
+        "Uptime": 20337,
+        "performance_schema": 0
+      },
+      "poker777-prod-read-1": {
+        "Com_insert": 65290,
+        "Com_select": 27436,
+        "Com_update": 30361,
+        "Questions": 28470,
+        "Threads_connected": 4,
+        "Uptime": 19196,
+        "performance_schema": 0
+      },
+      "poker777-prod-read-2": {
+        "Com_insert": 65292,
+        "Com_select": 28116,
+        "Com_update": 30361,
+        "Questions": 29174,
+        "Threads_connected": 4,
+        "Uptime": 19728,
+        "performance_schema": 0
+      },
+      "poker777-prod-read-3": {
+        "Com_insert": 65287,
+        "Com_select": 26855,
+        "Com_update": 30361,
+        "Questions": 27884,
+        "Threads_connected": 4,
+        "Uptime": 18736,
+        "performance_schema": 0
+      }
+    }
+  },
+  {
+    "label": "browse-1",
+    "at": "2026-10-12T15:08:31.544Z",
+    "counters": {
+      "poker777-prod-writer": {
+        "Com_insert": 72477,
+        "Com_select": 170077,
+        "Com_update": 30409,
+        "Questions": 380415,
+        "Threads_connected": 18,
+        "Uptime": 20658,
+        "performance_schema": 0
+      },
+      "poker777-prod-read-1": {
+        "Com_insert": 65391,
+        "Com_select": 28087,
+        "Com_update": 30409,
+        "Questions": 29139,
+        "Threads_connected": 4,
+        "Uptime": 19517,
+        "performance_schema": 0
+      },
+      "poker777-prod-read-2": {
+        "Com_insert": 65393,
+        "Com_select": 28832,
+        "Com_update": 30409,
+        "Questions": 29910,
+        "Threads_connected": 4,
+        "Uptime": 20049,
+        "performance_schema": 0
+      },
+      "poker777-prod-read-3": {
+        "Com_insert": 65388,
+        "Com_select": 27509,
+        "Com_update": 30409,
+        "Questions": 28552,
+        "Threads_connected": 4,
+        "Uptime": 19057,
+        "performance_schema": 0
+      }
+    }
+  }
+]

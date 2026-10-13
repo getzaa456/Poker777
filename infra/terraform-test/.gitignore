@@ -1,0 +1,7 @@
+# State holds the generated DB password / JWT secret: never commit it.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfplan
+crash.log
