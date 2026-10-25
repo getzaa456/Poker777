@@ -1,0 +1,32 @@
+### i-033db6e8f61833238
+Mon Oct 12 22:12:08 UTC 2026
+ 22:12:08 up 12:17,  0 users,  load average: 0.23, 0.35, 0.29
+               total        used        free      shared  buff/cache   available
+Mem:             913         282          70           2         559         481
+Swap:              0           0           0
+
+    PID   RSS    VSZ %CPU     ELAPSED NLWP CMD
+  24195 159812 11894300 13.7 12:16:30   11 /usr/bin/node src/server.js
+
+Total: 1141
+TCP:   1024 (estab 1018, closed 3, orphaned 0, timewait 3)
+
+players(:4000 established)=1001
+
+
+### i-0bb4baf020f2c86f5
+Mon Oct 12 22:12:08 UTC 2026
+ 22:12:08 up  7:00,  0 users,  load average: 0.27, 0.34, 0.28
+               total        used        free      shared  buff/cache   available
+Mem:             913         284          69           2         559         480
+Swap:              0           0           0
+
+    PID   RSS    VSZ %CPU     ELAPSED NLWP CMD
+  24995 157956 11893268 16.1 06:59:26   11 /usr/bin/node src/server.js
+
+Total: 1137
+TCP:   1030 (estab 1020, closed 7, orphaned 0, timewait 7)
+
+players(:4000 established)=1002
+
+

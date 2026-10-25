@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Auth, Tables, fmtChips, fmtTableError } from '../lib/api.js';
 import { usePageStyles } from '../hooks/usePageStyles.js';
+import { Icon } from '../components/Icon.jsx';
 
 export default function RoomsPage() {
   usePageStyles('/assets/css/lobby.css', '/assets/css/rooms.css');
@@ -73,7 +74,7 @@ export default function RoomsPage() {
 
         <div className="room-list">
           {loading ? <div className="loading-spinner"><div className="spinner" />Loading rooms…</div> : filtered.length === 0 ? (
-            <div className="rooms-empty"><span className="emoji">{rooms.length ? '🔍' : '🃏'}</span>{rooms.length ? 'No rooms match your search.' : <>No open rooms right now.<br />Create one from the lobby or check back later!</>}</div>
+            <div className="rooms-empty"><span className="emoji"><Icon name={rooms.length ? 'search' : 'users'} /></span>{rooms.length ? 'No rooms match your search.' : <>No open rooms right now.<br />Create one from the lobby or check back later!</>}</div>
           ) : filtered.map((room) => {
             const taken = room.seats_taken ?? 0;
             const full = taken >= room.max_seats;
@@ -82,9 +83,9 @@ export default function RoomsPage() {
                 <div className="room-info">
                   <h3>{room.name}</h3>
                   <div className="room-meta">
-                    <span>🪙 Buy-in: {fmtChips(room.min_bet)} – {fmtChips(room.max_bet)}</span>
-                    <span className="seats-indicator"><span>👥 Seats:</span><span className="seats-dots">{Array.from({ length: room.max_seats }, (_, index) => <span key={index} className={`seat-dot ${index < taken ? 'taken' : 'empty'}`} />)}</span><span>{taken}/{room.max_seats}</span></span>
-                    <span>🔑 <span className="room-code-badge">{room.room_code}</span></span>
+                    <span><Icon name="coin" /> Buy-in: {fmtChips(room.min_bet)} – {fmtChips(room.max_bet)}</span>
+                    <span className="seats-indicator"><span><Icon name="users" /> Seats:</span><span className="seats-dots">{Array.from({ length: room.max_seats }, (_, index) => <span key={index} className={`seat-dot ${index < taken ? 'taken' : 'empty'}`} />)}</span><span>{taken}/{room.max_seats}</span></span>
+                    <span><Icon name="key" /> <span className="room-code-badge">{room.room_code}</span></span>
                   </div>
                 </div>
                 <div className="room-actions"><button className="join-room-btn" disabled={full || Boolean(joiningCode)} onClick={() => joinRoom(room.room_code)}>{full ? 'Full' : joiningCode === room.room_code ? 'Joining…' : 'Join'}</button></div>

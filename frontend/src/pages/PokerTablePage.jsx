@@ -4,6 +4,8 @@ import { API_BASE, Auth, Tables, fmtChips, getToken } from '../lib/api.js';
 import { AvatarFace, normalizeAvatarId } from '../components/avatars.jsx';
 import { usePageStyles } from '../hooks/usePageStyles.js';
 import { sound } from '../lib/sound.js';
+import { Icon } from '../components/Icon.jsx';
+import { AnimatedNumber, reducedMotion } from '../components/AnimatedNumber.jsx';
 
 const RANK_VALUE = { 2: 2, 3: 3, 4: 4, 5: 5, 6: 6, 7: 7, 8: 8, 9: 9, 10: 10, J: 11, Q: 12, K: 13, A: 14 };
 const HANDS = [
@@ -114,7 +116,7 @@ function snapshotPlayer(player) {
 
 // Badge for a player's last move. FOLD and ALL IN stay for the rest of the hand.
 function actionBadge(action, amount, bet, allIn, timedOut) {
-  const clock = timedOut ? ' ⏱' : '';
+  const clock = timedOut ? ' · TIMEOUT' : '';
   if (action === 'FOLD') return { kind: 'fold', label: `FOLD${clock}` };
   if (allIn) return { kind: 'allin', label: `ALL IN ${fmtChips(bet)}` };
   if (action === 'CHECK') return { kind: 'check', label: `CHECK${clock}` };
@@ -363,6 +365,7 @@ export default function PokerTablePage() {
   const [timeLeftPct, setTimeLeftPct] = useState(0);
   const [muted, setMuted] = useState(sound.isMuted());
   const [connection, setConnection] = useState('idle'); // idle | connecting | online | reconnecting
+  const [flights, setFlights] = useState([]); // chips sliding between a seat and the pot
 
   stateRef.current = state;
   userRef.current = user;
@@ -371,6 +374,25 @@ export default function PokerTablePage() {
     const id = `${Date.now()}-${Math.random()}`;
     setNotifications((items) => [{ id, message, tone }, ...items].slice(0, 5));
     setTimeout(() => setNotifications((items) => items.filter((item) => item.id !== id)), 5000);
+  }
+
+  // Where a chip flight starts/ends: the pot (or the winner banner that replaces it), my panel, or a seat.
+  function chipAnchor(id) {
+    if (id === 'pot') return document.querySelector('.table .pot, .table .winner-banner');
+    if (String(id) === String(userRef.current?.id)) return document.querySelector('.user-section .user-avatar');
+    return document.querySelector(`.live-player[data-client="${CSS.escape(String(id))}"] .avatar`);
+  }
+
+  function flyChips(fromId, toId, count = 3) {
+    if (reducedMotion()) return;
+    const from = chipAnchor(fromId)?.getBoundingClientRect();
+    const to = chipAnchor(toId)?.getBoundingClientRect();
+    if (!from || !to) return;
+    const x = from.left + from.width / 2;
+    const y = from.top + from.height / 2;
+    const id = `${Date.now()}-${Math.random()}`;
+    setFlights((list) => [...list, { id, x, y, dx: to.left + to.width / 2 - x, dy: to.top + to.height / 2 - y, count }]);
+    setTimeout(() => setFlights((list) => list.filter((flight) => flight.id !== id)), 700 + count * 70 + 200);
   }
 
   function playerName(clientId) {
@@ -479,6 +501,7 @@ export default function PokerTablePage() {
             else if (verb === 'check') sound.check();
             else if (amount > 0 && actor && amount >= actor.chips) sound.allIn();
             else if (amount > 0) sound.chips(verb === 'call' ? 2 : 4);
+            if (amount > 0) flyChips(params.clientId, 'pot', actor && amount >= actor.chips ? 6 : 3);
             notify(`${playerName(params.clientId)} ${verb}${amount ? ` ${fmtChips(amount)}` : ''}${params.timed_out ? ' (time ran out)' : ''}`, params.timed_out ? 'warning' : '');
           }
           break;
@@ -490,6 +513,7 @@ export default function PokerTablePage() {
         case 'winner':
           notify(`${playerName(params.winnerId)} won the pot`);
           if (String(params.winnerId) === me) sound.win(); else sound.chips(5);
+          flyChips('pot', params.winnerId, 8);
           break;
         case 'showdown': {
           // Announced once the remaining board cards have been turned over.
@@ -500,6 +524,7 @@ export default function PokerTablePage() {
             if ((params.winnerIds || []).map(String).includes(me)) sound.win();
             else if (stillIn) sound.lose();
             else sound.chips(5);
+            (params.winnerIds || []).forEach((id) => flyChips('pot', id, 8));
           });
           break;
         }
@@ -789,11 +814,11 @@ export default function PokerTablePage() {
     <div className="game">
       <div className="background"><div className="glow glow-1" /><div className="glow glow-2" /><div className="glow glow-3" /><div className="cityscape" /><div className="suit-badge" style={{ left: '12%', top: '15%' }}>♠</div><div className="suit-badge" style={{ left: '25%', top: '35%' }}>♥</div><div className="suit-badge" style={{ right: '15%', top: '20%' }}>♣</div><div className="suit-badge" style={{ right: '22%', top: '40%' }}>♦</div></div>
 
-      <header className="header"><div className="room-panel"><button className="menu-button" aria-label="Menu"><span /><span /><span /></button><div><div className="room-title"><strong>Poker777</strong> | {table?.name || 'Table'} <small>#{roomCode}</small></div><div className="room-subtitle">No Limit Hold'em • {state?.big_blind ? `Blinds ${fmtChips(state.small_blind)} / ${fmtChips(state.big_blind)} • ` : ''}Buy-in {fmtChips(table?.min_bet)} – {fmtChips(table?.max_bet)}</div></div><button className="table-tool-button" onClick={toggleMute} title={muted ? 'Sound off' : 'Sound on'} aria-label={muted ? 'Turn sound on' : 'Turn sound off'}>{muted ? '🔇' : '🔊'}</button><button className="table-tool-button" onClick={() => setGuideOpen(true)}>Hand guide</button><button className="table-leave-button" onClick={leaveRoom}>{seatRequest === null ? 'Back to lobby' : leavingRef.current ? 'Cashing out…' : 'Leave seat'}</button></div></header>
+      <header className="header"><div className="room-panel"><button className="menu-button" aria-label="Menu"><span /><span /><span /></button><div><div className="room-title"><strong>Poker777</strong> | {table?.name || 'Table'} <small>#{roomCode}</small></div><div className="room-subtitle">No Limit Hold'em • {state?.big_blind ? `Blinds ${fmtChips(state.small_blind)} / ${fmtChips(state.big_blind)} • ` : ''}Buy-in {fmtChips(table?.min_bet)} – {fmtChips(table?.max_bet)}</div></div><button className="table-tool-button" onClick={toggleMute} title={muted ? 'Sound off' : 'Sound on'} aria-label={muted ? 'Turn sound on' : 'Turn sound off'}><Icon name={muted ? 'mute' : 'volume'} size={18} /></button><button className="table-tool-button" onClick={() => setGuideOpen(true)}>Hand guide</button><button className="table-leave-button" onClick={leaveRoom}>{seatRequest === null ? 'Back to lobby' : leavingRef.current ? 'Cashing out…' : 'Leave seat'}</button></div></header>
 
       {guideOpen && <aside className="hand-guide"><div className="hand-guide-header"><div><h2>Hand rankings</h2></div><button className="guide-close" onClick={() => setGuideOpen(false)}>×</button></div><ol className="hand-ranking-list">{HANDS.map(([name, detail, cards]) => <li key={name}><div><strong>{name}</strong><span>{detail}</span></div><div className={`guide-example ${cards.some((card) => /[♥♦]/.test(card)) ? 'red-cards' : ''}`}>{cards.map((card) => <i key={card}>{card}</i>)}</div></li>)}</ol></aside>}
 
-      {seatRequest !== null && connection === 'reconnecting' && <div className="connection-banner">⚠ Connection lost — reconnecting… Your seat is held for 30 seconds.</div>}
+      {seatRequest !== null && connection === 'reconnecting' && <div className="connection-banner"><Icon name="warning" /> Connection lost — reconnecting… Your seat is held for 30 seconds.</div>}
 
       <section className="table-notifications">{notifications.map((item) => <div key={item.id} className={`table-notification ${item.tone}`}>{item.message}</div>)}</section>
 
@@ -815,13 +840,13 @@ export default function PokerTablePage() {
       <main className="table-wrapper"><div className="table-outer-glow"><div className="table-border"><div className="table">
         {result && !inHand ? (
           <div className={`winner-banner ${result.winnerIds.includes(myId) ? 'is-me' : ''}`} role="status">
-            <span className="winner-trophy">🏆</span>
+            <span className="winner-trophy"><Icon name="trophy" /></span>
             <div>
               <strong>{result.winnerIds.map((id) => (id === myId ? 'You' : players.find((player) => player.client_id === id)?.username || 'Player')).join(' & ')} {result.final ? 'win the table' : result.winnerIds.length > 1 ? 'split the pot' : 'won'} {fmtChips(winnerAmount(result, players))}</strong>
               <small>{result.hand ? `with ${result.hand}` : 'everyone else folded'}</small>
             </div>
           </div>
-        ) : <div className="pot"><span>POT</span><strong>{fmtChips(potShown)}</strong></div>}
+        ) : <div className="pot"><span>POT</span><strong><AnimatedNumber value={potShown} bump /></strong></div>}
         <div className="turn-timer" style={{ visibility: inHand && state?.current_turn ? 'visible' : 'hidden' }}><div className={`timer-ring ${timeLeftPct <= 34 ? 'is-low' : ''}`} style={{ '--left': `${timeLeftPct}%` }}><span>{countdown}</span></div><div><strong>{myTurn ? 'Your Turn' : `${currentTurnName || 'Waiting'}'s turn`}</strong><small>{state?.phase || ''}{currentBet ? ` • to call ${fmtChips(currentBet)}` : ''}</small></div></div>
         <section className="community-area"><div className="community-title">COMMUNITY CARDS</div><div className="community-cards">{shownBoard.map((card, index) => <PlayingCard key={index} card={card} className="user-card community-card" />)}</div></section>
         <div className="live-player-list">{Array.from({ length: maxPlayers }, (_, seat) => {
@@ -835,13 +860,13 @@ export default function PokerTablePage() {
           const won = result?.winnerIds.includes(player.client_id);
           const payout = won ? Number(result.payouts?.[player.client_id]) || 0 : 0;
           const tags = [player.status, player.bet && (state.betsKnown || (isMe && state.ownBetKnown)) ? `Bet ${fmtChips(player.bet)}` : null].filter(Boolean).join(' • ');
-          return <div key={seat} className={`player live-player seat-${side} ${isTurn ? 'is-turn' : ''} ${won ? 'is-winner' : ''}`} style={seatStyle}>{isDealer && <span className="dealer-chip" title="Dealer">D</span>}{won && !inHand && payout > 0 ? <div className="seat-action act-win">+{fmtChips(payout)}</div> : player.act && <div className={`seat-action act-${player.act.kind}`}>{player.act.label}</div>}<div className="avatar"><div className="avatar-inner">{player.avatar_id ? <AvatarFace id={player.avatar_id} prefix={`player-${player.client_id}`} /> : String(player.username || '?').slice(0, 1).toUpperCase()}</div></div><div className="player-info"><div className="player-name">{isMe ? `${player.username} (you)` : player.username}</div><div className="player-chips">🪙 {fmtChips(chipsShown(player))}</div><div className="player-status">{tags}</div>{!isMe && !revealing && player.hole_cards.length > 0 && <div className="seat-cards">{player.hole_cards.map((card, index) => <PlayingCard key={index} card={card} className="mini-playing-card" />)}</div>}</div></div>;
+          return <div key={seat} data-client={player.client_id} className={`player live-player seat-${side} ${isTurn ? 'is-turn' : ''} ${won ? 'is-winner' : ''}`} style={seatStyle}>{isDealer && <span className="dealer-chip" title="Dealer">D</span>}{won && !inHand && payout > 0 ? <div className="seat-action act-win">+{fmtChips(payout)}</div> : player.act && <div className={`seat-action act-${player.act.kind}`}>{player.act.label}</div>}<div className="avatar"><div className="avatar-inner">{player.avatar_id ? <AvatarFace id={player.avatar_id} prefix={`player-${player.client_id}`} /> : String(player.username || '?').slice(0, 1).toUpperCase()}</div></div><div className="player-info"><div className="player-name">{isMe ? `${player.username} (you)` : player.username}</div><div className="player-chips"><Icon name="coin" /> <AnimatedNumber value={chipsShown(player)} /></div><div className="player-status">{tags}</div>{!isMe && !revealing && player.hole_cards.length > 0 && <div className="seat-cards">{player.hole_cards.map((card, index) => <PlayingCard key={index} card={card} className="mini-playing-card" />)}</div>}</div></div>;
         })}</div>
         <div className="live-room-status">{state ? `${players.length}/${maxPlayers} players • ${inHand ? state.phase : nextHandIn ? `next hand in ${nextHandIn}s` : 'WAITING'}` : roomStatus}</div><div className="current-hand"><strong>{hand.name}</strong><span>{hand.detail}</span></div>
       </div></div></div></main>
 
       <div className="table-dock">
-      <section className={`user-section ${myTurn ? 'is-your-turn' : ''} ${me?.status === 'FOLDED' ? 'is-folded' : ''}`}><div className="user-avatar"><div className="avatar-art"><AvatarFace id={normalizeAvatarId(user?.avatar_id)} prefix="user" /></div></div><div className="user-info"><div className="user-name">{me?.username || user?.display_name || user?.username || 'Me'}</div><div className="user-chips">{me ? `🪙 ${fmtChips(chipsShown(me))} at table` : `Wallet ${fmtChips(user?.balance)}`}</div>{me && <div className="user-tags">{[state?.dealer_seat === me.seat && (inHand || result) ? 'Dealer' : null, me.act?.label || (waitingForNextHand ? 'Next hand' : me.status), me.bet && state?.ownBetKnown ? `Bet ${fmtChips(me.bet)}` : null].filter(Boolean).join(' • ')}</div>}<div className="progress"><div className={`progress-value ${myTurn && timeLeftPct <= 34 ? 'is-low' : ''}`} style={{ width: `${myTurn ? timeLeftPct : 0}%` }} /></div></div><div className="user-cards">{(me?.hole_cards || []).map((card, index) => <PlayingCard key={index} card={card} className="user-card" />)}</div></section>
+      <section className={`user-section ${myTurn ? 'is-your-turn' : ''} ${me?.status === 'FOLDED' ? 'is-folded' : ''}`}><div className="user-avatar"><div className="avatar-art"><AvatarFace id={normalizeAvatarId(user?.avatar_id)} prefix="user" /></div></div><div className="user-info"><div className="user-name">{me?.username || user?.display_name || user?.username || 'Me'}</div><div className="user-chips">{me ? <><Icon name="coin" /> <AnimatedNumber value={chipsShown(me)} /> at table</> : `Wallet ${fmtChips(user?.balance)}`}</div>{me && <div className="user-tags">{[state?.dealer_seat === me.seat && (inHand || result) ? 'Dealer' : null, me.act?.label || (waitingForNextHand ? 'Next hand' : me.status), me.bet && state?.ownBetKnown ? `Bet ${fmtChips(me.bet)}` : null].filter(Boolean).join(' • ')}</div>}<div className="progress"><div className={`progress-value ${myTurn && timeLeftPct <= 34 ? 'is-low' : ''}`} style={{ width: `${myTurn ? timeLeftPct : 0}%` }} /></div></div><div className="user-cards">{(me?.hole_cards || []).map((card, index) => <PlayingCard key={`${index}-${card.rank}${card.suit}`} card={card} className="user-card" />)}</div></section>
 
       <section className={`action-bar ${inHand ? 'in-hand' : 'between-hands'}`}>
         {isHost && !inHand && me && <button className="start-game-button" disabled={readyPlayers < 2} title={readyPlayers < 2 ? 'Need at least 2 players with chips' : 'Start the next hand now'} onClick={() => send('start-game')}>{readyPlayers < 2 ? 'WAITING FOR PLAYERS' : nextHandIn ? <>START NOW <small>auto in {nextHandIn}s</small></> : 'START GAME'}</button>}
@@ -886,6 +911,10 @@ export default function PokerTablePage() {
         </>}
       </section>
       </div>
+
+      <div className="chip-flights" aria-hidden="true">{flights.map((flight) => Array.from({ length: flight.count }, (_, index) => (
+        <span key={`${flight.id}-${index}`} className="chip-flight" style={{ left: flight.x, top: flight.y, '--dx': `${flight.dx}px`, '--dy': `${flight.dy}px`, animationDelay: `${index * 70}ms` }} />
+      )))}</div>
     </div>
   );
 }

@@ -449,11 +449,22 @@ async function handleLeaveRoom(ws, onlyIfDisconnectExpired = false) {
   try {
     await withLock(roomCode, async () => {
       const room = await getRoom(roomCode);
-      if (!room) return;
+      // [แก้บัค]: timer ที่ครบเวลาแล้วแต่ห้องถูกลบไปแล้ว / ผู้เล่นไม่อยู่ในห้องแล้ว / ต่อกลับมาแล้ว เดิม return เลยโดยไม่ลบ
+      // ออกจาก poker:disconnect-timers -> poller วนทำซ้ำทุก 0.5 วิไม่มีวันจบ (เจอจาก load test: ค้าง 95 รายการ, CPU ตอนว่าง 1% -> 6%)
+      // เกิดง่ายตอนผู้เล่นกด "ออก" แล้วปิดหน้าเว็บทันที (close มาถึงก่อน leave-room ถูกประมวลผล)
+      if (!room) {
+        if (onlyIfDisconnectExpired) await clearDisconnectTimer(roomCode, clientId);
+        return;
+      }
 
       const leavingPlayer = await getPlayer(roomCode, clientId);
-      if (onlyIfDisconnectExpired && (!parseBool(leavingPlayer?.isDisconnected)
-        || Number(leavingPlayer.disconnectDeadline) > Date.now())) return;
+      if (onlyIfDisconnectExpired) {
+        if (!leavingPlayer || !parseBool(leavingPlayer.isDisconnected)) {
+          await clearDisconnectTimer(roomCode, clientId); // stale: already left or reconnected
+          return;
+        }
+        if (Number(leavingPlayer.disconnectDeadline) > Date.now()) return; // re-armed with a later deadline
+      }
       await clearDisconnectTimer(roomCode, clientId);
 
       const seats = (await getRoomSeats(roomCode)) || {};
@@ -591,9 +602,12 @@ async function handleLeaveRoom(ws, onlyIfDisconnectExpired = false) {
         // Client จึงไม่เห็นไพ่กลาง/Host ใหม่ -> ส่ง Snapshot โต๊ะเต็มให้ทุกคน
         await publishRoomState(roomCode);
       }
-    });
+    }, { wait: !onlyIfDisconnectExpired }); // the timer poller retries on its next round instead of waiting
     await settlementPromise;
   } catch (err) {
+    // [แก้บัค]: ห้องไม่ว่างตอนตัวจับเวลาหลุดการเชื่อมต่อมาถึง = รายการยังอยู่ รอบหน้าลองใหม่เอง ไม่ใช่ error
+    // (เดิมพิมพ์ stack ทุกครั้ง: Load test 4 เครื่องเดียว 5,209 ครั้งใน 2 นาที)
+    if (onlyIfDisconnectExpired && err?.message === 'Room is busy') return;
     console.error('Leave room error:', err);
   } finally {
     ws.roomCode = null;
@@ -1285,9 +1299,32 @@ async function maybeScheduleFirstHand(roomCode) {
   if (ready >= 2) await scheduleAutoStart(roomCode, FIRST_HAND_DELAY_MS);
 }
 
+// [แก้บัค]: ตัวจับเวลาเบื้องหลัง (เริ่มมือ / หมดเวลาตา / หลุดการเชื่อมต่อ) ทำงานทุก 0.5 วิบนทุก Backend
+// เดิม: (1) รอบใหม่เริ่มทั้งที่รอบก่อนยังไม่จบ -> รอบซ้อนกันเรื่อยๆ (2) ทุกเครื่องทำรายการเดียวกันเรียงเหมือนกัน
+// (3) รอ lock ห้องได้ถึง ~2 วิต่อห้อง -> แย่งคิวกับ Action ของผู้เล่น
+// Load test 5 (5,000 คน, Backend 4 เครื่อง): "[AutoStart] Room is busy" เครื่องละ ~850 ครั้ง/นาที, บอทโดน "Room is busy" 2,928 ครั้ง,
+// latency p50 ~1 วิ / p95 ~8.6 วิ ทั้งที่ CPU แค่ ~13 % — ยิ่งเพิ่มเครื่องยิ่งแย่งกันหนัก
+// แก้: รอบเดียวต่อครั้งต่อเครื่อง • จองแต่ละรายการด้วย SET NX PX (เครื่องเดียวทำ) • ลอง lock ครั้งเดียว ไม่ได้ก็รอรอบหน้า • ทีละ ≤ 100 รายการ
+const TIMER_BATCH = 100;
+const TIMER_CLAIM_MS = 1000;
+
+function oneAtATime(task) {
+  let running = false;
+  return async () => {
+    if (running) return;
+    running = true;
+    try { await task(); } finally { running = false; }
+  };
+}
+
+function claimTimer(kind, key, ms = TIMER_CLAIM_MS) {
+  return redisState.set(`poker:claim:${kind}:${key}`, '1', 'PX', ms, 'NX');
+}
+
 async function processDueAutoStarts() {
-  const dueRooms = await redisState.zrangebyscore(AUTO_START_KEY, 0, Date.now());
+  const dueRooms = await redisState.zrangebyscore(AUTO_START_KEY, 0, Date.now(), 'LIMIT', 0, TIMER_BATCH);
   for (const roomCode of dueRooms) {
+    if (!(await claimTimer('autostart', roomCode))) continue; // another backend has it
     try {
       await withLock(roomCode, async () => {
         await redisState.zrem(AUTO_START_KEY, roomCode);
@@ -1305,9 +1342,9 @@ async function processDueAutoStarts() {
           await updateRoom(roomCode, { nextHandAt: '' });
           await publishRoomState(roomCode);
         }
-      });
+      }, { wait: false });
     } catch (error) {
-      console.error(`[AutoStart] Failed for room ${roomCode}:`, error);
+      if (error.message !== 'Room is busy') console.error(`[AutoStart] Failed for room ${roomCode}:`, error);
     }
   }
 }
@@ -1328,8 +1365,9 @@ function clearTurnTimer(roomCode) {
 }
 
 async function processDueTurnTimers() {
-  const dueRooms = await redisState.zrangebyscore(TURN_TIMER_KEY, 0, Date.now());
+  const dueRooms = await redisState.zrangebyscore(TURN_TIMER_KEY, 0, Date.now(), 'LIMIT', 0, TIMER_BATCH);
   for (const roomCode of dueRooms) {
+    if (!(await claimTimer('turn', roomCode))) continue; // another backend has it
     try {
       await withLock(roomCode, async () => {
         const room = await getRoom(roomCode);
@@ -1415,7 +1453,7 @@ async function processDueTurnTimers() {
           dealTurn: phaseResult.dealTurn || null,
           dealRiver: phaseResult.dealRiver || null,
         }));
-      });
+      }, { wait: false });
     } catch (error) {
       if (error.message !== 'Room is busy') {
         console.error(`[Timer] Error handling timeout for room ${roomCode}:`, error);
@@ -1424,9 +1462,15 @@ async function processDueTurnTimers() {
   }
 }
 
+// [แก้บัค]: ทุก Backend อ่านรายการที่ครบเวลาชุดเดียวกัน เรียงเหมือนกัน ทุก 0.5 วิ แล้วแย่ง lock ห้องเดียวกัน
+// -> หลังผู้เล่นหลุดพร้อมกันจำนวนมาก (Frontend ล่ม / deploy) เกือบทุกครั้งได้ "Room is busy" งานค้างเป็นชั่วโมง
+// (Load test 4: ค้าง 1,100 รายการนานกว่า 25 นาที, CPU 34 % ทั้งที่ไม่มีผู้เล่น และ Auto Scaling ยิ่งเพิ่มเครื่องยิ่งแย่งกัน)
+// -> จองแต่ละรายการก่อนด้วย SET NX ที่หมดอายุเอง: มีเครื่องเดียวที่ทำรายการนั้นในแต่ละช่วง ถ้าเครื่องนั้นพังกลางทาง
+// การจองหมดอายุแล้วเครื่องอื่นทำต่อ (ตัวรายการยังอยู่ใน sorted set จน handleLeaveRoom ลบเอง) • ทำทีละไม่เกิน 100 รายการต่อรอบ
 async function processDueDisconnectTimers() {
-  const duePlayers = await redisState.zrangebyscore(DISCONNECT_TIMER_KEY, 0, Date.now());
+  const duePlayers = await redisState.zrangebyscore(DISCONNECT_TIMER_KEY, 0, Date.now(), 'LIMIT', 0, TIMER_BATCH);
   for (const key of duePlayers) {
+    if (!(await claimTimer('disconnect', key, 2000))) continue; // another backend has it
     const separator = key.indexOf(':');
     if (separator < 0) continue;
     const roomCode = key.slice(0, separator);
@@ -1461,10 +1505,13 @@ async function sweepEmptyRooms() {
 }
 
 if (process.env.REDIS_DISABLED !== '1') {
+  const turnTimers = oneAtATime(processDueTurnTimers);
+  const disconnectTimers = oneAtATime(processDueDisconnectTimers);
+  const autoStarts = oneAtATime(processDueAutoStarts);
   const timerPoller = setInterval(() => {
-    void processDueTurnTimers().catch((error) => console.error('[Timer] Turn poll failed:', error));
-    void processDueDisconnectTimers().catch((error) => console.error('[Timer] Disconnect poll failed:', error));
-    void processDueAutoStarts().catch((error) => console.error('[AutoStart] poll failed:', error));
+    void turnTimers().catch((error) => console.error('[Timer] Turn poll failed:', error));
+    void disconnectTimers().catch((error) => console.error('[Timer] Disconnect poll failed:', error));
+    void autoStarts().catch((error) => console.error('[AutoStart] poll failed:', error));
   }, 500);
   timerPoller.unref();
   const roomSweeper = setInterval(() => {

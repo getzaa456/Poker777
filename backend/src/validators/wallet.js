@@ -1,9 +1,5 @@
 import { z } from 'zod';
 
-export const topupSchema = z.object({
-  amount: z.number().int('Amount must be an integer').positive('Amount must be > 0'),
-});
-
 export const adjustSchema = z.object({
   user_id: z.string().min(1, 'user_id required'),
   amount: z.number().int('Amount must be an integer'),   // positive = credit, negative = debit

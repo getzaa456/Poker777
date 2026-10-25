@@ -33,79 +33,42 @@ async function registerUser(username) {
   return r.body;
 }
 
-// ========== POST /wallet/topup ==========
+// Give a user some transactions to list (Top Up was removed, so credit through the internal endpoint).
+async function credit(user, amount) {
+  const r = await request
+    .post('/internal/wallet/adjust')
+    .set('X-Internal-Key', 'dev-internal-key')
+    .send({ user_id: user.id, amount, ref_id: `test-credit-${Date.now()}-${Math.random().toString(36).slice(2, 8)}` });
+  assert.equal(r.status, 200);
+}
 
-test('POST /wallet/topup -> 200 with updated balance', async () => {
+// ========== POST /wallet/topup (removed) ==========
+
+// [แก้บัค]: ปุ่ม Top Up เสกเหรียญได้ไม่จำกัด -> ลบ route ทิ้ง เหรียญฟรีมาจาก /wallet/reward เท่านั้น
+test('POST /wallet/topup no longer exists -> 404', async () => {
   const { token } = await registerUser(uniq('topup'));
   const r = await request
     .post('/wallet/topup')
     .set('Authorization', `Bearer ${token}`)
     .send({ amount: 500 });
-  assert.equal(r.status, 200);
-  assert.equal(r.body.balance, 1500); // 1000 welcome + 500
-  assert.equal(r.body.amount, 500);
-  assert.equal(r.body.type, 'TOPUP');
-});
-
-test('POST /wallet/topup without token -> 401', async () => {
-  const r = await request.post('/wallet/topup').send({ amount: 100 });
-  assert.equal(r.status, 401);
-});
-
-test('POST /wallet/topup invalid amount (negative) -> 400', async () => {
-  const { token } = await registerUser(uniq('topneg'));
-  const r = await request
-    .post('/wallet/topup')
-    .set('Authorization', `Bearer ${token}`)
-    .send({ amount: -100 });
-  assert.equal(r.status, 400);
-  assert.equal(r.body.error.code, 'INVALID_AMOUNT');
-});
-
-test('POST /wallet/topup invalid amount (zero) -> 400', async () => {
-  const { token } = await registerUser(uniq('topzero'));
-  const r = await request
-    .post('/wallet/topup')
-    .set('Authorization', `Bearer ${token}`)
-    .send({ amount: 0 });
-  assert.equal(r.status, 400);
-  assert.equal(r.body.error.code, 'INVALID_AMOUNT');
-});
-
-test('POST /wallet/topup invalid amount (float) -> 400', async () => {
-  const { token } = await registerUser(uniq('topfloat'));
-  const r = await request
-    .post('/wallet/topup')
-    .set('Authorization', `Bearer ${token}`)
-    .send({ amount: 99.5 });
-  assert.equal(r.status, 400);
-  assert.equal(r.body.error.code, 'INVALID_AMOUNT');
-});
-
-test('POST /wallet/topup amount too high (>100000) -> 400', async () => {
-  const { token } = await registerUser(uniq('tophigh'));
-  const r = await request
-    .post('/wallet/topup')
-    .set('Authorization', `Bearer ${token}`)
-    .send({ amount: 100001 });
-  assert.equal(r.status, 400);
-  assert.equal(r.body.error.code, 'AMOUNT_TOO_HIGH');
+  assert.equal(r.status, 404);
+  const me = await request.get('/users/me').set('Authorization', `Bearer ${token}`);
+  assert.equal(me.body.user.balance, 1000);
 });
 
 // ========== GET /wallet/transactions ==========
 
 test('GET /wallet/transactions -> 200 with pagination', async () => {
-  const { token } = await registerUser(uniq('txlist'));
-  // Do a couple topups to create transactions
-  await request.post('/wallet/topup').set('Authorization', `Bearer ${token}`).send({ amount: 100 });
-  await request.post('/wallet/topup').set('Authorization', `Bearer ${token}`).send({ amount: 200 });
+  const { token, user } = await registerUser(uniq('txlist'));
+  await credit(user, 100);
+  await credit(user, 200);
 
   const r = await request
     .get('/wallet/transactions')
     .set('Authorization', `Bearer ${token}`);
   assert.equal(r.status, 200);
   assert.ok(Array.isArray(r.body.transactions));
-  // Should have at least 3 transactions (welcome bonus + 2 topups)
+  // Should have at least 3 transactions (welcome bonus + 2 credits)
   assert.ok(r.body.transactions.length >= 3, `expected >=3 transactions, got ${r.body.transactions.length}`);
   assert.ok(r.body.pagination, 'pagination object present');
   assert.equal(typeof r.body.pagination.page, 'number');
@@ -113,9 +76,9 @@ test('GET /wallet/transactions -> 200 with pagination', async () => {
 });
 
 test('GET /wallet/transactions newest first', async () => {
-  const { token } = await registerUser(uniq('txorder'));
-  await request.post('/wallet/topup').set('Authorization', `Bearer ${token}`).send({ amount: 100 });
-  await request.post('/wallet/topup').set('Authorization', `Bearer ${token}`).send({ amount: 200 });
+  const { token, user } = await registerUser(uniq('txorder'));
+  await credit(user, 100);
+  await credit(user, 200);
 
   const r = await request
     .get('/wallet/transactions')
@@ -131,10 +94,10 @@ test('GET /wallet/transactions newest first', async () => {
 });
 
 test('GET /wallet/transactions pagination ?page=1&limit=2', async () => {
-  const { token } = await registerUser(uniq('txpage'));
-  // Create 4 topups + 1 welcome = 5 transactions
+  const { token, user } = await registerUser(uniq('txpage'));
+  // 4 credits + 1 welcome = 5 transactions
   for (const amt of [100, 200, 300, 400]) {
-    await request.post('/wallet/topup').set('Authorization', `Bearer ${token}`).send({ amount: amt });
+    await credit(user, amt);
   }
 
   const r = await request
@@ -263,31 +226,6 @@ test('POST /internal/wallet/adjust zero amount -> 400', async () => {
 });
 
 // ========== Concurrency test ==========
-
-test('Concurrency: 50 parallel topups -> balance correct', async () => {
-  const { token, user } = await registerUser(uniq('conc'));
-  const N = 50;
-  const amount = 10; // 50 * 10 = 500 total topup
-
-  const promises = [];
-  for (let i = 0; i < N; i++) {
-    promises.push(
-      request
-        .post('/wallet/topup')
-        .set('Authorization', `Bearer ${token}`)
-        .send({ amount })
-    );
-  }
-  const results = await Promise.all(promises);
-
-  // All should succeed
-  const failures = results.filter(r => r.status !== 200);
-  assert.equal(failures.length, 0, `expected 0 failures, got ${failures.length}: ${JSON.stringify(failures[0]?.body)}`);
-
-  // Final balance should be 1000 (welcome) + 500 (50 * 10) = 1500
-  const me = await request.get('/users/me').set('Authorization', `Bearer ${token}`);
-  assert.equal(me.body.user.balance, 1000 + N * amount, `expected balance ${1000 + N * amount}, got ${me.body.user.balance}`);
-});
 
 test('Concurrency: 50 parallel internal/wallet/adjust with unique ref_ids -> balance correct', async () => {
   const { user } = await registerUser(uniq('concadj'));

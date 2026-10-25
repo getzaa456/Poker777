@@ -3,10 +3,21 @@ import { useNavigate } from 'react-router-dom';
 import { Auth } from '../lib/api.js';
 import { usePageStyles } from '../hooks/usePageStyles.js';
 import { GlassButton } from '../components/GlassButton.jsx';
+import { Icon } from '../components/Icon.jsx';
 
 // Same rules as backend/src/validators/auth.js, checked before sending so mistakes show instantly.
 const USERNAME_RE = /^[A-Za-z0-9_-]+$/;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// The exact pattern zod's .email() uses on the server: English letters, digits and . _ ' + - only.
+const EMAIL_RE = /^(?!\.)(?!.*\.\.)([A-Z0-9_'+\-.]*)[A-Z0-9_+-]@([A-Z0-9][A-Z0-9-]*\.)+[A-Z]{2,}$/i;
+
+function emailProblem(raw) {
+  const email = raw.trim();
+  if (!email) return 'Enter your email address.';
+  // Usually the keyboard was left on Thai, or a space/odd character was pasted in.
+  if (/[^!-~]/.test(email)) return 'Email can only use English letters and numbers — check that the keyboard is not set to Thai and remove any spaces.';
+  if (!EMAIL_RE.test(email)) return 'Enter a valid email address, e.g. name@example.com.';
+  return null;
+}
 const FIX_FIELDS = 'Please fix the highlighted fields.';
 
 function validateLogin({ identifier, password }) {
@@ -18,7 +29,8 @@ function validateLogin({ identifier, password }) {
 
 function validateRegister({ email, username, password, confirm }) {
   const errors = {};
-  if (!EMAIL_RE.test(email.trim())) errors.email = 'Enter a valid email address, e.g. name@example.com.';
+  const badEmail = emailProblem(email);
+  if (badEmail) errors.email = badEmail;
   const name = username.trim();
   if (name.length < 3 || name.length > 30) errors.username = 'Username must be 3–30 characters.';
   else if (!USERNAME_RE.test(name)) errors.username = 'Username may only use letters, numbers, - and _.';
@@ -170,7 +182,7 @@ export default function LoginPage() {
               </Field>
               <Field error={fieldErrors.password}>
                 <input value={login.password} onChange={(e) => { setLogin({ ...login, password: e.target.value }); clearField('password'); }} type={showLoginPassword ? 'text' : 'password'} placeholder="Password" autoComplete="current-password" aria-invalid={Boolean(fieldErrors.password)} />
-                <span className="toggle" onClick={() => setShowLoginPassword((value) => !value)}>👁</span>
+                <span className="toggle" role="button" aria-label={showLoginPassword ? 'Hide password' : 'Show password'} onClick={() => setShowLoginPassword((value) => !value)}><Icon name={showLoginPassword ? 'eyeOff' : 'eye'} size={18} /></span>
               </Field>
               <div className="row-between">
                 <label className="remember"><input type="checkbox" defaultChecked /> Remember me</label>
@@ -189,11 +201,11 @@ export default function LoginPage() {
               </Field>
               <Field error={fieldErrors.password} hint="At least 8 characters">
                 <input value={register.password} onChange={(e) => { setRegister({ ...register, password: e.target.value }); clearField('password'); }} type={showRegisterPassword ? 'text' : 'password'} placeholder="Password" autoComplete="new-password" aria-invalid={Boolean(fieldErrors.password)} />
-                <span className="toggle" onClick={() => setShowRegisterPassword((value) => !value)}>👁</span>
+                <span className="toggle" role="button" aria-label={showRegisterPassword ? 'Hide password' : 'Show password'} onClick={() => setShowRegisterPassword((value) => !value)}><Icon name={showRegisterPassword ? 'eyeOff' : 'eye'} size={18} /></span>
               </Field>
               <Field error={fieldErrors.confirm}>
                 <input value={register.confirm} onChange={(e) => { setRegister({ ...register, confirm: e.target.value }); clearField('confirm'); }} type={showConfirmPassword ? 'text' : 'password'} placeholder="Confirm Password" autoComplete="new-password" aria-invalid={Boolean(fieldErrors.confirm)} />
-                <span className="toggle" onClick={() => setShowConfirmPassword((value) => !value)}>👁</span>
+                <span className="toggle" role="button" aria-label={showConfirmPassword ? 'Hide password' : 'Show password'} onClick={() => setShowConfirmPassword((value) => !value)}><Icon name={showConfirmPassword ? 'eyeOff' : 'eye'} size={18} /></span>
               </Field>
               <GlassButton type="submit" disabled={submitting} className="glass-cta-full glass-cta-purple" label={submitting ? 'Creating account…' : 'Register'} />
             </form>

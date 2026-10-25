@@ -1,0 +1,4 @@
+step,bots,seated,start_th,play_start_th,end_th,hands,actions,bot_p50_ms,bot_p95_ms,bot_p99_ms,bot_max_ms,disconnects,browse_requests,browse_p95_ms,alb_p50_ms,alb_p95_ms,alb_p99_ms,http_5xx,http_4xx,alb_conn_max,backend_cpu_avg,backend_cpu_max,node_rss_mb,backend_net_out_mb,writer_cpu_avg,writer_cpu_max,readers_cpu_max,writer_conn_max,readers_read_iops,write_iops,write_latency_ms,replica_lag_max_s,redis_cpu_max,redis_mem_mb
+1,300,300,20:49,20:55,21:00,854,8275,307,405,536,1416,0,298,280,10.0,21.1,63.3,0,0,603,12.2,12.7,130.0,110.0,5.6,6.1,5.8,15,1.04,100.4,0.77,1,6.19,7.2
+2,700,700,21:04,21:18,21:23,2924,25508,307,627,860,2602,0,297,269,9.8,20.0,104.2,1,0,2112,20.6,21.6,132.6,244.5,7.2,8.0,6.7,15,1.18,125.1,0.69,1,10.63,7.5
+3,1000,1000,21:26,21:45,21:50,4883,40598,308,417,661,1995,0,298,301,13.5,22.4,114.9,0,0,2498,24.6,25.3,135.9,330.0,8.0,9.1,7.9,15,1.25,152.5,0.68,1,12.50,7.6

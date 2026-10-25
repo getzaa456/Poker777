@@ -3,6 +3,15 @@
   "private": true,
   "description": "Bots that join tables and play real hands over WebSocket, with latency stats.",
   "type": "module",
-  "scripts": { "start": "node loadtest.mjs" },
-  "dependencies": { "ws": "^8.18.0" }
+  "scripts": {
+    "start": "node loadtest.mjs"
+  },
+  "dependencies": {
+    "@aws-sdk/client-auto-scaling": "^3.1149.0",
+    "@aws-sdk/client-cloudwatch": "^3.1149.0",
+    "@aws-sdk/client-ec2": "^3.1149.0",
+    "@aws-sdk/client-elastic-load-balancing-v2": "^3.1149.0",
+    "@aws-sdk/client-ssm": "^3.1149.0",
+    "ws": "^8.18.0"
+  }
 }

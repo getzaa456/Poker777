@@ -45,7 +45,7 @@ export async function createApp() {
          // GET /health
   app.use('/auth', authRouter);      // POST /auth/register, POST /auth/login
   app.use('/users', usersRouter);    // GET/PATCH /users/me
-  app.use('/', walletRouter);        // POST /wallet/topup, GET /wallet/transactions, POST /internal/wallet/adjust
+  app.use('/', walletRouter);        // GET /wallet/transactions, /wallet/reward, POST /internal/wallet/adjust
   app.use('/tables', tablesRouter);  // POST /tables, GET /tables/:room_code, POST /tables/:room_code/join
 
   // --- error handling (last!) ---

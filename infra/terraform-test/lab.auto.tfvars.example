@@ -1,0 +1,14 @@
+# Copy this file to lab.auto.tfvars (same folder) and paste your own Learner Lab keys:
+#   Learner Lab → Start Lab → AWS Details → AWS CLI: Show
+# lab.auto.tfvars is git-ignored — never commit it, never paste the keys in a chat.
+# The keys stop working when the lab session ends: paste the new ones after every Start Lab.
+
+aws_access_key    = "ASIA..."
+aws_secret_key    = "..."
+aws_session_token = "..."
+
+# Optional settings (defaults in variables.tf):
+# git_branch         = "AlmostDone"   # branch every instance clones at boot (must be pushed first)
+# backend_cpu_target = 30             # Auto Scaling: keep average backend CPU at this % (12 = scale early, for tests)
+# backend_max        = 4
+# code_revision      = "initial"      # change it after a push, then run tools/loadtest/asg-replace.mjs

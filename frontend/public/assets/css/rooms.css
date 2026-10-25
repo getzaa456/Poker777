@@ -242,3 +242,12 @@
         flex: 1
     }
 }
+/* room cards rise in one after another when the list loads */
+.room-card { animation: roomIn .4s cubic-bezier(.2, .8, .3, 1) backwards; }
+.room-card:nth-child(2) { animation-delay: .05s; }
+.room-card:nth-child(3) { animation-delay: .1s; }
+.room-card:nth-child(4) { animation-delay: .15s; }
+.room-card:nth-child(5) { animation-delay: .2s; }
+.room-card:nth-child(n+6) { animation-delay: .25s; }
+@keyframes roomIn { from { opacity: 0; transform: translateY(14px); } }
+@media (prefers-reduced-motion: reduce) { .room-card { animation: none; } }

@@ -1,0 +1,115 @@
+{
+  "step": 1,
+  "bots": 2200,
+  "start": "2026-10-12T21:17:07.418Z",
+  "playStart": "2026-10-12T22:03:30.000Z",
+  "end": "2026-10-12T22:12:28.447Z",
+  "botResult": {
+    "seated": 2008,
+    "wanted": 2200
+  },
+  "backendSample": {
+    "instance": "i-033db6e8f61833238",
+    "node_rss_mb": 156.1,
+    "machine_mem_total_mb": 913,
+    "machine_mem_used_mb": 282,
+    "machine_mem_available_mb": 481,
+    "player_connections": 1001
+  },
+  "backendSamples": [
+    {
+      "instance": "i-033db6e8f61833238",
+      "node_rss_mb": 156.1,
+      "machine_mem_total_mb": 913,
+      "machine_mem_used_mb": 282,
+      "machine_mem_available_mb": 481,
+      "player_connections": 1001
+    },
+    {
+      "instance": "i-0bb4baf020f2c86f5",
+      "node_rss_mb": 154.3,
+      "machine_mem_total_mb": 913,
+      "machine_mem_used_mb": 284,
+      "machine_mem_available_mb": 480,
+      "player_connections": 1002
+    }
+  ],
+  "instances": {
+    "min": 2,
+    "max": 2
+  },
+  "cloudwatch": {
+    "minutes_measured": 9,
+    "alb_p50_ms": 54.641561616450645,
+    "alb_p95_ms": 58.44595193802527,
+    "alb_p99_ms": 58.60833403286326,
+    "internal_alb_p95_ms": 54.270201021968056,
+    "requests": 45946,
+    "requests_per_min": 5119.83537841236,
+    "http_5xx": 43907,
+    "http_4xx": 0,
+    "error_rate_5xx_pct": 95.56218169155095,
+    "alb_connections_max": 4119,
+    "alb_new_connections": 96156,
+    "alb_lcu": 0,
+    "backend_cpu_avg_pct": 15.726799251953869,
+    "backend_cpu_max_pct": 17.632367632367632,
+    "frontend_cpu_avg_pct": 4.645508069224712,
+    "backend_net_in_mb": 825.8032760620117,
+    "backend_net_out_mb": 1237.9157752990723,
+    "rds": {
+      "writer": {
+        "cpu_avg_pct": 6.693694700011461,
+        "cpu_max_pct": 7.6499999999999995,
+        "connections_max": 25,
+        "read_iops_avg": 0.596315805983601,
+        "free_memory_min_mb": 124.20703125
+      },
+      "read-1": {
+        "cpu_avg_pct": 5.30958687119197,
+        "cpu_max_pct": 5.836446104589114,
+        "connections_max": 2,
+        "read_iops_avg": 0.33147706846962793,
+        "free_memory_min_mb": 125.046875
+      },
+      "read-2": {
+        "cpu_avg_pct": 5.402724730268283,
+        "cpu_max_pct": 6.13880189245019,
+        "connections_max": 2,
+        "read_iops_avg": 0.35373590378845127,
+        "free_memory_min_mb": 130.40625
+      },
+      "read-3": {
+        "cpu_avg_pct": 5.330177836019644,
+        "cpu_max_pct": 6.241458618046066,
+        "connections_max": 2,
+        "read_iops_avg": 0.37222802577473385,
+        "free_memory_min_mb": 122.59765625
+      }
+    },
+    "rds_write_iops_avg": 125.49376748391413,
+    "rds_write_latency_ms": 0.7448473868292261,
+    "replica_lag_max_s": 1,
+    "redis": {
+      "poker777-prod-redis-001": {
+        "cpu_avg_pct": 12.4888036820192,
+        "cpu_max_pct": 13.041271989174561,
+        "memory_max_mb": 8.609649658203125,
+        "net_out_mb": 1038.9338130950928,
+        "connections_max": 12
+      },
+      "poker777-prod-redis-002": {
+        "cpu_avg_pct": 3.735579207523887,
+        "cpu_max_pct": 4.0993167805365776,
+        "memory_max_mb": 8.35882568359375,
+        "net_out_mb": 33.125224113464355,
+        "connections_max": 6
+      }
+    }
+  },
+  "note": "Bot script hung while seating room 252 (reconnect bug in loadtest.mjs, fixed afterwards). ~2,008 bots in 251 rooms were seated and playing from 05:03 to 05:12:28 (Thai), when the bot process was stopped. Numbers use that plateau. No bot-side latency for this run.",
+  "players": {
+    "i-033db6e8f61833238": 1001,
+    "i-0bb4baf020f2c86f5": 1002
+  }
+}
