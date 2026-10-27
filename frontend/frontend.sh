@@ -107,13 +107,13 @@ server {
     }
 
   location / {
-    try_files $uri $uri/ /index.html;
+    try_files \$uri \$uri/ /index.html;
   }
 }
 NGINX_EOF
 sed -i "s|@FRONTEND_ROOT@|${APP_DIR}/frontend/dist|" \
   /etc/nginx/conf.d/poker777-frontend.conf
-grep -Fqx "  root ${APP_DIR}/frontend/dist;" /etc/nginx/conf.d/poker777-frontend.conf
+grep -Fqx "    root ${APP_DIR}/frontend/dist;" /etc/nginx/conf.d/poker777-frontend.conf
 nginx -t
 
 # ลบ Config default ออก
