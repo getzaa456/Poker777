@@ -67,7 +67,7 @@ curl -fsSL https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem \
 chmod 0644 "${RDS_CA_FILE}"
 
 {
-  jq -r 'del(.DB_SSL_CA) | to_entries[] | "\(.key)=\(.value | tojson)"' <<<"${SECRET_JSON}"
+  jq -r 'del(.DB_SSL_CA) | to_entries[] | "\(.key)=\"\(.value)\""' <<<"${SECRET_JSON}"
   printf 'NODE_ENV="production"\n'
   printf 'DB_SSL_CA="%s"\n' "${RDS_CA_FILE}"
 } >"${ENV_FILE}"
